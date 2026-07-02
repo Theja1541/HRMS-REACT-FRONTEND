@@ -9,7 +9,7 @@ import { authApi, leaveApi, hrApi, portalApi, brandingApi } from '../../api';
 import { NAV_ITEMS, isNavItemVisible, isNavPathActive } from '../../constants/routes';
 import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
-import TenantSwitcher from './TenantSwitcher';
+// import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
 
 const DESKTOP_MEDIA = '(min-width: 1024px)';
 const EMPTY_MODULE_CODES = [];
@@ -181,6 +181,14 @@ export default function Sidebar() {
     pendingPolicies: pendingPolicies > 0 ? pendingPolicies : 0,
   };
 
+  const isSuperAdmin = role === 'super_admin';
+
+  // Super Admin portal: only Admin module visible for now (other modules hidden)
+  const navGroups = useMemo(
+    () => (isSuperAdmin ? NAV_ITEMS.filter((group) => group.section === 'Admin') : NAV_ITEMS),
+    [isSuperAdmin]
+  );
+
   useEffect(() => {
     const media = window.matchMedia(DESKTOP_MEDIA);
 
@@ -209,7 +217,7 @@ export default function Sidebar() {
   }, [location.pathname, closeMobileSidebar]);
 
   useEffect(() => {
-    NAV_ITEMS.forEach((group) => {
+    navGroups.forEach((group) => {
       if (group.collapsible === false) return;
       const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));
       const isActive = visibleItems.some((item) => isNavPathActive(location.pathname, item.path));
@@ -217,7 +225,7 @@ export default function Sidebar() {
         setNavSectionExpanded(group.section, true);
       }
     });
-  }, [location.pathname, role, moduleCodesKey, expandedNavSections, setNavSectionExpanded]);
+  }, [location.pathname, role, moduleCodesKey, expandedNavSections, setNavSectionExpanded, navGroups]);
 
   const handleLogout = async () => {
     try {
@@ -232,8 +240,6 @@ export default function Sidebar() {
     user?.tenant?.name ||
     user?.Tenant?.name ||
     (role === 'super_admin' ? 'All Organizations' : 'HRMS');
-
-  const isSuperAdmin = role === 'super_admin';
 
   const { data: platformBrandingData } = useQuery({
     queryKey: ['platform-branding'],
@@ -329,9 +335,11 @@ export default function Sidebar() {
             </button>
           </div>
 
+          {/* Super Admin: organizations dropdown hidden for now
           {isSuperAdmin ? (
             <TenantSwitcher showLabels={showLabels} isIconOnly={isIconOnly} />
-          ) : !isIconOnly && (
+          ) : */}
+          {!isSuperAdmin && !isIconOnly && (
             <div className="w-full flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2">
               {tenantLogo ? (
                 <img src={tenantLogo} alt="" className="w-5 h-5 rounded object-contain shrink-0" />
@@ -343,10 +351,11 @@ export default function Sidebar() {
               <span className="text-slate-300 text-xs font-medium flex-1 text-left truncate">{tenantName}</span>
             </div>
           )}
+          {/* } */}
         </div>
 
         <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
-          {NAV_ITEMS.map((group) => {
+          {navGroups.map((group) => {
             const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));
             if (!visibleItems.length) return null;
 

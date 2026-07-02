@@ -77,9 +77,9 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
-      email: 'arjun@technova.com',
-      password: 'Welcome@123',
-      tenant_slug: tenantFromUrl || getLastTenantSlug() || 'technova',
+      email: '',
+      password: '',
+      tenant_slug: tenantFromUrl || getLastTenantSlug() || '',
     },
   });
 
@@ -301,6 +301,7 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Demo credentials — hidden for now
           <div className="mt-8 rounded-xl border border-slate-200 bg-white p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
               Demo credentials
@@ -320,6 +321,7 @@ export default function LoginPage() {
               </div>
             </dl>
           </div>
+          */}
         </div>
       </div>
     </div>
