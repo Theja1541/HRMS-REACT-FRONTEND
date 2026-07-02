@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0F172A" />
+    <title>Offline — HRMS</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        font-family: Inter, system-ui, sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 28rem;
+        background: #ffffff;
+        color: #0f172a;
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45);
+      }
+
+      .logo {
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 1rem;
+        border-radius: 0.75rem;
+        background: #2563eb;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: #64748b;
+      }
+
+      .status {
+        margin: 1.25rem 0;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-size: 0.8125rem;
+        color: #475569;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+
+      button,
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.5rem;
+        padding: 0.625rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .btn-primary {
+        border: 1px solid #2563eb;
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .btn-primary:hover {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+      }
+
+      .btn-secondary {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #0f172a;
+      }
+
+      .btn-secondary:hover {
+        background: #f8fafc;
+      }
+
+      .hint {
+        margin-top: 1.25rem;
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" role="main" aria-labelledby="offline-title">
+      <div class="logo" aria-hidden="true">H</div>
+      <h1 id="offline-title">You are offline</h1>
+      <p>HRMS needs an internet connection for live data. Cached pages may still be available once you reconnect.</p>
+
+      <div class="status" id="connection-status" aria-live="polite">Checking connection…</div>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="retry-btn">Try again</button>
+        <a href="/" class="btn-secondary">Open HRMS home</a>
+      </div>
+
+      <p class="hint">Install HRMS from your browser menu for faster access on mobile and desktop.</p>
+    </main>
+
+    <script>
+      const statusEl = document.getElementById('connection-status');
+      const retryBtn = document.getElementById('retry-btn');
+
+      function updateStatus() {
+        if (navigator.onLine) {
+          statusEl.textContent = 'Connection restored. You can return to HRMS.';
+          statusEl.style.color = '#059669';
+          statusEl.style.background = '#ecfdf5';
+          statusEl.style.borderColor = '#a7f3d0';
+        } else {
+          statusEl.textContent = 'No network detected. Waiting for connection…';
+          statusEl.style.color = '#475569';
+          statusEl.style.background = '#f8fafc';
+          statusEl.style.borderColor = '#e2e8f0';
+        }
+      }
+
+      retryBtn.addEventListener('click', () => {
+        if (navigator.onLine) {
+          window.location.replace('/');
+          return;
+        }
+        window.location.reload();
+      });
+
+      window.addEventListener('online', updateStatus);
+      window.addEventListener('offline', updateStatus);
+      updateStatus();
+    </script>
+  </body>
+</html>

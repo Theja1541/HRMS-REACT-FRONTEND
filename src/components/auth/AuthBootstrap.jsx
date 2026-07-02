@@ -1,0 +1,88 @@
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '../../store/auth.store';
+import { authApi } from '../../api';
+
+function normalizeUser(raw) {
+  if (!raw) return null;
+  return {
+    ...raw,
+    name: raw.name || `${raw.first_name || ''} ${raw.last_name || ''}`.trim(),
+    role: raw.role || raw.system_role,
+    tenant: raw.tenant || raw.Tenant,
+    must_change_password: !!raw.must_change_password,
+  };
+}
+
+export default function AuthBootstrap({ children }) {
+  const [ready, setReady] = useState(false);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
+  const setUser = useAuthStore((s) => s.setUser);
+  const setEntitlements = useAuthStore((s) => s.setEntitlements);
+  const setHasHydrated = useAuthStore((s) => s.setHasHydrated);
+
+  useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true);
+    }
+    return useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true);
+    });
+  }, [setHasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return undefined;
+
+    let cancelled = false;
+
+    async function hydrateSession() {
+      try {
+        let token = useAuthStore.getState().accessToken;
+
+        if (!token) {
+          const res = await authApi.refresh();
+          token = res?.data?.accessToken;
+        }
+
+        if (!token) {
+          if (!cancelled) useAuthStore.getState().logout();
+          return;
+        }
+
+        if (!cancelled) setAccessToken(token);
+
+        const me = await authApi.me(token);
+        if (!cancelled) {
+          setUser(normalizeUser(me.data.user));
+          setEntitlements(me.data.entitlements || null);
+        }
+      } catch {
+        if (!cancelled) {
+          useAuthStore.getState().logout();
+        }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+
+    hydrateSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasHydrated, setAccessToken, setUser, setEntitlements]);
+
+  if (!hasHydrated || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center text-white font-bold">
+            H
+          </div>
+          <p className="text-sm text-slate-500">Loading HRMS…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return children;
+}

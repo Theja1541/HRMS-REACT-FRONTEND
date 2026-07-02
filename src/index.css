@@ -1,0 +1,209 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-50: #eff6ff;
+  --sidebar-bg: #0f172a;
+  --surface-0: #ffffff;
+  --surface-1: #f8fafc;
+  --surface-2: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --border: #e2e8f0;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans text-base antialiased;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium
+      bg-brand-600 text-white border border-brand-600 hover:bg-brand-700 transition-colors
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-600;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium
+      bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 transition-colors;
+  }
+  .card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+  .stat-card {
+    @apply bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm;
+  }
+
+  /* Horizontal scroll for wide tables inside cards */
+  .table-scroll {
+    @apply overflow-x-auto overscroll-x-contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Scrollable tab bars on mobile/tablet */
+  .scroll-tabs {
+    @apply flex gap-1 overflow-x-auto overscroll-x-contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .scroll-tabs > button,
+  .scroll-tabs > a {
+    @apply shrink-0 whitespace-nowrap;
+  }
+
+  /* Responsive filter / toolbar rows */
+  .toolbar-row {
+    @apply flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3;
+  }
+  .toolbar-row > * {
+    @apply w-full sm:w-auto;
+  }
+
+  /* Modal / drawer shells */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 p-0 sm:p-4;
+  }
+  .modal-panel {
+    @apply w-full bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden;
+  }
+  .modal-panel-body {
+    @apply p-4 sm:p-6 overflow-y-auto flex-1;
+  }
+  .modal-panel-header {
+    @apply px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex justify-between items-center shrink-0 gap-3;
+  }
+
+  /* Form grids that stack on mobile */
+  .form-grid-2 {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4;
+  }
+  .form-grid-3 {
+    @apply grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3;
+  }
+  .stat-grid-3 {
+    @apply grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4;
+  }
+  .stat-grid-4 {
+    @apply grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4;
+  }
+
+  .intl-phone-input {
+    @apply w-full;
+  }
+
+  .intl-phone-input .intl-phone-input-field {
+    @apply w-full h-[38px] text-sm border border-slate-200 rounded-lg pl-[52px] pr-3 py-2
+      text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600;
+  }
+
+  .intl-phone-input .intl-phone-input-button {
+    @apply border border-slate-200 rounded-l-lg bg-slate-50 hover:bg-slate-100;
+  }
+
+  .intl-phone-input--error .intl-phone-input-field,
+  .intl-phone-input--error .intl-phone-input-button {
+    @apply border-red-300;
+  }
+
+  .intl-phone-input-dropdown {
+    @apply text-sm shadow-lg border border-slate-200 rounded-lg;
+  }
+
+  .intl-phone-input-search {
+    @apply text-sm px-2 py-1.5 border border-slate-200 rounded-md m-2 w-[calc(100%-1rem)];
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide entire app shell — show only printable finance documents */
+  body.document-print-page * {
+    visibility: hidden;
+  }
+
+  body.document-print-page #tax-invoice-print,
+  body.document-print-page #tax-invoice-print *,
+  body.document-print-page #payment-receipt-print,
+  body.document-print-page #payment-receipt-print * {
+    visibility: visible;
+  }
+
+  body.document-print-page #tax-invoice-print,
+  body.document-print-page #payment-receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  body.document-print-page #payment-receipt-print {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 10mm 12mm !important;
+  }
+
+  body.document-print-page #tax-invoice-print {
+    border: 1px solid #000 !important;
+  }
+
+  /* Fallback when user presses Ctrl+P on receipt/invoice page */
+  body.document-print-page aside,
+  body.document-print-page header,
+  body.document-print-page nav,
+  body.document-print-page .receipt-page-toolbar,
+  body.document-print-page .invoice-page-toolbar,
+  body.document-print-page .receipt-print-shell {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  body.document-print-page .receipt-page-preview,
+  body.document-print-page .invoice-page-preview {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  body.document-print-page .h-screen,
+  body.document-print-page .overflow-hidden,
+  body.document-print-page .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
