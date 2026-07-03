@@ -118,7 +118,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
                 count={count}
                 onNavigate={() => {
                   setOpen(false);
-                  onNavigate?.();
+                  onNavigate?.(item);
                 }}
                 className="px-3"
               />
@@ -131,7 +131,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
 }
 
 export default function Sidebar() {
-  const { user, selectedTenantId, entitlements } = useAuthStore();
+  const { user, selectedTenantId, setSelectedTenantId, entitlements } = useAuthStore();
   const {
     sidebarCollapsed,
     toggleSidebarCollapsed,
@@ -182,6 +182,13 @@ export default function Sidebar() {
   };
 
   const isSuperAdmin = role === 'super_admin';
+
+  const handleNavItemNavigate = (item) => {
+    if (isSuperAdmin && item?.path === '/dashboard') {
+      setSelectedTenantId(null);
+    }
+    closeMobileSidebar();
+  };
 
   // Super Admin portal: only Admin module visible for now (other modules hidden)
   const navGroups = useMemo(
@@ -377,7 +384,7 @@ export default function Sidebar() {
                       isIconOnly={isIconOnly}
                       showLabels={showLabels}
                       count={badgeCount(item)}
-                      onNavigate={closeMobileSidebar}
+                      onNavigate={() => handleNavItemNavigate(item)}
                     />
                   ))}
                 </div>
@@ -392,7 +399,7 @@ export default function Sidebar() {
                   sectionLabel={sectionLabel}
                   SectionIcon={SectionIcon}
                   badgeCount={badgeCount}
-                  onNavigate={closeMobileSidebar}
+                  onNavigate={handleNavItemNavigate}
                 />
               );
             }
@@ -435,7 +442,7 @@ export default function Sidebar() {
                         isIconOnly={false}
                         showLabels
                         count={badgeCount(item)}
-                        onNavigate={closeMobileSidebar}
+                        onNavigate={() => handleNavItemNavigate(item)}
                         className="pl-8"
                       />
                     ))}

@@ -142,6 +142,7 @@ export const NAV_ITEMS = [
     icon: 'ShieldCheck',
     collapsible: true,
     items: [
+      { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard', roles: ['super_admin'] },
       { label: 'Tenants / Orgs', path: '/tenants', icon: 'Building2', roles: ['super_admin'] },
       { label: 'Tenant Subscriptions', path: '/subscriptions', icon: 'Layers', roles: ['super_admin'] },
       { label: 'Pending Approvals', path: '/pending-approvals', icon: 'ClipboardCheck', roles: ['super_admin'] },
