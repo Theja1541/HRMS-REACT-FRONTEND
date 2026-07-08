@@ -43,3 +43,14 @@ export function formatAmountInWords(amount) {
 export function joinAddress(parts) {
   return parts.filter(Boolean).join(', ') || '—';
 }
+
+/** Join address parts without a placeholder dash — for optional header blocks. */
+export function joinAddressOptional(parts) {
+  return parts.filter(Boolean).join(', ');
+}
+
+/** Display text/multiline field values in finance documents. */
+export function formatDocumentField(value) {
+  const text = value == null ? '' : String(value).trim();
+  return text || '—';
+}

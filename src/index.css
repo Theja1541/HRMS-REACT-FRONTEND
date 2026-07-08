@@ -153,12 +153,15 @@ body {
   body.document-print-page #tax-invoice-print,
   body.document-print-page #tax-invoice-print *,
   body.document-print-page #payment-receipt-print,
-  body.document-print-page #payment-receipt-print * {
+  body.document-print-page #payment-receipt-print *,
+  body.document-print-page #quotation-view-print,
+  body.document-print-page #quotation-view-print * {
     visibility: visible;
   }
 
   body.document-print-page #tax-invoice-print,
-  body.document-print-page #payment-receipt-print {
+  body.document-print-page #payment-receipt-print,
+  body.document-print-page #quotation-view-print {
     position: absolute;
     left: 0;
     top: 0;
@@ -173,7 +176,28 @@ body {
   body.document-print-page #payment-receipt-print {
     border: none !important;
     box-shadow: none !important;
-    padding: 10mm 12mm !important;
+    width: 190mm !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 6mm 7mm !important;
+    border-radius: 0 !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.document-print-page #payment-receipt-print table,
+  body.document-print-page #payment-receipt-print tr,
+  body.document-print-page #payment-receipt-print td,
+  body.document-print-page #payment-receipt-print th,
+  body.document-print-page #payment-receipt-print div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.document-print-page #payment-receipt-print {
+    font-size: 11px !important;
+    line-height: 1.3 !important;
   }
 
   body.document-print-page #tax-invoice-print {
@@ -192,12 +216,27 @@ body {
   }
 
   body.document-print-page .receipt-page-preview,
-  body.document-print-page .invoice-page-preview {
+  body.document-print-page .invoice-page-preview,
+  body.document-print-page .quotation-page-preview {
     background: #fff !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+  }
+
+  body.document-print-page .quotation-page-preview > p {
+    display: none !important;
+  }
+
+  body.document-print-page #quotation-view-print {
+    border: 1px solid #1a202c !important;
+    width: 194mm !important;
+    max-width: 194mm !important;
+    margin: 0 auto !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   body.document-print-page .h-screen,
