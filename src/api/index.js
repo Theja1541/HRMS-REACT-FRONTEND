@@ -370,6 +370,11 @@ export const financeApi = {
   createTransaction: (payload) => api.post('/finance/transactions', payload).then((r) => r.data),
   updateTransaction: (id, payload) => api.put(`/finance/transactions/${id}`, payload).then((r) => r.data),
   deleteTransaction: (id) => api.delete(`/finance/transactions/${id}`).then((r) => r.data),
+  listQuotations: (params) => api.get('/finance/quotations', { params }).then((r) => r.data),
+  getQuotation: (id) => api.get(`/finance/quotations/${id}`).then((r) => r.data),
+  createQuotation: (payload) => api.post('/finance/quotations', payload).then((r) => r.data),
+  updateQuotation: (id, payload) => api.put(`/finance/quotations/${id}`, payload).then((r) => r.data),
+  deleteQuotation: (id) => api.delete(`/finance/quotations/${id}`).then((r) => r.data),
   listPaymentModes: () => api.get('/finance/payment-modes').then((r) => r.data),
   upsertPaymentMode: (paymentMode, payload) =>
     api.put(`/finance/payment-modes/${paymentMode}`, payload).then((r) => r.data),

@@ -139,7 +139,282 @@ export const EMPTY_CATEGORY_FORM = {
 
 export const FINANCE_WRITE_ROLES = ['super_admin', 'owner', 'hr'];
 
-/** Page-specific guidance for Day Book / finance module UX */
+export const QUOTATION_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+export const QUOTATION_STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  ...QUOTATION_STATUSES,
+];
+
+export const QUOTATION_STATUS_LABELS = Object.fromEntries(
+  QUOTATION_STATUSES.map((status) => [status.value, status.label])
+);
+
+export const QUOTATION_STATUS_STYLES = {
+  draft: 'bg-slate-100 text-slate-700',
+  sent: 'bg-blue-50 text-blue-700',
+  accepted: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+  expired: 'bg-amber-50 text-amber-700',
+  cancelled: 'bg-violet-50 text-violet-700',
+};
+
+function quotationFinancialYearLabel(date = new Date()) {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const startYear = m >= 4 ? y : y - 1;
+  const endYear = (startYear + 1) % 100;
+  return `${startYear}-${String(endYear).padStart(2, '0')}`;
+}
+
+/** Placeholder number shown until backend assigns the real sequence on save. */
+export function buildPlaceholderQuotationNumber(sequence = 1) {
+  return `QT-${quotationFinancialYearLabel()}-${String(sequence).padStart(4, '0')}`;
+}
+
+function addDaysToDateString(dateStr, days) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function createEmptyQuotationForm({ quotationNumber, date } = {}) {
+  const quotationDate = date || new Date().toISOString().slice(0, 10);
+  return {
+    quotation_number: quotationNumber || '',
+    date: quotationDate,
+    valid_until: addDaysToDateString(quotationDate, 30),
+    customer_name: '',
+    company_name: '',
+    contact_person: '',
+    phone: '',
+    email: '',
+    address: '',
+    notes: '',
+    terms_and_conditions: '',
+  };
+}
+
+export const EMPTY_QUOTATION_FORM = createEmptyQuotationForm();
+
+export const QUOTATION_UNITS = [
+  { value: 'nos', label: 'Nos' },
+  { value: 'pcs', label: 'Pcs' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'ltr', label: 'Ltr' },
+  { value: 'box', label: 'Box' },
+  { value: 'hrs', label: 'Hrs' },
+  { value: 'days', label: 'Days' },
+];
+
+export const QUOTATION_UNIT_LABELS = Object.fromEntries(
+  QUOTATION_UNITS.map((unit) => [unit.value, unit.label])
+);
+
+export const EMPTY_QUOTATION_LINE_ITEM = {
+  item_name: '',
+  description: '',
+  qty: '1',
+  unit: 'nos',
+  rate: '',
+  discount: '0',
+  gst_percent: '18',
+};
+
+function quotationRound2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+export function computeQuotationLineAmounts(line) {
+  const qty = parseFloat(line?.qty) || 0;
+  const rate = parseFloat(line?.rate) || 0;
+  const discount = parseFloat(line?.discount) || 0;
+  const gstPercent = parseFloat(line?.gst_percent) || 0;
+
+  const subtotal = quotationRound2(qty * rate);
+  const taxable = quotationRound2(Math.max(0, subtotal - discount));
+  const gstAmount = quotationRound2(taxable * gstPercent / 100);
+  const amount = quotationRound2(taxable + gstAmount);
+
+  return { subtotal, taxable, gstAmount, amount };
+}
+
+export function computeQuotationTotals(lineItems = []) {
+  return lineItems.reduce(
+    (acc, line) => {
+      const { subtotal, taxable, gstAmount, amount } = computeQuotationLineAmounts(line);
+      acc.subtotal = quotationRound2(acc.subtotal + subtotal);
+      acc.discount = quotationRound2(acc.discount + (subtotal - taxable));
+      acc.taxable = quotationRound2(acc.taxable + taxable);
+      acc.gst = quotationRound2(acc.gst + gstAmount);
+      acc.grandTotal = quotationRound2(acc.grandTotal + amount);
+      return acc;
+    },
+    { subtotal: 0, discount: 0, taxable: 0, gst: 0, grandTotal: 0 }
+  );
+}
+
+export function createEmptyQuotationFormValues({ quotationNumber, date } = {}) {
+  return {
+    ...createEmptyQuotationForm({ quotationNumber, date }),
+    line_items: [{ ...EMPTY_QUOTATION_LINE_ITEM }],
+  };
+}
+
+export function normalizeQuotationPhone(phone) {
+  if (!phone) return '';
+  const compact = String(phone).replace(/[^\d+]/g, '');
+  if (!compact) return '';
+  return compact.startsWith('+') ? compact : `+${compact}`;
+}
+
+export function formatQuotationCreatedBy(quotation) {
+  if (!quotation) return '—';
+  if (quotation.created_by_name) return quotation.created_by_name;
+  if (typeof quotation.created_by === 'string' && !/^\d+$/.test(quotation.created_by.trim())) {
+    return quotation.created_by;
+  }
+  return '—';
+}
+
+/** Map quotation detail (API/dummy) into React Hook Form values. */
+export function quotationDetailToFormValues(quotation) {
+  if (!quotation) return createEmptyQuotationFormValues();
+
+  const lineItems = quotation.line_items?.length
+    ? quotation.line_items
+    : [{ ...EMPTY_QUOTATION_LINE_ITEM }];
+
+  return {
+    quotation_number: quotation.quotation_no || quotation.quotation_number || '',
+    date: quotation.date || quotation.quotation_date || '',
+    valid_until: quotation.valid_until || '',
+    customer_name: quotation.customer_name || quotation.customer || '',
+    company_name: quotation.company_name || '',
+    contact_person: quotation.contact_person || '',
+    phone: normalizeQuotationPhone(quotation.phone),
+    email: quotation.email || '',
+    address: quotation.address || '',
+    notes: quotation.notes || '',
+    terms_and_conditions: quotation.terms_and_conditions || '',
+    status: quotation.status || 'draft',
+    line_items: lineItems.map((item) => ({
+      item_name: item.item_name || '',
+      description: item.description || '',
+      qty: String(item.qty ?? '1'),
+      unit: item.unit || 'nos',
+      rate: item.rate !== undefined && item.rate !== null ? String(item.rate) : '',
+      discount: item.discount !== undefined && item.discount !== null ? String(item.discount) : '0',
+      gst_percent: item.gst_percent !== undefined && item.gst_percent !== null ? String(item.gst_percent) : '18',
+    })),
+  };
+}
+
+/** Map React Hook Form values to quotation API create/update payload. */
+export function quotationFormValuesToApiPayload(formValues, { status } = {}) {
+  const payload = {
+    date: formValues.date,
+    valid_until: formValues.valid_until,
+    status: status ?? formValues.status ?? 'draft',
+    customer_name: formValues.customer_name?.trim() || '',
+    company_name: formValues.company_name?.trim() || null,
+    contact_person: formValues.contact_person?.trim() || null,
+    phone: formValues.phone?.trim() || null,
+    email: formValues.email?.trim() || null,
+    address: formValues.address?.trim() || null,
+    notes: formValues.notes || null,
+    terms_and_conditions: formValues.terms_and_conditions || null,
+    line_items: (formValues.line_items || []).map((item) => ({
+      item_name: item.item_name?.trim() || '',
+      description: item.description?.trim() || '',
+      qty: item.qty,
+      unit: item.unit || 'nos',
+      rate: item.rate,
+      discount: item.discount ?? '0',
+      gst_percent: item.gst_percent ?? '18',
+    })),
+  };
+
+  const quotationNumber = formValues.quotation_number?.trim();
+  if (quotationNumber) {
+    payload.quotation_number = quotationNumber;
+  }
+
+  return payload;
+}
+
+/** Deep-copy a quotation as a new draft with a fresh id and number. */
+export function duplicateQuotationDetail(source, { newId, quotationNo, createdBy, date } = {}) {
+  if (!source) return null;
+
+  const quotationDate = date || new Date().toISOString().slice(0, 10);
+
+  return {
+    ...source,
+    id: newId,
+    quotation_no: quotationNo,
+    status: 'draft',
+    date: quotationDate,
+    valid_until: addDaysToDateString(quotationDate, 30),
+    created_by: createdBy || source.created_by,
+    line_items: (source.line_items || []).map((item) => ({ ...item })),
+  };
+}
+
+/** Merge submitted form values back into a quotation detail record. */
+export function mergeQuotationFormIntoDetail(existing, formValues) {
+  const line_items = (formValues.line_items || []).map((item) => ({
+    item_name: item.item_name?.trim() || '',
+    description: item.description?.trim() || '',
+    qty: item.qty,
+    unit: item.unit || 'nos',
+    rate: item.rate,
+    discount: item.discount ?? '0',
+    gst_percent: item.gst_percent ?? '18',
+  }));
+
+  const totals = computeQuotationTotals(line_items);
+
+  return {
+    ...existing,
+    quotation_no: formValues.quotation_number,
+    date: formValues.date,
+    valid_until: formValues.valid_until,
+    customer_name: formValues.customer_name?.trim() || '',
+    customer: formValues.customer_name?.trim() || '',
+    company_name: formValues.company_name?.trim() || '',
+    contact_person: formValues.contact_person?.trim() || '',
+    phone: formValues.phone || '',
+    email: formValues.email?.trim() || '',
+    address: formValues.address?.trim() || '',
+    notes: formValues.notes || '',
+    terms_and_conditions: formValues.terms_and_conditions || '',
+    line_items,
+    total: totals.grandTotal,
+  };
+}
+
+/** Summary row fields for the quotations list table. */
+export function quotationDetailToListRow(quotation) {
+  const totals = computeQuotationTotals(quotation.line_items || []);
+  return {
+    quotation_no: quotation.quotation_no,
+    customer: quotation.customer_name || quotation.customer,
+    date: quotation.date,
+    valid_until: quotation.valid_until,
+    total: totals.grandTotal,
+    status: quotation.status,
+    created_by: quotation.created_by,
+  };
+}
+
 export const FINANCE_PAGE_GUIDES = {
   dashboard: {
     title: 'Day Book Dashboard',

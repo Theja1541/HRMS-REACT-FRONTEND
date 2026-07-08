@@ -38,6 +38,8 @@ import TransactionInvoicePage from './pages/finance/TransactionInvoicePage';
 import TransactionReceiptPage from './pages/finance/TransactionReceiptPage';
 import DaybookDashboardPage from './pages/finance/DaybookDashboardPage';
 import PaymentModeAccountsPage from './pages/finance/PaymentModeAccountsPage';
+import QuotationsPage from './pages/finance/QuotationsPage';
+import ViewQuotationPage from './pages/finance/ViewQuotationPage';
 import RecruitmentPage from './pages/hr/RecruitmentPage';
 import OnboardingPage from './pages/hr/OnboardingPage';
 import SeparationPage from './pages/hr/SeparationPage';
@@ -235,6 +237,8 @@ export default function App() {
               <Route path="finance" element={<FinanceSummaryPage />} />
               <Route path="gst" element={<GSTPage />} />
               <Route path="vendors" element={<VendorsPage />} />
+              <Route path="quotations" element={<QuotationsPage />} />
+              <Route path="quotations/:id" element={<ViewQuotationPage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="transactions/add" element={<AddTransactionPage />} />

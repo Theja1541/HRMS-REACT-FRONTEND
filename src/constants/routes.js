@@ -111,6 +111,7 @@ export const NAV_ITEMS = [
       { label: 'Financial Summary', path: '/finance', icon: 'TrendingUp', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'GST Monthly', path: '/gst', icon: 'Receipt', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'gst' },
       { label: 'Vendors', path: '/vendors', icon: 'Truck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      { label: 'Quotations', path: '/quotations', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Categories', path: '/categories', icon: 'Tags', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Transactions', path: '/transactions', icon: 'ArrowLeftRight', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'finance' },
       { label: 'Payment Modes', path: '/finance/payment-modes', icon: 'Wallet', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
@@ -175,6 +176,35 @@ export function isNavPathActive(pathname, itemPath) {
   if (pathname === itemPath) return true;
   if (itemPath === '/dashboard' || itemPath === '/me') return pathname === itemPath;
   return pathname.startsWith(`${itemPath}/`);
+}
+
+/**
+ * Returns the most specific nav path matching current pathname.
+ * Prevents parent/sibling double-highlighting (e.g. /daybook + /daybook/dashboard).
+ */
+export function getMostSpecificNavPath(pathname, itemPaths = []) {
+  if (!pathname || !itemPaths.length) return null;
+
+  const normalize = (path) => {
+    if (!path) return '';
+    if (path === '/') return '/';
+    return path.endsWith('/') ? path.slice(0, -1) : path;
+  };
+
+  const current = normalize(pathname);
+  const normalizedPaths = itemPaths.map((p) => normalize(p)).filter(Boolean);
+
+  // Exact match wins immediately.
+  if (normalizedPaths.includes(current)) return current;
+
+  // Otherwise choose the longest matching parent path.
+  const candidates = normalizedPaths.filter((itemPath) => {
+    if (itemPath === '/dashboard' || itemPath === '/me') return false;
+    return current.startsWith(`${itemPath}/`);
+  });
+
+  if (!candidates.length) return null;
+  return candidates.sort((a, b) => b.length - a.length)[0];
 }
 
 /** Flatten all nav items for page titles and route rules. */

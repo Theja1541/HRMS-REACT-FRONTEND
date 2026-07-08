@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen, X } f
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
 import { authApi, leaveApi, hrApi, portalApi, brandingApi } from '../../api';
-import { NAV_ITEMS, isNavItemVisible, isNavPathActive } from '../../constants/routes';
+import { NAV_ITEMS, getMostSpecificNavPath, isNavItemVisible, isNavPathActive } from '../../constants/routes';
 import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
 // import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
@@ -14,7 +14,7 @@ import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
 const DESKTOP_MEDIA = '(min-width: 1024px)';
 const EMPTY_MODULE_CODES = [];
 
-function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, className }) {
+function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, className, isActive }) {
   const Icon = Icons[item.icon] || Icons.Circle;
 
   return (
@@ -23,7 +23,7 @@ function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, classNam
       end={item.path === '/dashboard' || item.path === '/me'}
       title={isIconOnly ? item.label : undefined}
       onClick={onNavigate}
-      className={({ isActive }) =>
+      className={() =>
         cn(
           'flex items-center text-xs font-normal relative transition-colors',
           isIconOnly ? 'justify-center px-2 py-2.5 mx-2 rounded-lg' : 'gap-2.5 px-4 py-2',
@@ -57,6 +57,7 @@ function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, classNam
 function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badgeCount, onNavigate }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -80,6 +81,10 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
   }, [open]);
 
   const sectionBadgeTotal = visibleItems.reduce((sum, item) => sum + badgeCount(item), 0);
+  const activeItemPath = getMostSpecificNavPath(
+    location.pathname,
+    visibleItems.map((item) => item.path)
+  );
 
   return (
     <div ref={rootRef} className="relative mx-2 mb-1">
@@ -116,6 +121,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
                 isIconOnly={false}
                 showLabels
                 count={count}
+                isActive={activeItemPath === item.path}
                 onNavigate={() => {
                   setOpen(false);
                   onNavigate?.(item);
@@ -371,7 +377,11 @@ export default function Sidebar() {
             const SectionIcon = Icons[group.icon] || Icons[group.items[0]?.icon] || Icons.Circle;
             const isCollapsible = group.collapsible !== false;
             const isExpanded = expandedNavSections[group.section] ?? false;
-            const sectionActive = visibleItems.some((item) => isNavPathActive(location.pathname, item.path));
+            const activeItemPath = getMostSpecificNavPath(
+              location.pathname,
+              visibleItems.map((item) => item.path)
+            );
+            const sectionActive = Boolean(activeItemPath);
             const sectionBadgeTotal = visibleItems.reduce((sum, item) => sum + badgeCount(item), 0);
 
             if (!isCollapsible) {
@@ -384,6 +394,7 @@ export default function Sidebar() {
                       isIconOnly={isIconOnly}
                       showLabels={showLabels}
                       count={badgeCount(item)}
+                      isActive={activeItemPath === item.path}
                       onNavigate={() => handleNavItemNavigate(item)}
                     />
                   ))}
@@ -442,6 +453,7 @@ export default function Sidebar() {
                         isIconOnly={false}
                         showLabels
                         count={badgeCount(item)}
+                        isActive={activeItemPath === item.path}
                         onNavigate={() => handleNavItemNavigate(item)}
                         className="pl-8"
                       />
