@@ -249,7 +249,7 @@ export default function QuotationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Quotations"
-        subtitle="Create and manage price quotes for vendors and clients"
+        subtitle="Price quotes for clients"
       />
 
       <div className="card p-4">

@@ -16,7 +16,7 @@ export const READ_ONLY_ROLES = RESTRICTED_ROLES;
 export const ROUTE_ACCESS_POLICY = {
   auditor: {
     mode: 'read_only',
-    summary: 'Day Book dashboard and transactions (read-only). All other URLs blocked.',
+    summary: 'Day Book payments and finance dashboard (read-only). All other URLs blocked.',
   },
   pf_team: {
     mode: 'read_only',

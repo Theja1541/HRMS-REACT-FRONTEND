@@ -104,18 +104,19 @@ export const NAV_ITEMS = [
     icon: 'TrendingUp',
     collapsible: true,
     items: [
-      { label: 'Day Book Dashboard', path: '/daybook/dashboard', icon: 'LayoutDashboard', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'daybook' },
-      { label: 'Day Book', path: '/daybook', icon: 'BookOpen', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'daybook' },
+      // 1. Overview & main book
+      { label: 'Dashboard', path: '/daybook/dashboard', icon: 'LayoutDashboard', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'daybook' },
+      { label: 'Day Book', path: '/transactions', icon: 'BookOpen', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'finance' },
+      // 2. Masters (setup before entries)
+      { label: 'Vendors', path: '/vendors', icon: 'Truck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      { label: 'Categories', path: '/categories', icon: 'Tags', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      { label: 'Quotations', path: '/quotations', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      // 3. Reports & statutory
       { label: 'Account Ledger', path: '/account-ledger', icon: 'NotebookText', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Trial Balance', path: '/trial-balance', icon: 'Scale', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Financial Summary', path: '/finance', icon: 'TrendingUp', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'GST Monthly', path: '/gst', icon: 'Receipt', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'gst' },
-      { label: 'Vendors', path: '/vendors', icon: 'Truck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Quotations', path: '/quotations', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Categories', path: '/categories', icon: 'Tags', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Transactions', path: '/transactions', icon: 'ArrowLeftRight', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'finance' },
-      { label: 'Payment Modes', path: '/finance/payment-modes', icon: 'Wallet', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'PF / ESI Summary', path: '/pf-summary', icon: 'Landmark', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'pf_summary' },
+      { label: 'GST', path: '/gst', icon: 'Receipt', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'gst' },
+      { label: 'PF / ESI', path: '/pf-summary', icon: 'Landmark', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'pf_summary' },
     ],
   },
   {

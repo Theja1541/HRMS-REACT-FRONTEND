@@ -76,7 +76,7 @@ export default function DaybookDashboardPage() {
   if (tenantRequired) {
     return (
       <div className="card p-12 text-center text-slate-500">
-        Select a tenant from the header to view the Day Book dashboard.
+        Select a tenant from the header to view the finance dashboard.
       </div>
     );
   }
@@ -84,8 +84,8 @@ export default function DaybookDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Day Book Dashboard"
-        subtitle="Income, expense, and cash flow from posted vouchers"
+        title="Finance Dashboard"
+        subtitle="Income, expense, and cash flow"
         actions={
           <div className="flex items-center gap-2">
             <input
@@ -105,7 +105,7 @@ export default function DaybookDashboardPage() {
         }
       />
 
-      <FinanceModuleGuide page="dashboard" showQuickLinks={false} />
+      <FinanceModuleGuide page="dashboard" />
 
       {isLoading ? (
         <div className="text-center py-16 text-slate-400">Loading dashboard…</div>

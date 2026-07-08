@@ -8,13 +8,14 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
-  ArrowRight,
+  Truck,
 } from 'lucide-react';
 import { financeApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import VoucherDetailDrawer from '../../components/finance/VoucherDetailDrawer';
 import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
+import QuickAddVendorModal from '../../components/finance/QuickAddVendorModal';
 import VoucherEntryForm from './VoucherEntryForm';
 import {
   VOUCHER_TYPES,
@@ -63,7 +64,7 @@ function BalanceBadge({ voucher }) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
         <CheckCircle2 size={12} />
-        Balanced
+        OK
       </span>
     );
   }
@@ -71,7 +72,7 @@ function BalanceBadge({ voucher }) {
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
       <AlertCircle size={12} />
-      Out of balance
+      Check
     </span>
   );
 }
@@ -157,6 +158,7 @@ export default function DayBookPage() {
   const [sourceType, setSourceType] = useState('');
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [showForm, setShowForm] = useState(false);
+  const [showVendorModal, setShowVendorModal] = useState(false);
   const [detailVoucherId, setDetailVoucherId] = useState(null);
   const [syncMessage, setSyncMessage] = useState(null);
   const { setPage, setLimit, paginateClient } = useTablePagination({
@@ -226,7 +228,7 @@ export default function DayBookPage() {
     <div className="space-y-6">
       <PageHeader
         title="Day Book"
-        subtitle="Official voucher register — transactions, payroll, and manual journals all post here"
+        subtitle="All accounting entries for the selected dates"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -277,8 +279,11 @@ export default function DayBookPage() {
               <RefreshCw size={14} className={syncMutation.isPending ? 'animate-spin' : ''} />
               Sync Payroll
             </button>
+            <button type="button" onClick={() => setShowVendorModal(true)} className="btn-secondary">
+              <Truck size={14} /> Add Vendor
+            </button>
             <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary">
-              <Plus size={14} /> Manual Voucher
+              <Plus size={14} /> Add Entry
             </button>
           </div>
         }
@@ -286,32 +291,11 @@ export default function DayBookPage() {
 
       <FinanceModuleGuide page="daybook" />
 
-      <div className="card p-4 border border-blue-100 bg-blue-50/60">
-        <p className="text-sm font-medium text-slate-800">How entries reach the Day Book</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-slate-600">
-          <div className="flex items-start gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2">
-            <span className="font-semibold text-blue-700 shrink-0">1.</span>
-            <span>
-              <Link to="/transactions/add" className="text-brand-600 hover:underline font-medium">Add Transaction</Link>
-              {' '}for day-to-day payments &amp; receipts (auto-posts a voucher).
-            </span>
-          </div>
-          <div className="flex items-start gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2">
-            <span className="font-semibold text-blue-700 shrink-0">2.</span>
-            <span>Approve payroll, then use <strong>Sync Payroll</strong> for salary accrual/disbursement vouchers.</span>
-          </div>
-          <div className="flex items-start gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2">
-            <span className="font-semibold text-blue-700 shrink-0">3.</span>
-            <span>
-              Use <strong>Manual Voucher</strong> for journal, contra, or accountant adjustments not covered above.
-            </span>
-          </div>
-        </div>
-        <p className="mt-2 text-xs text-slate-500 flex items-center gap-1">
-          <ArrowRight size={12} />
-          Transaction-sourced vouchers link back to the original transaction in the Source column.
-        </p>
-      </div>
+      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+        <span className="font-medium text-slate-700">Debit</span> = money going out or value you get (expense, asset).{' '}
+        <span className="font-medium text-slate-700">Credit</span> = money coming in or value you give (income, payment from cash/bank).
+        Both sides must match on every entry.
+      </p>
 
       {syncMessage && (
         <p className={`text-sm rounded-lg px-4 py-2 border ${
@@ -331,15 +315,15 @@ export default function DayBookPage() {
 
       <div className="stat-grid-3">
         <div className="card p-4 text-center">
-          <p className="text-xs text-slate-500 uppercase">Total Debit</p>
+          <p className="text-xs text-slate-500 uppercase">Debit (Out / Expense)</p>
           <p className="text-xl font-bold text-emerald-700 mt-1">{formatINR(summary.total_debit)}</p>
         </div>
         <div className="card p-4 text-center">
-          <p className="text-xs text-slate-500 uppercase">Total Credit</p>
+          <p className="text-xs text-slate-500 uppercase">Credit (In / Income)</p>
           <p className="text-xl font-bold text-red-600 mt-1">{formatINR(summary.total_credit)}</p>
         </div>
         <div className="card p-4 text-center">
-          <p className="text-xs text-slate-500 uppercase">Vouchers</p>
+          <p className="text-xs text-slate-500 uppercase">Entries</p>
           <p className="text-xl font-bold mt-1">{summary.count}</p>
         </div>
       </div>
@@ -353,11 +337,11 @@ export default function DayBookPage() {
           </p>
         ) : vouchers.length === 0 ? (
           <div className="text-center py-12 text-slate-500 space-y-2">
-            <p>No vouchers in this period.</p>
+            <p>No entries in this period.</p>
             <p className="text-xs">
-              Post a{' '}
+              Add a{' '}
               <Link to="/transactions/add" className="text-brand-600 hover:underline">transaction</Link>
-              , sync payroll, or create a manual voucher.
+              {' '}or sync payroll.
             </p>
           </div>
         ) : (
@@ -367,13 +351,13 @@ export default function DayBookPage() {
                 <tr>
                   <th className="w-10 px-4 py-3" />
                   <th className="text-left px-4 py-3 font-semibold">Date</th>
-                  <th className="text-left px-4 py-3 font-semibold">Voucher</th>
+                  <th className="text-left px-4 py-3 font-semibold">Entry No</th>
                   <th className="text-left px-4 py-3 font-semibold">Type</th>
                   <th className="text-left px-4 py-3 font-semibold">Narration</th>
-                  <th className="text-right px-4 py-3 font-semibold">Debit</th>
-                  <th className="text-right px-4 py-3 font-semibold">Credit</th>
-                  <th className="text-left px-4 py-3 font-semibold">Source</th>
-                  <th className="text-left px-4 py-3 font-semibold">Balance</th>
+                  <th className="text-right px-4 py-3 font-semibold">Debit (Out)</th>
+                  <th className="text-right px-4 py-3 font-semibold">Credit (In)</th>
+                  <th className="text-left px-4 py-3 font-semibold">From</th>
+                  <th className="text-left px-4 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -406,6 +390,8 @@ export default function DayBookPage() {
         voucherId={detailVoucherId}
         onClose={() => setDetailVoucherId(null)}
       />
+
+      <QuickAddVendorModal open={showVendorModal} onClose={() => setShowVendorModal(false)} />
     </div>
   );
 }

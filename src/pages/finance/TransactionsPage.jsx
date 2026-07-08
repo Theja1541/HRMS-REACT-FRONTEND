@@ -100,7 +100,7 @@ export default function TransactionsPage() {
   if (tenantRequired) {
     return (
       <div className="card p-12 text-center text-slate-500">
-        Select a tenant from the header to view transactions.
+        Select a tenant from the header to view Day Book.
       </div>
     );
   }
@@ -108,16 +108,16 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Transactions"
+        title="Day Book"
         subtitle={
           isAuditor
-            ? 'Day Book transactions and employee salary payments (read-only)'
-            : 'Payments and receipts posted as balanced Day Book vouchers'
+            ? 'Payments, receipts, and salary payments (read-only)'
+            : 'Record payments and receipts'
         }
         actions={
           canWrite ? (
             <Link to="/transactions/add" className="btn-primary">
-              <Plus size={14} /> Add Transaction
+              <Plus size={14} /> Add Entry
             </Link>
           ) : null
         }
@@ -129,8 +129,8 @@ export default function TransactionsPage() {
         <div className="card px-4 border-b border-slate-200">
           <div className="flex gap-4 scroll-tabs border-b border-slate-200 -mx-4 px-4">
             {[
-              { id: 'transactions', label: 'Transactions' },
-              { id: 'salary-payments', label: 'Employee Salary Payments' },
+              { id: 'transactions', label: 'Payments & Receipts' },
+              { id: 'salary-payments', label: 'Salary Payments' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -153,9 +153,9 @@ export default function TransactionsPage() {
       ) : (
         <>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Transactions" value={transactions.length} />
-        <StatCard label="Debits (Out)" value={formatINR(debitTotal)} icon={ArrowUpRight} />
-        <StatCard label="Credits (In)" value={formatINR(creditTotal)} icon={ArrowDownLeft} />
+        <StatCard label="Count" value={transactions.length} />
+        <StatCard label="Debit (Money out)" value={formatINR(debitTotal)} icon={ArrowUpRight} />
+        <StatCard label="Credit (Money in)" value={formatINR(creditTotal)} icon={ArrowDownLeft} />
       </div>
 
       <div className="card p-4">
@@ -173,8 +173,8 @@ export default function TransactionsPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
             <option value="">All types</option>
-            <option value="debit">Debit</option>
-            <option value="credit">Credit</option>
+            <option value="debit">Debit (Money out)</option>
+            <option value="credit">Credit (Money in)</option>
           </select>
           <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
             <option value="">All modes</option>
@@ -188,11 +188,11 @@ export default function TransactionsPage() {
 
       <div className="card overflow-x-auto overscroll-x-contain">
         {isLoading ? (
-          <p className="text-center py-12 text-slate-400">Loading transactions…</p>
+          <p className="text-center py-12 text-slate-400">Loading…</p>
         ) : error ? (
-          <p className="text-center py-12 text-red-500">Failed to load transactions</p>
+          <p className="text-center py-12 text-red-500">Failed to load entries</p>
         ) : transactions.length === 0 ? (
-          <p className="text-center py-12 text-slate-400">No transactions for this period</p>
+          <p className="text-center py-12 text-slate-400">No payments or receipts for this period</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

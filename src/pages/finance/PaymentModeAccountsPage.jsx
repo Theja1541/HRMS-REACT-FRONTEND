@@ -62,8 +62,8 @@ export default function PaymentModeAccountsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Payment Mode Accounts"
-        subtitle="Map cash, bank, UPI, and cheque modes to chart-of-accounts asset heads"
+        title="Payment Modes"
+        subtitle="Link Cash, Bank, UPI, and Cheque to accounts"
       />
 
       <FinanceModuleGuide page="payment-modes" />
@@ -71,7 +71,7 @@ export default function PaymentModeAccountsPage() {
       {setupComplete && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm border border-emerald-100">
           <CheckCircle2 size={18} className="shrink-0" />
-          Payment modes are mapped. You can record transactions in the Day Book.
+          Payment modes are mapped. You can record payments in Day Book.
         </div>
       )}
 

@@ -71,8 +71,8 @@ export default function GSTPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="GST Monthly"
-        subtitle="Input / output tax register for GSTR-3B preparation"
+        title="GST"
+        subtitle="Monthly GST for filing"
         actions={
           <div className="flex items-center gap-2">
             <PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />

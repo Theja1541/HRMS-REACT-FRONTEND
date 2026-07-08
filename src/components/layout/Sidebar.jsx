@@ -373,7 +373,7 @@ export default function Sidebar() {
             if (!visibleItems.length) return null;
 
             const sectionLabel =
-              role === 'auditor' && group.section === 'Finance' ? 'Day Book' : group.section;
+              role === 'auditor' && group.section === 'Finance' ? 'Finance' : group.section;
             const SectionIcon = Icons[group.icon] || Icons[group.items[0]?.icon] || Icons.Circle;
             const isCollapsible = group.collapsible !== false;
             const isExpanded = expandedNavSections[group.section] ?? false;
