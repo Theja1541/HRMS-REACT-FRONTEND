@@ -4,13 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { financeApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
+import QuickAddVendorModal from '../../components/finance/QuickAddVendorModal';
 import {
   EMPTY_LINE_ITEM,
   EMPTY_TRANSACTION_FORM,
   TRANSACTION_TYPES,
   PAYMENT_MODES,
   CATEGORY_TYPE_LABELS,
-  PAYMENT_MODE_LABELS,
 } from '../../constants/finance';
 import { useAuthStore } from '../../store/auth.store';
 
@@ -121,6 +121,7 @@ export default function AddTransactionPage() {
   });
   const [formError, setFormError] = useState('');
   const [formReady, setFormReady] = useState(!isEdit);
+  const [showVendorModal, setShowVendorModal] = useState(false);
 
   const categoryType = form.transaction_type === 'debit' ? 'expense' : 'income';
 
@@ -130,7 +131,7 @@ export default function AddTransactionPage() {
     enabled: isEdit && !tenantRequired,
   });
 
-  const { data: vendorData } = useQuery({
+  const { data: vendorData, isLoading: vendorLoading } = useQuery({
     queryKey: ['finance-vendors-active', selectedTenantId],
     queryFn: () => financeApi.listVendors({ active_only: true }),
     enabled: !tenantRequired,
@@ -142,12 +143,6 @@ export default function AddTransactionPage() {
     enabled: !tenantRequired,
   });
 
-  const { data: paymentModeData } = useQuery({
-    queryKey: ['finance-payment-modes', selectedTenantId],
-    queryFn: () => financeApi.listPaymentModes(),
-    enabled: !tenantRequired,
-  });
-
   useEffect(() => {
     if (!isEdit || !txData?.data?.transaction) return;
     setForm(transactionToForm(txData.data.transaction));
@@ -156,11 +151,6 @@ export default function AddTransactionPage() {
 
   const vendors = vendorData?.data?.vendors || [];
   const categories = categoryData?.data?.categories || [];
-  const paymentModes = paymentModeData?.data?.modes || [];
-  const unmappedModes = paymentModes.filter((m) => !m.mapping?.account_id);
-  const selectedModeUnmapped = paymentModes.some(
-    (m) => m.payment_mode === form.payment_mode && !m.mapping?.account_id
-  );
 
   const selectedVendor = useMemo(
     () => vendors.find((v) => String(v.id) === form.vendor_id) || null,
@@ -274,12 +264,6 @@ export default function AddTransactionPage() {
         return;
       }
     }
-    if (selectedModeUnmapped) {
-      setFormError(
-        `Payment mode "${PAYMENT_MODE_LABELS[form.payment_mode]}" is not mapped to a bank/cash account. Configure it under Payment Modes first.`
-      );
-      return;
-    }
     if (grandTotal <= 0) {
       setFormError('Add at least one line item with a positive amount');
       return;
@@ -332,30 +316,14 @@ export default function AddTransactionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={isEdit ? 'Edit Transaction' : 'Add Transaction'}
-        subtitle={
-          isEdit
-            ? 'Updates reverse the old voucher and post a new balanced entry'
-            : 'Posts a balanced payment or receipt voucher to the Day Book'
-        }
+        title={isEdit ? 'Edit Entry' : 'Add Entry'}
+        subtitle={isEdit ? 'Update this payment or receipt' : 'Record a payment or receipt'}
         actions={
           <Link to="/transactions" className="btn-secondary">
-            Back to list
+            Back to Day Book
           </Link>
         }
       />
-
-      {unmappedModes.length > 0 && (
-        <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-          <strong>Setup required:</strong>{' '}
-          {unmappedModes.map((m) => PAYMENT_MODE_LABELS[m.payment_mode]).join(', ')}{' '}
-          {unmappedModes.length === 1 ? 'is' : 'are'} not mapped to a cash/bank account.{' '}
-          <Link to="/finance/payment-modes" className="underline font-medium">
-            Configure Payment Modes
-          </Link>{' '}
-          before posting.
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {formError && (
@@ -372,14 +340,24 @@ export default function AddTransactionPage() {
               onChange={(v) => setForm({ ...form, transaction_type: v, category_id: '' })}
               options={TRANSACTION_TYPES}
             />
-            <Select
-              label={vendorRequired ? 'Vendor' : 'Vendor (optional)'}
-              value={form.vendor_id}
-              onChange={(v) => setForm({ ...form, vendor_id: v })}
-              options={vendors.map((v) => ({ value: String(v.id), label: v.name }))}
-              placeholder={vendorRequired ? 'Select vendor…' : 'None'}
-              required={vendorRequired}
-            />
+            <div>
+              <Select
+                label={vendorRequired ? 'Vendor' : 'Vendor (optional)'}
+                value={form.vendor_id}
+                onChange={(v) => setForm({ ...form, vendor_id: v })}
+                options={vendors.map((v) => ({ value: String(v.id), label: v.name }))}
+                placeholder={vendorLoading ? 'Loading vendors…' : vendorRequired ? 'Select vendor…' : 'None'}
+                required={vendorRequired}
+                disabled={vendorLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowVendorModal(true)}
+                className="mt-1.5 text-xs text-brand-600 hover:underline font-medium"
+              >
+                + Add new vendor
+              </button>
+            </div>
             <Select
               label="Category"
               value={form.category_id}
@@ -642,17 +620,24 @@ export default function AddTransactionPage() {
             disabled={
               saveMutation.isPending
               || grandTotal <= 0
-              || selectedModeUnmapped
               || (form.payment_mode === 'bank' && (!form.vendor_id || !bankDetailsReady))
               || (form.payment_mode === 'upi' && (!form.vendor_id || !upiDetailsReady))
               || (form.payment_mode === 'cheque' && !chequeDetailsReady)
             }
             className="btn-primary"
           >
-            {saveMutation.isPending ? 'Posting…' : isEdit ? 'Update & Re-post' : 'Save & Post Voucher'}
+            {saveMutation.isPending ? 'Saving…' : isEdit ? 'Update Entry' : 'Save Entry'}
           </button>
         </div>
       </form>
+
+      <QuickAddVendorModal
+        open={showVendorModal}
+        onClose={() => setShowVendorModal(false)}
+        onCreated={(vendor) => {
+          if (vendor?.id) setForm((prev) => ({ ...prev, vendor_id: String(vendor.id) }));
+        }}
+      />
     </div>
   );
 }
@@ -676,7 +661,7 @@ function Field({ label, value, onChange, type = 'text', required, placeholder })
   );
 }
 
-function Select({ label, value, onChange, options, placeholder, required }) {
+function Select({ label, value, onChange, options, placeholder, required, disabled = false }) {
   return (
     <div>
       <label className="text-xs font-medium text-slate-600">
@@ -685,9 +670,10 @@ function Select({ label, value, onChange, options, placeholder, required }) {
       </label>
       <select
         required={required}
+        disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+        className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((o) => (

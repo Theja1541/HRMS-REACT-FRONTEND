@@ -20,6 +20,27 @@ function voucherSourceLink(voucher) {
   return null;
 }
 
+/** Plain-language role for a line — avoids Debit/Credit jargon for everyday vouchers. */
+function linePlainLabel(voucherType, line) {
+  const isDebit = Number(line.debit_amount) > 0;
+  if (voucherType === 'receipt') {
+    return isDebit ? 'Money received in' : 'Income category';
+  }
+  if (voucherType === 'payment') {
+    return isDebit ? 'Expense / paid for' : 'Paid from';
+  }
+  if (voucherType === 'contra') {
+    return isDebit ? 'Moved to' : 'Moved from';
+  }
+  return isDebit ? 'Money out side' : 'Money in side';
+}
+
+function lineAmount(line) {
+  const debit = Number(line.debit_amount) || 0;
+  const credit = Number(line.credit_amount) || 0;
+  return debit > 0 ? debit : credit;
+}
+
 const REVERSIBLE_SOURCES = new Set(['manual']);
 
 export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onClose }) {
@@ -57,11 +78,14 @@ export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onC
     canWrite &&
     voucher?.status === 'posted' &&
     REVERSIBLE_SOURCES.has(voucher?.source_type);
+  const amount = voucher ? Math.max(Number(voucher.total_debit) || 0, Number(voucher.total_credit) || 0) : 0;
+  const isMoneyIn = voucher?.voucher_type === 'receipt';
+  const isMoneyOut = voucher?.voucher_type === 'payment';
 
   const handleReverse = () => {
     if (
       !window.confirm(
-        `Reverse voucher ${voucher.voucher_number}? A balancing journal entry will be posted and this voucher will be marked reversed.`
+        `Cancel this entry ${voucher.voucher_number}? It will be reversed.`
       )
     ) {
       return;
@@ -79,7 +103,7 @@ export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onC
               <p className="text-xs font-mono text-brand-600 mb-1">{voucher.voucher_number}</p>
             )}
             <h2 className="text-lg font-semibold text-slate-900 leading-tight">
-              {isLoading ? 'Loading voucher…' : typeLabel || 'Voucher'}
+              {isLoading ? 'Loading…' : typeLabel || 'Entry'}
             </h2>
             {voucher?.voucher_date && (
               <p className="text-xs text-slate-500 mt-1">{voucher.voucher_date}</p>
@@ -91,17 +115,35 @@ export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onC
         </div>
 
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400">Loading voucher…</p>
+          <p className="p-8 text-center text-slate-400">Loading…</p>
         ) : error || !voucher ? (
           <p className="p-8 text-center text-red-500">
-            {error?.response?.data?.error?.message || 'Failed to load voucher'}
+            {error?.response?.data?.error?.message || 'Failed to load entry'}
           </p>
         ) : (
           <div className="flex-1 p-5 space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-[10px] uppercase text-slate-400 font-medium tracking-wide">Amount</p>
+              <p
+                className={`mt-1 text-2xl font-bold font-mono ${
+                  isMoneyIn ? 'text-emerald-700' : isMoneyOut ? 'text-red-600' : 'text-slate-900'
+                }`}
+              >
+                {formatINR(amount)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {isMoneyIn && 'Money in (receipt)'}
+                {isMoneyOut && 'Money out (payment)'}
+                {!isMoneyIn && !isMoneyOut && 'Entry amount'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] uppercase text-slate-400 font-medium">Status</p>
-                <p className="mt-1 text-sm capitalize text-slate-700">{voucher.status}</p>
+                <p className="mt-1 text-sm capitalize text-slate-700">
+                  {voucher.status === 'posted' ? 'Saved' : voucher.status}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] uppercase text-slate-400 font-medium">Source</p>
@@ -117,30 +159,22 @@ export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onC
                   <p className="mt-1 text-sm text-slate-700">{sourceLabel}</p>
                 )}
               </div>
-              <div>
-                <p className="text-[10px] uppercase text-slate-400 font-medium">Total Debit</p>
-                <p className="mt-1 text-sm font-mono text-emerald-700">{formatINR(voucher.total_debit)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase text-slate-400 font-medium">Total Credit</p>
-                <p className="mt-1 text-sm font-mono text-red-600">{formatINR(voucher.total_credit)}</p>
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               {voucher.is_balanced ? (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
                   <CheckCircle2 size={14} />
-                  Balanced
+                  Entry OK
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
                   <AlertCircle size={14} />
-                  Out of balance
+                  Needs review
                 </span>
               )}
               {voucher.posted_at && (
-                <span className="text-xs text-slate-400">Posted {String(voucher.posted_at).slice(0, 10)}</span>
+                <span className="text-xs text-slate-400">Saved {String(voucher.posted_at).slice(0, 10)}</span>
               )}
               {canReverse && (
                 <button
@@ -150,69 +184,56 @@ export default function VoucherDetailDrawer({ voucherId, highlightAccountId, onC
                   className="btn-secondary text-xs ml-auto"
                 >
                   <RotateCcw size={14} className={reverseMutation.isPending ? 'animate-spin' : ''} />
-                  Reverse Voucher
+                  Cancel Entry
                 </button>
               )}
             </div>
 
             {reverseMutation.isError && (
               <div className="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-100">
-                {reverseMutation.error?.response?.data?.error?.message || 'Failed to reverse voucher'}
+                {reverseMutation.error?.response?.data?.error?.message || 'Failed to reverse entry'}
               </div>
             )}
 
             {voucher.narration && (
               <div className="card p-4">
-                <p className="text-[10px] uppercase text-slate-400 font-medium">Narration</p>
+                <p className="text-[10px] uppercase text-slate-400 font-medium">Notes</p>
                 <p className="mt-1 text-sm text-slate-700">{voucher.narration}</p>
               </div>
             )}
 
-            <div className="card overflow-x-auto overscroll-x-contain">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold">Account</th>
-                      <th className="text-right px-4 py-3 font-semibold">Debit</th>
-                      <th className="text-right px-4 py-3 font-semibold">Credit</th>
-                      <th className="text-left px-4 py-3 font-semibold">Line narration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {voucher.lines.map((line) => {
-                      const highlighted = highlightAccountId && String(line.account_id) === String(highlightAccountId);
-                      return (
-                        <tr
-                          key={line.id}
-                          className={highlighted ? 'bg-brand-50/70' : 'hover:bg-slate-50'}
-                        >
-                          <td className="px-4 py-2.5">
-                            <p className="font-mono text-[10px] text-slate-400">{line.account?.code}</p>
-                            <p className="font-medium text-slate-700">{line.account?.name || '—'}</p>
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
-                            {line.debit_amount > 0 ? formatINR(line.debit_amount) : '—'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono text-red-600">
-                            {line.credit_amount > 0 ? formatINR(line.credit_amount) : '—'}
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-500 max-w-xs truncate" title={line.narration_line || ''}>
-                            {line.narration_line || '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold">
-                    <tr>
-                      <td className="px-4 py-3">Totals</td>
-                      <td className="px-4 py-3 text-right font-mono text-emerald-700">{formatINR(voucher.total_debit)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-red-600">{formatINR(voucher.total_credit)}</td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-800">How this was recorded</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Same amount on both sides — that means the entry is complete.</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {voucher.lines.map((line) => {
+                  const highlighted = highlightAccountId && String(line.account_id) === String(highlightAccountId);
+                  return (
+                    <div
+                      key={line.id}
+                      className={`px-4 py-3 flex items-start justify-between gap-3 ${
+                        highlighted ? 'bg-brand-50/70' : ''
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium">
+                          {linePlainLabel(voucher.voucher_type, line)}
+                        </p>
+                        <p className="text-sm font-medium text-slate-800 mt-0.5">
+                          {line.account?.name || '—'}
+                        </p>
+                        {line.narration_line && (
+                          <p className="text-xs text-slate-500 mt-0.5 truncate">{line.narration_line}</p>
+                        )}
+                      </div>
+                      <p className="text-sm font-mono font-semibold text-slate-800 shrink-0">
+                        {formatINR(lineAmount(line))}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

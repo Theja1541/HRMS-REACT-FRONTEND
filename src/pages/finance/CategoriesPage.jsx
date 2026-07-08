@@ -146,7 +146,7 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Categories"
-        subtitle="Income and expense categories — each creates a linked chart-of-accounts entry"
+        subtitle="Income and expense labels used on transactions"
         actions={
           <button type="button" onClick={openCreate} className="btn-primary">
             <Plus size={14} /> Add Category

@@ -1,6 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  LineChart,
+  Line,
+  CartesianGrid,
+} from 'recharts';
 import { Link } from 'react-router-dom';
 import { financeApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
@@ -18,27 +29,62 @@ export default function FinanceSummaryPage() {
   const [year, setYear] = useState(now.getFullYear());
   const { setPage, setLimit, paginateClient } = useTablePagination({ resetDeps: [month, year] });
 
-  const { data, isLoading } = useQuery({
+  const range = useMemo(() => {
+    const mm = String(month).padStart(2, '0');
+    const from = `${year}-${mm}-01`;
+    const to = new Date(year, month, 0).toISOString().slice(0, 10);
+    return { from, to };
+  }, [month, year]);
+
+  const { data, isLoading: isPayrollLoading } = useQuery({
     queryKey: ['financial-summary', month, year],
     queryFn: () => financeApi.financialSummary({ month, year }),
   });
 
+  const { data: daybookData, isLoading: isDaybookLoading } = useQuery({
+    queryKey: ['finance-summary-daybook', range.from, range.to],
+    queryFn: () => financeApi.daybookDashboard(range),
+  });
+
   const summary = data?.data;
+  const daybook = daybookData?.data;
   const current = summary?.current;
+  const kpis = daybook?.kpis;
   const departmentRows = summary?.departmentBreakdown || [];
   const { items: visibleDepartmentRows, pagination } = paginateClient(departmentRows);
-  const chartData = (summary?.trend || []).map((t) => ({
+  const toNumber = (value) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const cleaned = String(value ?? '').replace(/,/g, '');
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const rawTrendData = (summary?.trend || []).map((t) => ({
     name: t.label,
-    gross: t.gross,
-    net: t.net,
-    employer: t.employer_cost,
+    gross: toNumber(t.gross),
+    net: toNumber(t.net),
+    employer: toNumber(t.employer_cost),
   }));
+  const chartData = rawTrendData.filter((t) => t.gross > 0 || t.net > 0 || t.employer > 0);
+  const effectiveTrendData =
+    chartData.length > 0
+      ? chartData
+      : [
+          {
+            name: summary?.period_label || `${month}/${year}`,
+            gross: toNumber(current?.gross),
+            net: toNumber(current?.net),
+            employer: toNumber(current?.employer_cost),
+          },
+        ].filter((t) => t.gross > 0 || t.net > 0 || t.employer > 0);
+  const cashFlowData = daybook?.cash_flow_trend || [];
+  const isLoading = isPayrollLoading || isDaybookLoading;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Payroll Financial Summary"
-        subtitle="Employee cost, employer cost, and statutory liabilities — not the general ledger P&L"
+        title="Financial Summary"
+        subtitle="Day Book and Payroll summary for the selected month"
         actions={<PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />}
       />
 
@@ -55,6 +101,13 @@ export default function FinanceSummaryPage() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <StatCard label="Total Income (Day Book)" value={formatINR(kpis?.total_income ?? 0)} icon={TrendingUp} />
+            <StatCard label="Total Expense (Day Book)" value={formatINR(kpis?.total_expense ?? 0)} icon={Banknote} />
+            <StatCard label="Net P/L (Day Book)" value={formatINR(kpis?.net_profit_loss ?? 0)} icon={Landmark} />
+            <StatCard label="Voucher Lines" value={daybook?.voucher_line_count ?? 0} icon={Users} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <StatCard label="Gross Payroll" value={formatINR(current?.gross ?? 0)} icon={Banknote} />
             <StatCard label="Net Disbursement" value={formatINR(current?.net ?? 0)} icon={TrendingUp} />
             <StatCard label="Employer Cost" value={formatINR(current?.employer_cost ?? 0)} delta="Incl. PF & ESI ER" deltaType="neutral" icon={Users} />
@@ -69,16 +122,36 @@ export default function FinanceSummaryPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="card p-5">
-              <h3 className="text-sm font-semibold mb-4">Payroll Trend</h3>
-              {chartData.length > 0 ? (
+              <h3 className="text-sm font-semibold mb-4">Day Book Cash Flow</h3>
+              {cashFlowData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={chartData}>
+                  <LineChart data={cashFlowData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip formatter={(v) => formatINR(v)} />
+                    <Legend />
+                    <Line type="monotone" dataKey="inflow" name="Money In" stroke="#10B981" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="outflow" name="Money Out" stroke="#EF4444" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="net" name="Net" stroke="#2563EB" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-12">No Day Book cash movement yet</p>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold mb-4">Payroll Trend</h3>
+              {effectiveTrendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={effectiveTrendData}>
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} />
                     <Tooltip formatter={(v) => formatINR(v)} />
                     <Legend />
-                    <Bar dataKey="gross" name="Gross" fill="#2563EB" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="net" name="Net" fill="#10B981" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="gross" name="Gross" fill="#2563EB" radius={[3, 3, 0, 0]} minPointSize={4} />
+                    <Bar dataKey="net" name="Net" fill="#10B981" radius={[3, 3, 0, 0]} minPointSize={4} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -86,7 +159,7 @@ export default function FinanceSummaryPage() {
               )}
             </div>
 
-            <div className="card p-5">
+            <div className="card p-5 lg:col-span-2">
               <h3 className="text-sm font-semibold mb-4">YTD {year} Liabilities</h3>
               <div className="space-y-3">
                 {[

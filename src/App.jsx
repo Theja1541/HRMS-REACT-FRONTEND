@@ -24,7 +24,6 @@ import SalariesPage from './pages/payroll/SalariesPage';
 import SalaryFeedPage from './pages/payroll/SalaryFeedPage';
 import PayslipsPage from './pages/payroll/PayslipsPage';
 import PFSummaryPage from './pages/finance/PFSummaryPage';
-import DayBookPage from './pages/finance/DayBookPage';
 import AccountLedgerPage from './pages/finance/AccountLedgerPage';
 import TrialBalancePage from './pages/finance/TrialBalancePage';
 import FinanceSummaryPage from './pages/finance/FinanceSummaryPage';
@@ -37,7 +36,6 @@ import TransactionViewPage from './pages/finance/TransactionViewPage';
 import TransactionInvoicePage from './pages/finance/TransactionInvoicePage';
 import TransactionReceiptPage from './pages/finance/TransactionReceiptPage';
 import DaybookDashboardPage from './pages/finance/DaybookDashboardPage';
-import PaymentModeAccountsPage from './pages/finance/PaymentModeAccountsPage';
 import QuotationsPage from './pages/finance/QuotationsPage';
 import ViewQuotationPage from './pages/finance/ViewQuotationPage';
 import RecruitmentPage from './pages/hr/RecruitmentPage';
@@ -229,9 +227,9 @@ export default function App() {
               <Route path="me/reimbursements/:id/edit" element={<ModuleAccessGuard module="payroll"><MeReimbursementFormPage /></ModuleAccessGuard>} />
               <Route path="me/reimbursements/:id" element={<ModuleAccessGuard module="payroll"><MeReimbursementViewPage /></ModuleAccessGuard>} />
               <Route path="pf-summary" element={<PFSummaryPage />} />
-              <Route path="daybook" element={<ModuleAccessGuard module="daybook"><DayBookPage /></ModuleAccessGuard>} />
+              <Route path="daybook" element={<Navigate to="/transactions" replace />} />
               <Route path="daybook/dashboard" element={<ModuleAccessGuard module="daybook"><DaybookDashboardPage /></ModuleAccessGuard>} />
-              <Route path="finance/payment-modes" element={<PaymentModeAccountsPage />} />
+              <Route path="finance/payment-modes" element={<Navigate to="/transactions" replace />} />
               <Route path="account-ledger" element={<AccountLedgerPage />} />
               <Route path="trial-balance" element={<TrialBalancePage />} />
               <Route path="finance" element={<FinanceSummaryPage />} />

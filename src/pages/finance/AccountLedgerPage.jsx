@@ -63,7 +63,7 @@ export default function AccountLedgerPage() {
     <div className="space-y-6">
       <PageHeader
         title="Account Ledger"
-        subtitle="Account-wise posting register with opening, running, and closing balance"
+        subtitle="Running balance for one account"
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <select

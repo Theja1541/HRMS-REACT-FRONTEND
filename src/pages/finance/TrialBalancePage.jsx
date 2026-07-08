@@ -34,7 +34,7 @@ export default function TrialBalancePage() {
     <div className="space-y-6">
       <PageHeader
         title="Trial Balance"
-        subtitle="All active accounts — cumulative debits and credits as of a date"
+        subtitle="All accounts — check that debit equals credit"
         actions={(
           <div className="flex items-center gap-2">
             <label htmlFor="as-of-date" className="text-sm text-slate-500">
@@ -112,10 +112,10 @@ export default function TrialBalancePage() {
                         <td colSpan={2} className="px-4 py-2.5 text-slate-600">
                           {ACCOUNT_TYPE_LABELS[row.type]} subtotal
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
+                        <td className="px-4 py-2.5 text-right font-mono text-red-600">
                           {formatINR(row.subtotal?.total_debit || 0)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-red-600">
+                        <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
                           {formatINR(row.subtotal?.total_credit || 0)}
                         </td>
                       </tr>
@@ -125,11 +125,11 @@ export default function TrialBalancePage() {
                     <tr key={`a-${row.account.id}-${idx}`} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 font-mono text-slate-500">{row.account.code}</td>
                       <td className="px-4 py-2.5 text-slate-700">{row.account.name}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
-                        {row.account.total_debit > 0 ? formatINR(row.account.total_debit) : '—'}
-                      </td>
                       <td className="px-4 py-2.5 text-right font-mono text-red-600">
-                        {row.account.total_credit > 0 ? formatINR(row.account.total_credit) : '—'}
+                        {formatINR(row.account.total_debit || 0)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
+                        {formatINR(row.account.total_credit || 0)}
                       </td>
                     </tr>
                   );
@@ -143,10 +143,10 @@ export default function TrialBalancePage() {
                       <span className="ml-2 text-red-700 normal-case font-semibold">— OUT OF BALANCE</span>
                     )}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono ${isBalanced ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <td className={`px-4 py-3 text-right font-mono ${isBalanced ? 'text-red-600' : 'text-red-700'}`}>
                     {formatINR(totals?.total_debit || 0)}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono ${isBalanced ? 'text-red-600' : 'text-red-700'}`}>
+                  <td className={`px-4 py-3 text-right font-mono ${isBalanced ? 'text-emerald-700' : 'text-red-700'}`}>
                     {formatINR(totals?.total_credit || 0)}
                   </td>
                 </tr>
