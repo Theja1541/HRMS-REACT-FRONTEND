@@ -75,7 +75,15 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
 
       <ReviewSection title="Employment Information" onEdit={() => onGoToStep(2)} readOnly={readOnly}>
         <ReviewItem label="Company Slug" value={companySlug ? `${companySlug} (${companySlug}.hrms.app)` : null} />
-        <ReviewItem label="Role" value={labelOf(SYSTEM_ROLES, form.system_role)} />
+        <ReviewItem
+          label="Roles"
+          value={(form.roles || [])
+            .map((role) => labelOf(SYSTEM_ROLES, role))
+            .join(', ')}
+        />
+        {form.roles?.length > 1 && (
+          <ReviewItem label="Default Role" value={labelOf(SYSTEM_ROLES, form.system_role)} />
+        )}
         <ReviewItem label="Employee Type" value={labelOf(EMPLOYMENT_TYPES, form.employment_type)} />
         <ReviewItem label="Department" value={dept} />
         <ReviewItem label="Designation" value={desig} />

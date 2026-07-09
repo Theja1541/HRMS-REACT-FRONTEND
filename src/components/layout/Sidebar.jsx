@@ -9,6 +9,7 @@ import { authApi, leaveApi, hrApi, portalApi, brandingApi } from '../../api';
 import { NAV_ITEMS, getMostSpecificNavPath, isNavItemVisible, isNavPathActive } from '../../constants/routes';
 import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
+import { isPlatformPortal, resolvePortalRole } from '../../utils/portalContext';
 // import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
 
 const DESKTOP_MEDIA = '(min-width: 1024px)';
@@ -137,7 +138,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
 }
 
 export default function Sidebar() {
-  const { user, selectedTenantId, setSelectedTenantId, entitlements } = useAuthStore();
+  const { user, workspace, roles, selectedRole, selectedTenantId, setSelectedTenantId, entitlements, accessToken } = useAuthStore();
   const {
     sidebarCollapsed,
     toggleSidebarCollapsed,
@@ -149,7 +150,7 @@ export default function Sidebar() {
   } = useUiStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const role = user?.role || user?.system_role;
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
   const moduleCodes = entitlements?.module_codes ?? EMPTY_MODULE_CODES;
   const moduleCodesKey = useMemo(() => moduleCodes.join(','), [moduleCodes]);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_MEDIA).matches);
@@ -187,7 +188,7 @@ export default function Sidebar() {
     pendingPolicies: pendingPolicies > 0 ? pendingPolicies : 0,
   };
 
-  const isSuperAdmin = role === 'super_admin';
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
 
   const handleNavItemNavigate = (item) => {
     if (isSuperAdmin && item?.path === '/dashboard') {

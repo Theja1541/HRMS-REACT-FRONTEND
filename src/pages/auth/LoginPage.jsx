@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { authApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
-import { getDefaultHomeRoute } from '../../constants/routeAccess';
+import { resolveAuthenticatedLanding } from '../../utils/portalNavigation';
 import { isTenantSubscriptionBlocked } from '../../utils/subscriptionAccess';
 import {
   clearLastTenantSlug,
@@ -27,6 +27,7 @@ import {
   setLastTenantSlug,
 } from '../../utils/lastTenantSlug';
 import { getLoginErrorMessage } from '../../utils/authErrors';
+import { workspaceFromAccessToken } from '../../utils/workspaceSession';
 import AuthBrandPanel from '../../components/auth/AuthBrandPanel';
 
 const SUPERADMIN_LOGIN_EMAIL = (
@@ -63,6 +64,7 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const tenantFromUrl = searchParams.get('tenant')?.trim().toLowerCase() || '';
   const login = useAuthStore((s) => s.login);
+  const beginPersonSession = useAuthStore((s) => s.beginPersonSession);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -86,11 +88,25 @@ export default function LoginPage() {
   const mutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (res, variables) => {
+      if (res.data?.requiresWorkspaceSelection) {
+        beginPersonSession(res.data.accessToken, res.data.workspaces || null);
+        navigate('/select-workspace', { replace: true });
+        return;
+      }
+
       const user = res.data.user;
       if (user?.type !== 'super_admin') {
         setLastTenantSlug(user?.tenant?.slug || variables.tenant_slug);
       }
-      login({ accessToken: res.data.accessToken, user, entitlements: res.data.entitlements });
+      login({
+        accessToken: res.data.accessToken,
+        user,
+        entitlements: res.data.entitlements,
+        roles: res.data.roles,
+        defaultRole: res.data.defaultRole,
+        selectedRole: res.data.defaultRole,
+        workspace: res.data.workspace || workspaceFromAccessToken(res.data.accessToken),
+      });
       if (isTenantSubscriptionBlocked(res.data.user, res.data.entitlements)) {
         navigate('/subscription-expired', { replace: true });
         return;
@@ -99,7 +115,17 @@ export default function LoginPage() {
         navigate('/me/change-password', { replace: true });
         return;
       }
-      navigate(getDefaultHomeRoute(res.data.user?.role));
+      const roles = res.data.roles?.length ? res.data.roles : [res.data.user?.role].filter(Boolean);
+      navigate(
+        resolveAuthenticatedLanding({
+          roles,
+          defaultRole: res.data.defaultRole,
+          selectedRole: res.data.defaultRole,
+          userRole: res.data.user?.role,
+          forcePortalSelection: roles.length > 1,
+        }),
+        { replace: true }
+      );
     },
     onError: (err, variables) => {
       const isSuperAdminAttempt =

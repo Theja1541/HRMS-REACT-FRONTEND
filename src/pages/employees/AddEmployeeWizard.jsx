@@ -16,7 +16,6 @@ import {
   BLOOD_GROUPS,
   GENDERS,
   EMPLOYMENT_TYPES,
-  SYSTEM_ROLES,
   EMPLOYEE_DOCUMENTS,
   WIZARD_STEPS,
   EMERGENCY_RELATIONSHIPS,
@@ -33,6 +32,7 @@ import ReviewPanel from './employeeWizard/ReviewPanel';
 import SalaryStructureEditor from './employeeWizard/SalaryStructureEditor';
 import { buildSalaryAssignPayload, resolveSalaryEffectiveFrom } from './employeeWizard/salaryStructure';
 import { mapEmployeeToForm } from './employeeWizard/mapEmployeeToForm';
+import RolesMultiSelect from './employeeWizard/RolesMultiSelect';
 import { useTenantCompanySlug } from '../../hooks/useTenantCompanySlug';
 
 function documentMetaFromFiles(documents) {
@@ -101,7 +101,9 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   }, [allDesignations, form.department_id]);
   const branches = branchData?.data?.branches || [];
   const managers = (empData?.data?.employees || []).filter((e) =>
-    ['manager', 'hr', 'owner'].includes(e.system_role)
+    (e.roles?.length ? e.roles : [e.system_role]).some((role) =>
+      ['manager', 'hr', 'owner'].includes(role)
+    )
   );
 
   const lookups = useMemo(
@@ -216,6 +218,11 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
+  const setRoles = ({ roles, system_role }) => {
+    setForm((prev) => ({ ...prev, roles, system_role }));
+    setErrors((prev) => ({ ...prev, roles: undefined, system_role: undefined }));
+  };
+
   const setContact = (index, field, value) => {
     setForm((prev) => {
       const contacts = [...prev.emergency_contacts];
@@ -253,7 +260,12 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   const restoreDraft = () => {
     const draft = loadDraft();
     if (!draft) return;
-    setForm(draft.form);
+    const restoredForm = {
+      ...draft.form,
+      roles: draft.form.roles?.length ? draft.form.roles : [draft.form.system_role || 'employee'],
+      system_role: draft.form.system_role || draft.form.roles?.[0] || 'employee',
+    };
+    setForm(restoredForm);
     setStep(draft.step || 1);
     setShowDraftPrompt(false);
   };
@@ -530,13 +542,15 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   <p className="text-[10px] text-slate-400 mt-1">{companySlug}.hrms.app</p>
                 )}
               </WizardField>
-              <WizardField label="Role" required error={errors.system_role}>
-                <select value={form.system_role} onChange={(e) => set('system_role', e.target.value)} className={ic(errors.system_role)}>
-                  {SYSTEM_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </WizardField>
+              <RolesMultiSelect
+                roles={form.roles}
+                systemRole={form.system_role}
+                onChange={setRoles}
+                rolesError={errors.roles}
+                systemRoleError={errors.system_role}
+                readOnly={ro}
+                inputClassName={ic}
+              />
               <WizardField label="Employee Type" error={errors.employment_type}>
                 <select value={form.employment_type} onChange={(e) => set('employment_type', e.target.value)} className={ic(errors.employment_type)}>
                   {EMPLOYMENT_TYPES.map((t) => (

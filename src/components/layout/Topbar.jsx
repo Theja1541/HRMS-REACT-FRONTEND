@@ -8,6 +8,9 @@ import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
 import { cn } from '../../utils/helpers';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import RoleSwitcher from './RoleSwitcher';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
+import { isPlatformPortal } from '../../utils/portalContext';
 
 const PAGE_TITLES = {};
 flattenNavItems().forEach((item) => {
@@ -40,7 +43,9 @@ export default function Topbar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const isSuperAdmin = user?.role === 'super_admin';
+  const workspace = useAuthStore((s) => s.workspace);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -118,6 +123,10 @@ export default function Topbar() {
         >
           <Search size={16} />
         </button>
+
+        <WorkspaceSwitcher />
+
+        <RoleSwitcher />
 
         <div className="relative">
           <button type="button" onClick={() => setOpen(!open)} className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">

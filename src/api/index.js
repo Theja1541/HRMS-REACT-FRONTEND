@@ -12,6 +12,9 @@ export const authApi = {
   resetPassword: (payload) => api.post('/auth/reset-password', payload).then((r) => r.data),
   validateResetToken: (token) =>
     api.get('/auth/reset-password/validate', { params: { token } }).then((r) => r.data),
+  listWorkspaces: () => api.get('/auth/workspaces').then((r) => r.data),
+  activateWorkspace: (workspaceId) =>
+    api.post('/auth/activate-workspace', { workspaceId }).then((r) => r.data),
 };
 
 export const careersApi = {

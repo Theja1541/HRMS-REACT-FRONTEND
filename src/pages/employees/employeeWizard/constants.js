@@ -10,6 +10,7 @@ export const INITIAL_FORM = {
   gender: '',
   blood_group: '',
   permanent_address: '',
+  roles: ['employee'],
   system_role: 'employee',
   department_id: '',
   designation_id: '',
