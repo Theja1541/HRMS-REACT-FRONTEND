@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { financeApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
 import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
@@ -50,8 +51,20 @@ export default function GSTPage() {
   });
 
   const entries = data?.data?.entries || [];
+  const daybookEntries = data?.data?.daybook_entries || [];
+  const manualEntries = data?.data?.manual_entries || entries.filter((e) => e.source !== 'daybook');
   const { items: visibleEntries, pagination } = paginateClient(entries);
   const summary = data?.data?.summary;
+  const daybookSummary = data?.data?.daybook_summary;
+
+  const statHints = useMemo(() => ({
+    input: daybookSummary
+      ? `Day Book: ${formatINR(daybookSummary.input_tax?.total || 0)}`
+      : undefined,
+    output: daybookSummary
+      ? `Day Book: ${formatINR(daybookSummary.output_tax?.total || 0)}`
+      : undefined,
+  }), [daybookSummary]);
 
   const handleSubmit = () => {
     const payload = {
@@ -72,12 +85,12 @@ export default function GSTPage() {
     <div className="space-y-6">
       <PageHeader
         title="GST"
-        subtitle="Monthly GST for filing"
+        subtitle="GST from Day Book entries plus manual invoices for filing"
         actions={
           <div className="flex items-center gap-2">
             <PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />
             <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary">
-              <Plus size={14} /> Add Invoice
+              <Plus size={14} /> Add Manual Invoice
             </button>
           </div>
         }
@@ -85,9 +98,16 @@ export default function GSTPage() {
 
       <FinanceModuleGuide page="gst" />
 
+      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+        GST lines with tax enabled on{' '}
+        <Link to="/transactions" className="text-brand-600 hover:underline">Day Book</Link>
+        {' '}entries appear here automatically. Debit (expense) lines count as input tax; credit (income) lines count as output tax.
+        {daybookEntries.length > 0 ? ` ${daybookEntries.length} Day Book GST line(s) this month.` : ' No Day Book GST lines this month yet.'}
+      </p>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Input Tax (ITC)" value={formatINR(summary?.input_tax?.total)} icon={ArrowDownLeft} />
-        <StatCard label="Output Tax" value={formatINR(summary?.output_tax?.total)} icon={ArrowUpRight} />
+        <StatCard label="Input Tax (ITC)" value={formatINR(summary?.input_tax?.total)} delta={statHints.input} icon={ArrowDownLeft} />
+        <StatCard label="Output Tax" value={formatINR(summary?.output_tax?.total)} delta={statHints.output} icon={ArrowUpRight} />
         <StatCard
           label="Net GST Payable"
           value={formatINR(data?.data?.net_gst_payable)}
@@ -99,7 +119,7 @@ export default function GSTPage() {
 
       {showForm && (
         <div className="card p-5">
-          <h3 className="text-sm font-semibold mb-4">Add GST Invoice</h3>
+          <h3 className="text-sm font-semibold mb-4">Add Manual GST Invoice</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-slate-600">Type</label>
@@ -157,7 +177,7 @@ export default function GSTPage() {
         {isLoading ? (
           <p className="text-center py-12 text-slate-400">Loading GST register…</p>
         ) : entries.length === 0 ? (
-          <p className="text-center py-12 text-slate-400">No GST entries for this period</p>
+          <p className="text-center py-12 text-slate-400">No GST entries for this period. Add GST on Day Book line items or create a manual invoice.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -166,6 +186,7 @@ export default function GSTPage() {
                   <th className="text-left px-4 py-3 font-semibold">Date</th>
                   <th className="text-left px-4 py-3 font-semibold">Invoice</th>
                   <th className="text-left px-4 py-3 font-semibold">Party</th>
+                  <th className="text-left px-4 py-3 font-semibold">Source</th>
                   <th className="text-left px-4 py-3 font-semibold">Type</th>
                   <th className="text-right px-4 py-3 font-semibold">Taxable</th>
                   <th className="text-right px-4 py-3 font-semibold">CGST</th>
@@ -178,13 +199,28 @@ export default function GSTPage() {
               <tbody className="divide-y divide-slate-100">
                 {visibleEntries.map((e) => {
                   const totalTax = parseFloat(e.cgst_amount) + parseFloat(e.sgst_amount) + parseFloat(e.igst_amount);
+                  const isDaybook = e.source === 'daybook';
                   return (
                     <tr key={e.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5">{e.invoice_date}</td>
-                      <td className="px-4 py-2.5 font-mono">{e.invoice_no}</td>
+                      <td className="px-4 py-2.5 font-mono">
+                        {isDaybook && e.transaction_id ? (
+                          <Link to={`/transactions/${e.transaction_id}`} className="text-brand-600 hover:underline">
+                            {e.invoice_no}
+                          </Link>
+                        ) : (
+                          e.invoice_no
+                        )}
+                      </td>
                       <td className="px-4 py-2.5">
                         <p className="font-medium">{e.party_name}</p>
                         {e.party_gstin && <p className="text-slate-400 text-[10px]">{e.party_gstin}</p>}
+                        {e.description && <p className="text-slate-500 text-[10px] mt-0.5">{e.description}</p>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isDaybook ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                          {isDaybook ? 'Day Book' : 'Manual'}
+                        </span>
                       </td>
                       <td className="px-4 py-2.5 capitalize">{e.entry_type.replace('_', ' ')}</td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatINR(e.taxable_value)}</td>
@@ -193,9 +229,11 @@ export default function GSTPage() {
                       <td className="px-4 py-2.5 text-right font-mono">{formatINR(e.igst_amount)}</td>
                       <td className="px-4 py-2.5 text-right font-mono font-medium">{formatINR(totalTax)}</td>
                       <td className="px-4 py-2.5">
-                        <button type="button" onClick={() => deleteMutation.mutate(e.id)} className="text-slate-400 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
+                        {!isDaybook && (
+                          <button type="button" onClick={() => deleteMutation.mutate(e.id)} className="text-slate-400 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -214,6 +252,12 @@ export default function GSTPage() {
           onPageChange={setPage}
           onLimitChange={setLimit}
         />
+      )}
+
+      {!isLoading && manualEntries.length > 0 && (
+        <p className="text-xs text-slate-400 text-right">
+          {daybookEntries.length} from Day Book · {manualEntries.length} manual
+        </p>
       )}
     </div>
   );

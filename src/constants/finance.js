@@ -64,12 +64,96 @@ export const PAYMENT_MODES = [
 
 export const PAYMENT_MODE_LABELS = Object.fromEntries(PAYMENT_MODES.map((t) => [t.value, t.label]));
 
+export const PAYMENT_TYPES = [
+  { value: 'full', label: 'Full Payment' },
+  { value: 'partial', label: 'Partial Payment' },
+];
+
+export const PAYMENT_STATUSES = [
+  { value: 'paid', label: 'Paid' },
+  { value: 'partially_paid', label: 'Partially Paid' },
+  { value: 'unpaid', label: 'Unpaid' },
+];
+
+export const PAYMENT_STATUS_LABELS = {
+  paid: 'Paid',
+  partially_paid: 'Partially Paid',
+  unpaid: 'Unpaid',
+};
+
+export const PAYMENT_STATUS_STYLES = {
+  paid: 'bg-emerald-50 text-emerald-700',
+  partially_paid: 'bg-orange-50 text-orange-700',
+  unpaid: 'bg-red-50 text-red-700',
+};
+
+export function computePaymentSettlement(grandTotal, amountReceived) {
+  const total = Math.round((parseFloat(grandTotal) || 0) * 100) / 100;
+  let received = Math.round((parseFloat(amountReceived) || 0) * 100) / 100;
+
+  if (received < 0) received = 0;
+  if (received > total) received = total;
+
+  const pending_amount = Math.round(Math.max(0, total - received) * 100) / 100;
+  let payment_status = 'unpaid';
+  if (pending_amount <= 0) payment_status = 'paid';
+  else if (received > 0) payment_status = 'partially_paid';
+
+  return { amount_received: received, pending_amount, payment_status };
+}
+
+export function resolvePaymentStatus(transaction) {
+  if (transaction?.payment_status) return transaction.payment_status;
+  const pending = parseFloat(transaction?.pending_amount ?? 0);
+  const received = parseFloat(transaction?.amount_received ?? 0);
+  if (pending <= 0 && received > 0) return 'paid';
+  if (received > 0) return 'partially_paid';
+  return 'unpaid';
+}
+
+export function buildTransactionNumber(transaction) {
+  if (!transaction?.id || !transaction?.transaction_date) return '—';
+  const dateCompact = String(transaction.transaction_date).replace(/-/g, '');
+  return `TXN-${dateCompact}-${String(transaction.id).padStart(4, '0')}`;
+}
+
+/** Prefer stored CGST/SGST; otherwise split total GST 50/50 (legacy rows). */
+export function resolveLineGstSplit(item) {
+  if (item?.cgst_amount != null || item?.sgst_amount != null) {
+    const cgst_amount = Math.round((parseFloat(item.cgst_amount) || 0) * 100) / 100;
+    const sgst_amount = Math.round((parseFloat(item.sgst_amount) || 0) * 100) / 100;
+    const taxable = parseFloat(item?.amount) || 0;
+    return {
+      cgst_amount,
+      sgst_amount,
+      cgst_rate: taxable > 0 ? Math.round((cgst_amount / taxable) * 10000) / 100 : 0,
+      sgst_rate: taxable > 0 ? Math.round((sgst_amount / taxable) * 10000) / 100 : 0,
+    };
+  }
+  return splitIntraStateGst(item?.gst_amount, item?.gst_percent);
+}
+
+/** Intra-state GST: split total GST 50/50 into CGST + SGST (legacy fallback). */
+export function splitIntraStateGst(gstAmount, gstPercent = 0) {
+  const total = Math.round((parseFloat(gstAmount) || 0) * 100) / 100;
+  const rate = Math.round((parseFloat(gstPercent) || 0) * 100) / 100;
+  const halfAmount = Math.round((total / 2) * 100) / 100;
+  const halfRate = Math.round((rate / 2) * 100) / 100;
+  return {
+    cgst_rate: halfRate,
+    sgst_rate: Math.round((rate - halfRate) * 100) / 100,
+    cgst_amount: halfAmount,
+    sgst_amount: Math.round((total - halfAmount) * 100) / 100,
+  };
+}
+
 export const EMPTY_LINE_ITEM = {
   description: '',
   qty: '1',
   unit_price: '',
   gst_applicable: false,
-  gst_percent: '18',
+  cgst_amount: '',
+  sgst_amount: '',
 };
 
 export const EMPTY_TRANSACTION_FORM = {
@@ -79,7 +163,10 @@ export const EMPTY_TRANSACTION_FORM = {
   category_id: '',
   payment_mode: 'cash',
   cheque_number: '',
-  line_items: [{ description: '', qty: '1', unit_price: '', gst_applicable: false, gst_percent: '18' }],
+  payment_type: 'full',
+  amount_received: '',
+  pending_reminder_date: '',
+  line_items: [{ description: '', qty: '1', unit_price: '', gst_applicable: false, cgst_amount: '', sgst_amount: '' }],
   notes: '',
 };
 
@@ -137,7 +224,7 @@ export const EMPTY_CATEGORY_FORM = {
   active: true,
 };
 
-export const FINANCE_WRITE_ROLES = ['super_admin', 'owner', 'hr'];
+export const FINANCE_WRITE_ROLES = ['super_admin', 'owner', 'admin', 'hr'];
 
 export const QUOTATION_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -434,12 +521,6 @@ export const FINANCE_PAGE_GUIDES = {
   },
   vendors: {
     tip: 'Add suppliers here, then select them on payments.',
-  },
-  ledger: {
-    tip: 'Pick one account to see its running balance.',
-  },
-  'trial-balance': {
-    tip: 'Month-end check — total debit should equal total credit.',
   },
   'finance-summary': {
     tip: 'Combined view: Day Book totals + Payroll totals for the selected month.',

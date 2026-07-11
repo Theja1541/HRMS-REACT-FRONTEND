@@ -6,6 +6,7 @@ import {
 } from '../../utils/receiptFormat';
 import { formatInvoiceDateLong, formatInvoiceQty, joinAddress } from '../../utils/invoiceFormat';
 import { resolveAssetUrl } from '../../utils/helpers';
+import { resolveLineGstSplit } from '../../constants/finance';
 
 const TEXT = '#0f172a';
 const MUTED = '#64748b';
@@ -13,13 +14,6 @@ const TABLE_HEAD_BG = '#f8fafc';
 const SUMMARY_BG = '#f8fafc';
 const BORDER = '#dbe3ef';
 const BRAND = '#1d4ed8';
-
-function displayGstPercent(item) {
-  if (item.gst_applicable || parseFloat(item.gst_amount) > 0) {
-    return `${parseFloat(item.gst_percent) || 0}%`;
-  }
-  return '-';
-}
 
 function Rule({ style }) {
   return (
@@ -179,25 +173,28 @@ export default function PaymentReceiptDocument({ receipt, tenant, vendor }) {
             <th style={thStyle({ width: '9%' })}>Qty</th>
             <th style={thStyle({ textAlign: 'right', width: '13%' })}>Unit Price</th>
             <th style={thStyle({ textAlign: 'right', width: '13%' })}>Amount</th>
-            <th style={thStyle({ width: '9%' })}>GST %</th>
-            <th style={thStyle({ textAlign: 'right', width: '13%' })}>GST Amt</th>
-            <th style={thStyle({ textAlign: 'right', width: '14%' })}>Total Amount</th>
+            <th style={thStyle({ textAlign: 'right', width: '13%' })}>CGST</th>
+            <th style={thStyle({ textAlign: 'right', width: '13%' })}>SGST</th>
+            <th style={thStyle({ textAlign: 'right', width: '15%' })}>Total Amount</th>
           </tr>
         </thead>
         <tbody>
-          {lineItems.map((item, idx) => (
+          {lineItems.map((item, idx) => {
+            const split = resolveLineGstSplit(item);
+            return (
             <tr key={item.id || idx}>
               <td style={tdStyle({ fontWeight: 600, textAlign: 'left' })}>{item.description}</td>
               <td style={tdStyle({ textAlign: 'center' })}>{formatInvoiceQty(item.qty)}</td>
               <td style={tdStyle({ textAlign: 'right' })}>{formatReceiptINR(item.unit_price)}</td>
               <td style={tdStyle({ textAlign: 'right' })}>{formatReceiptINR(item.amount)}</td>
-              <td style={tdStyle({ textAlign: 'center' })}>{displayGstPercent(item)}</td>
-              <td style={tdStyle({ textAlign: 'right' })}>{formatReceiptINR(item.gst_amount)}</td>
+              <td style={tdStyle({ textAlign: 'right' })}>{formatReceiptINR(split.cgst_amount)}</td>
+              <td style={tdStyle({ textAlign: 'right' })}>{formatReceiptINR(split.sgst_amount)}</td>
               <td style={tdStyle({ textAlign: 'right', fontWeight: 700 })}>
                 {formatReceiptINR(item.line_total)}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
 

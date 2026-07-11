@@ -7,6 +7,7 @@ import {
   formatInvoiceQty,
   joinAddress,
 } from '../../utils/invoiceFormat';
+import { resolveLineGstSplit } from '../../constants/finance';
 
 const SECTION_BG = '#D9E9F4';
 const TABLE_HEAD_BG = '#F2F2F2';
@@ -47,13 +48,6 @@ function labelCell(extra = {}) {
   return cell({ fontWeight: 700, width: '14%', ...extra });
 }
 
-function displayGstPercent(item) {
-  if (item.gst_applicable || parseFloat(item.gst_amount) > 0) {
-    return `${parseFloat(item.gst_percent) || 0}%`;
-  }
-  return '-';
-}
-
 const PAYMENT_MODE_LABELS = {
   cash: 'Cash',
   bank: 'Bank Transfer',
@@ -73,7 +67,8 @@ export default function TaxInvoiceDocument({ invoice, tenant, vendor, transactio
   const logoUrl = resolveAssetUrl(tenant?.logo_url || '');
   const lineItems = invoice?.line_items || [];
   const subtotal = invoice?.subtotal ?? 0;
-  const totalGst = invoice?.total_gst ?? 0;
+  const totalCgst = lineItems.reduce((s, item) => s + resolveLineGstSplit(item).cgst_amount, 0);
+  const totalSgst = lineItems.reduce((s, item) => s + resolveLineGstSplit(item).sgst_amount, 0);
   const grandTotal = invoice?.grand_total ?? 0;
   const emptyRows = Math.max(0, MIN_ITEM_ROWS - lineItems.length);
   const paymentMode = invoice?.payment_mode || 'cash';
@@ -102,9 +97,9 @@ export default function TaxInvoiceDocument({ invoice, tenant, vendor, transactio
           <col style={{ width: '10%' }} />
           <col style={{ width: '12%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '8%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '11%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '14%' }} />
         </colgroup>
         <tbody>
           {/* ── Company header ── */}
@@ -221,26 +216,29 @@ export default function TaxInvoiceDocument({ invoice, tenant, vendor, transactio
             <td style={tableHead()}>Qty</td>
             <td style={tableHead()}>Unit Price</td>
             <td style={tableHead()}>Amount</td>
-            <td style={tableHead()}>GST %</td>
-            <td style={tableHead()}>GST Amt</td>
+            <td style={tableHead()}>CGST</td>
+            <td style={tableHead()}>SGST</td>
             <td style={tableHead()}>Total Amount</td>
           </tr>
 
           {/* ── Line items body ── */}
-          {lineItems.map((item, idx) => (
+          {lineItems.map((item, idx) => {
+            const split = resolveLineGstSplit(item);
+            return (
             <tr key={item.id || idx}>
               <td style={{ ...cell(), textAlign: 'center' }}>{idx + 1}</td>
               <td style={{ ...cell(), fontWeight: 700 }}>{item.description}</td>
               <td style={{ ...cell(), textAlign: 'center' }}>{formatInvoiceQty(item.qty)}</td>
               <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(item.unit_price)}</td>
               <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(item.amount)}</td>
-              <td style={{ ...cell(), textAlign: 'center' }}>{displayGstPercent(item)}</td>
-              <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(item.gst_amount)}</td>
+              <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(split.cgst_amount)}</td>
+              <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(split.sgst_amount)}</td>
               <td style={{ ...cell(), textAlign: 'center', fontWeight: 700 }}>
                 {formatIndianAmount(item.line_total)}
               </td>
             </tr>
-          ))}
+            );
+          })}
           {Array.from({ length: emptyRows }).map((_, i) => (
             <tr key={`empty-${i}`}>
               {Array.from({ length: COLS }).map((__, j) => (
@@ -262,9 +260,16 @@ export default function TaxInvoiceDocument({ invoice, tenant, vendor, transactio
           <tr>
             <td style={{ ...cell(), borderTop: 'none', borderBottom: 'none' }} colSpan={5} />
             <td style={{ ...cell(), fontWeight: 600 }} colSpan={2}>
-              Total GST
+              CGST
             </td>
-            <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(totalGst)}</td>
+            <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(totalCgst)}</td>
+          </tr>
+          <tr>
+            <td style={{ ...cell(), borderTop: 'none', borderBottom: 'none' }} colSpan={5} />
+            <td style={{ ...cell(), fontWeight: 600 }} colSpan={2}>
+              SGST
+            </td>
+            <td style={{ ...cell(), textAlign: 'center' }}>{formatIndianAmount(totalSgst)}</td>
           </tr>
           <tr>
             <td style={{ ...cell(), borderTop: 'none' }} colSpan={5} />

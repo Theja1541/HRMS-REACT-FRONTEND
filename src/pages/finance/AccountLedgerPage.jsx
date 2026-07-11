@@ -175,10 +175,10 @@ export default function AccountLedgerPage() {
                         <td className="px-4 py-2.5 text-slate-600 max-w-md truncate" title={line.narration_line || line.voucher_narration || ''}>
                           {line.narration_line || line.voucher_narration || '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
+                        <td className="px-4 py-2.5 text-right font-mono text-red-600">
                           {line.debit_amount > 0 ? formatINR(line.debit_amount) : '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-red-600">
+                        <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
                           {line.credit_amount > 0 ? formatINR(line.credit_amount) : '—'}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-700">

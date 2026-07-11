@@ -24,8 +24,6 @@ import SalariesPage from './pages/payroll/SalariesPage';
 import SalaryFeedPage from './pages/payroll/SalaryFeedPage';
 import PayslipsPage from './pages/payroll/PayslipsPage';
 import PFSummaryPage from './pages/finance/PFSummaryPage';
-import AccountLedgerPage from './pages/finance/AccountLedgerPage';
-import TrialBalancePage from './pages/finance/TrialBalancePage';
 import FinanceSummaryPage from './pages/finance/FinanceSummaryPage';
 import GSTPage from './pages/finance/GSTPage';
 import VendorsPage from './pages/finance/VendorsPage';
@@ -276,8 +274,6 @@ export default function App() {
               <Route path="daybook" element={<Navigate to="/transactions" replace />} />
               <Route path="daybook/dashboard" element={<ModuleAccessGuard module="daybook"><DaybookDashboardPage /></ModuleAccessGuard>} />
               <Route path="finance/payment-modes" element={<Navigate to="/transactions" replace />} />
-              <Route path="account-ledger" element={<AccountLedgerPage />} />
-              <Route path="trial-balance" element={<TrialBalancePage />} />
               <Route path="finance" element={<FinanceSummaryPage />} />
               <Route path="gst" element={<GSTPage />} />
               <Route path="vendors" element={<VendorsPage />} />
