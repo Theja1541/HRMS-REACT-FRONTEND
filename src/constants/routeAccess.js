@@ -16,7 +16,7 @@ export const READ_ONLY_ROLES = RESTRICTED_ROLES;
 export const ROUTE_ACCESS_POLICY = {
   auditor: {
     mode: 'read_only',
-    summary: 'Day Book dashboard and transactions (read-only). All other URLs blocked.',
+    summary: 'Day Book payments and finance dashboard (read-only). All other URLs blocked.',
   },
   pf_team: {
     mode: 'read_only',
@@ -40,6 +40,7 @@ const EXPLICIT_ROUTE_RULES = [
   { path: '/transactions/:id/edit', roles: ADMIN_ROLES },
   { path: '/transactions/:id', roles: [...ADMIN_ROLES, 'auditor'] },
   { path: '/transactions/add', roles: ADMIN_ROLES },
+  { path: '/quotations/:id', roles: ADMIN_ROLES },
   { path: '/resignations', roles: [...ADMIN_ROLES, 'manager'] },
   { path: '/me/change-password', roles: ['employee', 'manager', 'owner', 'hr'] },
   { path: '/me/reimbursements/new', roles: ['employee', 'manager'] },

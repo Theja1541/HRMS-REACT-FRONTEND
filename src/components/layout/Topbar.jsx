@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, ClipboardCheck, HelpCircle, Menu, Search } from 'lucide-react';
+import { Bell, ClipboardCheck, HelpCircle, LogOut, Menu, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NAV_ITEMS, flattenNavItems } from '../../constants/routes';
-import { billingApi, platformApi } from '../../api';
+import { authApi, billingApi, platformApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
 import { cn } from '../../utils/helpers';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import RoleSwitcher from './RoleSwitcher';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
+import { isPlatformPortal } from '../../utils/portalContext';
 
 const PAGE_TITLES = {};
 flattenNavItems().forEach((item) => {
@@ -40,7 +43,9 @@ export default function Topbar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const isSuperAdmin = user?.role === 'super_admin';
+  const workspace = useAuthStore((s) => s.workspace);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -88,6 +93,15 @@ export default function Topbar() {
     setOpen(false);
   };
 
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      useAuthStore.getState().logout();
+      navigate('/login');
+    }
+  };
+
   return (
     <header className="relative bg-white border-b border-slate-200 px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-4 shrink-0 min-w-0">
       <button
@@ -118,6 +132,10 @@ export default function Topbar() {
         >
           <Search size={16} />
         </button>
+
+        <WorkspaceSwitcher />
+
+        <RoleSwitcher />
 
         <div className="relative">
           <button type="button" onClick={() => setOpen(!open)} className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500">
@@ -177,6 +195,17 @@ export default function Topbar() {
         <Link to="/helpdesk" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 shrink-0" title="Helpdesk">
           <HelpCircle size={16} />
         </Link>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 shrink-0 transition-colors"
+          title="Logout"
+          aria-label="Logout"
+        >
+          <LogOut size={16} />
+          <span className="hidden sm:inline text-xs font-medium">Logout</span>
+        </button>
       </div>
 
       {searchOpen && (

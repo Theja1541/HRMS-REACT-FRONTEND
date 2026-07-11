@@ -4,18 +4,16 @@ import { jsPDF } from 'jspdf';
 /** Fixed export width — matches on-screen payslip preview */
 export const PAYSLIP_EXPORT_WIDTH = 640;
 
+/** A4 document width at 96 DPI — matches 210mm finance print layouts */
+export const FINANCE_A4_EXPORT_WIDTH = 794;
+
 const CAPTURE_SCALE = 3;
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
-/**
- * Convert <colgroup> percentage widths to explicit pixel widths on both the
- * <col> elements AND the first non-spanning row's cells.
- *
- * html2canvas does not honour percentage-based <colgroup> widths in
- * fixed-layout tables, which causes columns to render at wrong proportions.
- * Applying pixel widths directly fixes the 1:1 fidelity issue.
- */
-function fixTableColWidths(table, tableWidth) {
+const EXPORT_MARKERS = '[data-payslip-export], [data-quotation-export], [data-finance-export]';
+
+/** @see exportQuotationPdf — shared table width fix for html2canvas fidelity */
+export function fixTableColWidths(table, tableWidth) {
   const cols = Array.from(table.querySelectorAll('colgroup > col'));
   if (cols.length === 0) return;
 
@@ -57,7 +55,7 @@ function fixTableColWidths(table, tableWidth) {
  * Convert every flex container in the CLONE (never the live view) to an
  * equivalent CSS table layout, which html2canvas renders faithfully.
  */
-function flattenFlexForCapture(scope) {
+export function flattenFlexForCapture(scope) {
   const flexEls = Array.from(scope.querySelectorAll('*')).filter(
     (el) => el.style && el.style.display === 'flex'
   );
@@ -85,17 +83,17 @@ function flattenFlexForCapture(scope) {
   });
 }
 
-function prepareCloneForCapture(doc, cloneEl) {
+function prepareCloneForCapture(doc, cloneEl, width = PAYSLIP_EXPORT_WIDTH) {
   // html2canvas passes (clonedDocument, clonedElement). Use the document to
   // search so this works whether we capture the full page or an isolated element.
-  const target = doc.querySelector('[data-payslip-export]') || cloneEl;
+  const target = doc.querySelector(EXPORT_MARKERS) || cloneEl;
   const scope = doc.body || cloneEl;
 
   if (target) {
     Object.assign(target.style, {
-      width: `${PAYSLIP_EXPORT_WIDTH}px`,
-      maxWidth: `${PAYSLIP_EXPORT_WIDTH}px`,
-      minWidth: `${PAYSLIP_EXPORT_WIDTH}px`,
+      width: `${width}px`,
+      maxWidth: `${width}px`,
+      minWidth: `${width}px`,
       margin: '0',
       padding: '0',
       background: '#ffffff',
@@ -114,25 +112,34 @@ function prepareCloneForCapture(doc, cloneEl) {
     table.style.borderCollapse = 'collapse';
     table.style.borderSpacing = '0';
     // Use explicit px width so html2canvas doesn't miscompute '100%'
-    table.style.width = `${PAYSLIP_EXPORT_WIDTH}px`;
+    table.style.width = `${width}px`;
     table.style.border = '1px solid #000000';
     table.style.tableLayout = 'fixed';
 
-    fixTableColWidths(table, PAYSLIP_EXPORT_WIDTH);
+    fixTableColWidths(table, width);
   });
 
   scope.querySelectorAll('td, th').forEach((cell) => {
     cell.style.border = '1px solid #000000';
     cell.style.boxSizing = 'border-box';
-    cell.style.color = '#000000';
-    cell.style.background = '#ffffff';
+    cell.style.color = cell.style.color || '#000000';
+    const inlineBg = cell.style.backgroundColor;
+    if (inlineBg && inlineBg !== 'transparent' && inlineBg !== 'rgba(0, 0, 0, 0)') {
+      cell.style.background = inlineBg;
+    } else if (!cell.style.background) {
+      cell.style.background = '#ffffff';
+    }
     // 1:1 fidelity with the on-screen view, applied only to text cells (the
     // header cell holds the logo/title block and keeps its own 8px padding).
     // html2canvas 1.4.1 clips the text descender against the bottom border at
     // line-height 1.35, so nudge line-height up just enough (1.45) to clear the
     // descender WITHOUT changing row height perceptibly, keeping the view's exact
     // 4px top/bottom padding. verticalAlign:middle centers single-line text.
-    if (cell.children.length === 0) {
+    const hasSectionBg =
+      cell.style.backgroundColor &&
+      cell.style.backgroundColor !== 'transparent' &&
+      cell.style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    if (cell.children.length === 0 && !hasSectionBg) {
       cell.style.verticalAlign = 'middle';
       cell.style.lineHeight = '1.45';
       cell.style.paddingTop = '4px';
@@ -145,41 +152,34 @@ function prepareCloneForCapture(doc, cloneEl) {
   });
 }
 
-export async function capturePayslipCanvas(element) {
-  if (!element) throw new Error('Payslip element not found');
+export async function capturePayslipCanvas(element, { width = PAYSLIP_EXPORT_WIDTH } = {}) {
+  if (!element) throw new Error('Document element not found');
 
   await document.fonts?.ready;
 
-  // Render the payslip clone in an isolated, body-level container so that
-  // the surrounding grid/flex parents never constrain column widths.
-  // Using position:absolute (not fixed) keeps the element in document flow
-  // at a predictable position that html2canvas can reliably capture.
   const wrapper = document.createElement('div');
   Object.assign(wrapper.style, {
     position: 'absolute',
     top: '-99999px',
     left: '0',
-    width: `${PAYSLIP_EXPORT_WIDTH}px`,
+    width: `${width}px`,
     background: '#ffffff',
     overflow: 'visible',
   });
 
   const clone = element.cloneNode(true);
   Object.assign(clone.style, {
-    width: `${PAYSLIP_EXPORT_WIDTH}px`,
-    maxWidth: `${PAYSLIP_EXPORT_WIDTH}px`,
-    minWidth: `${PAYSLIP_EXPORT_WIDTH}px`,
+    width: `${width}px`,
+    maxWidth: `${width}px`,
+    minWidth: `${width}px`,
     margin: '0',
     padding: '0',
     background: '#ffffff',
     color: '#000000',
   });
 
-  // Pre-process colgroup widths on the clone before html2canvas clones it
-  // again internally — this ensures the html2canvas internal clone also sees
-  // the correct pixel widths when onclone fires.
   clone.querySelectorAll('table').forEach((table) => {
-    fixTableColWidths(table, PAYSLIP_EXPORT_WIDTH);
+    fixTableColWidths(table, width);
   });
 
   clone.querySelectorAll('img').forEach((img) => {
@@ -208,16 +208,16 @@ export async function capturePayslipCanvas(element) {
       useCORS: true,
       allowTaint: false,
       logging: false,
-      width: PAYSLIP_EXPORT_WIDTH,
-      windowWidth: PAYSLIP_EXPORT_WIDTH,
-      onclone: prepareCloneForCapture,
+      width,
+      windowWidth: width,
+      onclone: (doc, cloneEl) => prepareCloneForCapture(doc, cloneEl, width),
     });
   } finally {
     document.body.removeChild(wrapper);
   }
 }
 
-function canvasToPdfBlob(canvas, format = 'PNG') {
+function canvasToPdfBlob(canvas, format = 'PNG', { fitSinglePage = false } = {}) {
   const isPng = format === 'PNG';
   const imgData = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', isPng ? 1.0 : 0.94);
 
@@ -226,27 +226,42 @@ function canvasToPdfBlob(canvas, format = 'PNG') {
   const pageW = pdf.internal.pageSize.getWidth() - margin * 2;
   const pageH = pdf.internal.pageSize.getHeight() - margin * 2;
 
-  let imgW = pageW;
-  let imgH = (canvas.height * imgW) / canvas.width;
+  const imgW = pageW;
+  const imgH = (canvas.height * imgW) / canvas.width;
 
-  if (imgH > pageH) {
-    imgH = pageH;
-    imgW = (canvas.width * imgH) / canvas.height;
+  if (fitSinglePage) {
+    const scale = imgH > pageH ? pageH / imgH : 1;
+    const finalW = imgW * scale;
+    const finalH = imgH * scale;
+    const offsetX = margin + (pageW - finalW) / 2;
+    pdf.addImage(imgData, format, offsetX, margin, finalW, finalH, undefined, isPng ? 'SLOW' : 'MEDIUM');
+    return pdf.output('blob');
   }
 
-  const x = margin + (pageW - imgW) / 2;
-  pdf.addImage(imgData, format, x, margin, imgW, imgH, undefined, isPng ? 'SLOW' : 'MEDIUM');
+  let heightLeft = imgH;
+  let position = margin;
+
+  pdf.addImage(imgData, format, margin, position, imgW, imgH, undefined, isPng ? 'SLOW' : 'MEDIUM');
+  heightLeft -= pageH;
+
+  while (heightLeft > 0) {
+    position = margin - (imgH - heightLeft);
+    pdf.addPage();
+    pdf.addImage(imgData, format, margin, position, imgW, imgH, undefined, isPng ? 'SLOW' : 'MEDIUM');
+    heightLeft -= pageH;
+  }
+
   return pdf.output('blob');
 }
 
-export async function renderElementToPdfBlob(element) {
-  const canvas = await capturePayslipCanvas(element);
+export async function renderElementToPdfBlob(element, { width = PAYSLIP_EXPORT_WIDTH, fitSinglePage = false } = {}) {
+  const canvas = await capturePayslipCanvas(element, { width });
   // Always embed the lossless PNG so the PDF is pixel-identical to the Image
   // export (same canvas, same crispness). Only if it somehow exceeds the size
   // cap do we re-encode the SAME canvas as high-quality JPEG as a last resort.
-  let blob = canvasToPdfBlob(canvas, 'PNG');
+  let blob = canvasToPdfBlob(canvas, 'PNG', { fitSinglePage });
   if (blob.size > MAX_PDF_BYTES) {
-    blob = canvasToPdfBlob(canvas, 'JPEG');
+    blob = canvasToPdfBlob(canvas, 'JPEG', { fitSinglePage });
   }
   return blob;
 }

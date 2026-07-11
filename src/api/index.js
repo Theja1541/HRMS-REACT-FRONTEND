@@ -12,6 +12,9 @@ export const authApi = {
   resetPassword: (payload) => api.post('/auth/reset-password', payload).then((r) => r.data),
   validateResetToken: (token) =>
     api.get('/auth/reset-password/validate', { params: { token } }).then((r) => r.data),
+  listWorkspaces: () => api.get('/auth/workspaces').then((r) => r.data),
+  activateWorkspace: (workspaceId) =>
+    api.post('/auth/activate-workspace', { workspaceId }).then((r) => r.data),
 };
 
 export const careersApi = {
@@ -352,7 +355,7 @@ export const financeApi = {
   createGst: (payload) => api.post('/finance/gst', payload).then((r) => r.data),
   deleteGst: (id) => api.delete(`/finance/gst/${id}`).then((r) => r.data),
   listVendors: (params) => api.get('/finance/vendors', { params }).then((r) => r.data),
-  getVendor: (id) => api.get(`/finance/vendors/${id}`).then((r) => r.data),
+  getVendor: (id, params) => api.get(`/finance/vendors/${id}`, { params }).then((r) => r.data),
   createVendor: (payload) => api.post('/finance/vendors', payload).then((r) => r.data),
   updateVendor: (id, payload) => api.put(`/finance/vendors/${id}`, payload).then((r) => r.data),
   deleteVendor: (id) => api.delete(`/finance/vendors/${id}`).then((r) => r.data),
@@ -370,6 +373,13 @@ export const financeApi = {
   createTransaction: (payload) => api.post('/finance/transactions', payload).then((r) => r.data),
   updateTransaction: (id, payload) => api.put(`/finance/transactions/${id}`, payload).then((r) => r.data),
   deleteTransaction: (id) => api.delete(`/finance/transactions/${id}`).then((r) => r.data),
+  listTransactionPayments: (id) => api.get(`/finance/transactions/${id}/payments`).then((r) => r.data),
+  recordTransactionPayment: (id, payload) => api.post(`/finance/transactions/${id}/payments`, payload).then((r) => r.data),
+  listQuotations: (params) => api.get('/finance/quotations', { params }).then((r) => r.data),
+  getQuotation: (id) => api.get(`/finance/quotations/${id}`).then((r) => r.data),
+  createQuotation: (payload) => api.post('/finance/quotations', payload).then((r) => r.data),
+  updateQuotation: (id, payload) => api.put(`/finance/quotations/${id}`, payload).then((r) => r.data),
+  deleteQuotation: (id) => api.delete(`/finance/quotations/${id}`).then((r) => r.data),
   listPaymentModes: () => api.get('/finance/payment-modes').then((r) => r.data),
   upsertPaymentMode: (paymentMode, payload) =>
     api.put(`/finance/payment-modes/${paymentMode}`, payload).then((r) => r.data),

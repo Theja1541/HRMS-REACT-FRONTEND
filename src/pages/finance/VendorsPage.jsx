@@ -205,7 +205,7 @@ export default function VendorsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Vendors"
-        subtitle="Supplier and service provider master for payments and GST"
+        subtitle="Suppliers you pay"
         actions={
           <button type="button" onClick={openCreate} className="btn-primary">
             <Plus size={14} /> Add Vendor

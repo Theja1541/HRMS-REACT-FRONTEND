@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../store/auth.store';
 import { authApi } from '../../api';
+import { isPersonSessionToken } from '../../utils/jwt';
+import {
+  promoteToWorkspaceAccessToken,
+  workspaceFromAccessToken,
+} from '../../utils/workspaceSession';
 
 function normalizeUser(raw) {
   if (!raw) return null;
@@ -16,9 +21,8 @@ function normalizeUser(raw) {
 export default function AuthBootstrap({ children }) {
   const [ready, setReady] = useState(false);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
-  const setAccessToken = useAuthStore((s) => s.setAccessToken);
-  const setUser = useAuthStore((s) => s.setUser);
-  const setEntitlements = useAuthStore((s) => s.setEntitlements);
+  const beginPersonSession = useAuthStore((s) => s.beginPersonSession);
+  const login = useAuthStore((s) => s.login);
   const setHasHydrated = useAuthStore((s) => s.setHasHydrated);
 
   useEffect(() => {
@@ -49,12 +53,39 @@ export default function AuthBootstrap({ children }) {
           return;
         }
 
-        if (!cancelled) setAccessToken(token);
+        if (isPersonSessionToken(token)) {
+          if (!cancelled) {
+            const { pendingWorkspaces } = useAuthStore.getState();
+            beginPersonSession(token, pendingWorkspaces);
+          }
+          return;
+        }
+
+        token = await promoteToWorkspaceAccessToken(token);
 
         const me = await authApi.me(token);
         if (!cancelled) {
-          setUser(normalizeUser(me.data.user));
-          setEntitlements(me.data.entitlements || null);
+          const state = useAuthStore.getState();
+          const tokenWorkspace = workspaceFromAccessToken(token);
+          const workspace = tokenWorkspace
+            ? { ...(state.workspace || {}), ...tokenWorkspace }
+            : state.workspace;
+          const roles = me.data.roles?.length ? me.data.roles : workspace?.roles;
+          const defaultRole = me.data.defaultRole || workspace?.defaultRole;
+          const selectedRole =
+            state.selectedRole && roles?.includes(state.selectedRole)
+              ? state.selectedRole
+              : defaultRole;
+
+          login({
+            accessToken: token,
+            workspace,
+            user: normalizeUser(me.data.user),
+            entitlements: me.data.entitlements || null,
+            roles,
+            defaultRole,
+            selectedRole,
+          });
         }
       } catch {
         if (!cancelled) {
@@ -69,7 +100,7 @@ export default function AuthBootstrap({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, setAccessToken, setUser, setEntitlements]);
+  }, [hasHydrated, beginPersonSession, login]);
 
   if (!hasHydrated || !ready) {
     return (

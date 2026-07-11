@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import * as Icons from 'lucide-react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
-import { authApi, leaveApi, hrApi, portalApi, brandingApi } from '../../api';
-import { NAV_ITEMS, isNavItemVisible, isNavPathActive } from '../../constants/routes';
+import { leaveApi, hrApi, portalApi, brandingApi } from '../../api';
+import { NAV_ITEMS, getMostSpecificNavPath, isNavItemVisible, isNavPathActive } from '../../constants/routes';
 import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
-import TenantSwitcher from './TenantSwitcher';
+import { isPlatformPortal, resolvePortalRole } from '../../utils/portalContext';
+// import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
 
 const DESKTOP_MEDIA = '(min-width: 1024px)';
 const EMPTY_MODULE_CODES = [];
 
-function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, className }) {
+function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, className, isActive }) {
   const Icon = Icons[item.icon] || Icons.Circle;
 
   return (
@@ -23,7 +24,7 @@ function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, classNam
       end={item.path === '/dashboard' || item.path === '/me'}
       title={isIconOnly ? item.label : undefined}
       onClick={onNavigate}
-      className={({ isActive }) =>
+      className={() =>
         cn(
           'flex items-center text-xs font-normal relative transition-colors',
           isIconOnly ? 'justify-center px-2 py-2.5 mx-2 rounded-lg' : 'gap-2.5 px-4 py-2',
@@ -57,6 +58,7 @@ function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, classNam
 function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badgeCount, onNavigate }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -80,6 +82,10 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
   }, [open]);
 
   const sectionBadgeTotal = visibleItems.reduce((sum, item) => sum + badgeCount(item), 0);
+  const activeItemPath = getMostSpecificNavPath(
+    location.pathname,
+    visibleItems.map((item) => item.path)
+  );
 
   return (
     <div ref={rootRef} className="relative mx-2 mb-1">
@@ -116,9 +122,10 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
                 isIconOnly={false}
                 showLabels
                 count={count}
+                isActive={activeItemPath === item.path}
                 onNavigate={() => {
                   setOpen(false);
-                  onNavigate?.();
+                  onNavigate?.(item);
                 }}
                 className="px-3"
               />
@@ -131,7 +138,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
 }
 
 export default function Sidebar() {
-  const { user, selectedTenantId, entitlements } = useAuthStore();
+  const { user, workspace, roles, selectedRole, selectedTenantId, setSelectedTenantId, entitlements, accessToken } = useAuthStore();
   const {
     sidebarCollapsed,
     toggleSidebarCollapsed,
@@ -141,9 +148,8 @@ export default function Sidebar() {
     toggleNavSection,
     setNavSectionExpanded,
   } = useUiStore();
-  const navigate = useNavigate();
   const location = useLocation();
-  const role = user?.role || user?.system_role;
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
   const moduleCodes = entitlements?.module_codes ?? EMPTY_MODULE_CODES;
   const moduleCodesKey = useMemo(() => moduleCodes.join(','), [moduleCodes]);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_MEDIA).matches);
@@ -181,6 +187,21 @@ export default function Sidebar() {
     pendingPolicies: pendingPolicies > 0 ? pendingPolicies : 0,
   };
 
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
+
+  const handleNavItemNavigate = (item) => {
+    if (isSuperAdmin && item?.path === '/dashboard') {
+      setSelectedTenantId(null);
+    }
+    closeMobileSidebar();
+  };
+
+  // Super Admin portal: only Admin module visible for now (other modules hidden)
+  const navGroups = useMemo(
+    () => (isSuperAdmin ? NAV_ITEMS.filter((group) => group.section === 'Admin') : NAV_ITEMS),
+    [isSuperAdmin]
+  );
+
   useEffect(() => {
     const media = window.matchMedia(DESKTOP_MEDIA);
 
@@ -209,7 +230,7 @@ export default function Sidebar() {
   }, [location.pathname, closeMobileSidebar]);
 
   useEffect(() => {
-    NAV_ITEMS.forEach((group) => {
+    navGroups.forEach((group) => {
       if (group.collapsible === false) return;
       const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));
       const isActive = visibleItems.some((item) => isNavPathActive(location.pathname, item.path));
@@ -217,23 +238,12 @@ export default function Sidebar() {
         setNavSectionExpanded(group.section, true);
       }
     });
-  }, [location.pathname, role, moduleCodesKey, expandedNavSections, setNavSectionExpanded]);
-
-  const handleLogout = async () => {
-    try {
-      await authApi.logout();
-    } finally {
-      useAuthStore.getState().logout();
-      navigate('/login');
-    }
-  };
+  }, [location.pathname, role, moduleCodesKey, expandedNavSections, setNavSectionExpanded, navGroups]);
 
   const tenantName =
     user?.tenant?.name ||
     user?.Tenant?.name ||
     (role === 'super_admin' ? 'All Organizations' : 'HRMS');
-
-  const isSuperAdmin = role === 'super_admin';
 
   const { data: platformBrandingData } = useQuery({
     queryKey: ['platform-branding'],
@@ -329,9 +339,11 @@ export default function Sidebar() {
             </button>
           </div>
 
+          {/* Super Admin: organizations dropdown hidden for now
           {isSuperAdmin ? (
             <TenantSwitcher showLabels={showLabels} isIconOnly={isIconOnly} />
-          ) : !isIconOnly && (
+          ) : */}
+          {!isSuperAdmin && !isIconOnly && (
             <div className="w-full flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2">
               {tenantLogo ? (
                 <img src={tenantLogo} alt="" className="w-5 h-5 rounded object-contain shrink-0" />
@@ -343,19 +355,24 @@ export default function Sidebar() {
               <span className="text-slate-300 text-xs font-medium flex-1 text-left truncate">{tenantName}</span>
             </div>
           )}
+          {/* } */}
         </div>
 
         <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
-          {NAV_ITEMS.map((group) => {
+          {navGroups.map((group) => {
             const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));
             if (!visibleItems.length) return null;
 
             const sectionLabel =
-              role === 'auditor' && group.section === 'Finance' ? 'Day Book' : group.section;
+              role === 'auditor' && group.section === 'Finance' ? 'Finance' : group.section;
             const SectionIcon = Icons[group.icon] || Icons[group.items[0]?.icon] || Icons.Circle;
             const isCollapsible = group.collapsible !== false;
             const isExpanded = expandedNavSections[group.section] ?? false;
-            const sectionActive = visibleItems.some((item) => isNavPathActive(location.pathname, item.path));
+            const activeItemPath = getMostSpecificNavPath(
+              location.pathname,
+              visibleItems.map((item) => item.path)
+            );
+            const sectionActive = Boolean(activeItemPath);
             const sectionBadgeTotal = visibleItems.reduce((sum, item) => sum + badgeCount(item), 0);
 
             if (!isCollapsible) {
@@ -368,7 +385,8 @@ export default function Sidebar() {
                       isIconOnly={isIconOnly}
                       showLabels={showLabels}
                       count={badgeCount(item)}
-                      onNavigate={closeMobileSidebar}
+                      isActive={activeItemPath === item.path}
+                      onNavigate={() => handleNavItemNavigate(item)}
                     />
                   ))}
                 </div>
@@ -383,7 +401,7 @@ export default function Sidebar() {
                   sectionLabel={sectionLabel}
                   SectionIcon={SectionIcon}
                   badgeCount={badgeCount}
-                  onNavigate={closeMobileSidebar}
+                  onNavigate={handleNavItemNavigate}
                 />
               );
             }
@@ -426,7 +444,8 @@ export default function Sidebar() {
                         isIconOnly={false}
                         showLabels
                         count={badgeCount(item)}
-                        onNavigate={closeMobileSidebar}
+                        isActive={activeItemPath === item.path}
+                        onNavigate={() => handleNavItemNavigate(item)}
                         className="pl-8"
                       />
                     ))}
@@ -438,7 +457,7 @@ export default function Sidebar() {
         </nav>
 
         <div className={cn('border-t border-slate-800', isIconOnly ? 'p-2' : 'p-4')}>
-          <div className={cn('flex items-center', isIconOnly ? 'flex-col gap-2' : 'gap-2')}>
+          <div className={cn('flex items-center', isIconOnly ? 'justify-center' : 'gap-2')}>
             <Avatar name={user?.name || user?.first_name || 'User'} size="md" />
             {showLabels && (
               <div className="min-w-0 flex-1">
@@ -450,14 +469,6 @@ export default function Sidebar() {
                 </div>
               </div>
             )}
-            <button
-              type="button"
-              onClick={handleLogout}
-              title="Sign out"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors shrink-0"
-            >
-              <LogOut size={14} />
-            </button>
           </div>
         </div>
       </aside>

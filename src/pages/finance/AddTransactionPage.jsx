@@ -4,17 +4,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { financeApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
+import QuickAddVendorModal from '../../components/finance/QuickAddVendorModal';
 import {
   EMPTY_LINE_ITEM,
   EMPTY_TRANSACTION_FORM,
   TRANSACTION_TYPES,
   PAYMENT_MODES,
+  PAYMENT_TYPES,
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUS_STYLES,
   CATEGORY_TYPE_LABELS,
-  PAYMENT_MODE_LABELS,
+  computePaymentSettlement,
+  resolveLineGstSplit,
+  buildTransactionNumber,
 } from '../../constants/finance';
 import { useAuthStore } from '../../store/auth.store';
 
 let lineKey = 0;
+const EMPTY_PENDING_TRANSACTIONS = [];
+
 function newLineItem() {
   lineKey += 1;
   return { _key: lineKey, ...EMPTY_LINE_ITEM };
@@ -39,10 +47,18 @@ function lineBaseAmount(item) {
   return round2(qty * unitPrice);
 }
 
-function lineGstAmount(item) {
+function lineCgst(item) {
   if (!item.gst_applicable) return 0;
-  const pct = parseFloat(item.gst_percent) || 0;
-  return round2(lineBaseAmount(item) * pct / 100);
+  return round2(parseFloat(item.cgst_amount) || 0);
+}
+
+function lineSgst(item) {
+  if (!item.gst_applicable) return 0;
+  return round2(parseFloat(item.sgst_amount) || 0);
+}
+
+function lineGstAmount(item) {
+  return round2(lineCgst(item) + lineSgst(item));
 }
 
 function lineTotal(item) {
@@ -51,9 +67,10 @@ function lineTotal(item) {
 
 function computeTotals(items) {
   const subtotal = round2(items.reduce((sum, item) => sum + lineBaseAmount(item), 0));
-  const totalGst = round2(items.reduce((sum, item) => sum + lineGstAmount(item), 0));
-  const grandTotal = round2(subtotal + totalGst);
-  return { subtotal, totalGst, grandTotal };
+  const totalCgst = round2(items.reduce((sum, item) => sum + lineCgst(item), 0));
+  const totalSgst = round2(items.reduce((sum, item) => sum + lineSgst(item), 0));
+  const grandTotal = round2(subtotal + totalCgst + totalSgst);
+  return { subtotal, totalCgst, totalSgst, grandTotal };
 }
 
 function vendorBankDetails(vendor) {
@@ -77,9 +94,11 @@ function hasUpiDetails(details) {
   return Boolean(details.upi);
 }
 
-const VENDOR_REQUIRED_MODES = ['bank', 'upi', 'cheque'];
-
 function transactionToForm(tx) {
+  const grandTotal = parseFloat(tx.total_amount) || 0;
+  const amountReceived = parseFloat(tx.amount_received) || 0;
+  const isPartial = amountReceived > 0 && amountReceived < grandTotal;
+
   return {
     date: tx.transaction_date,
     transaction_type: tx.transaction_type,
@@ -88,14 +107,22 @@ function transactionToForm(tx) {
     payment_mode: tx.payment_mode,
     cheque_number: tx.cheque_number || '',
     notes: tx.notes || '',
-    line_items: (tx.line_items || []).map((item) => ({
-      _key: ++lineKey,
-      description: item.description,
-      qty: String(item.qty),
-      unit_price: String(item.unit_price),
-      gst_applicable: Boolean(item.gst_applicable ?? parseFloat(item.gst_percent) > 0),
-      gst_percent: String(item.gst_percent ?? 18),
-    })),
+    payment_type: isPartial ? 'partial' : 'full',
+    amount_received: String(amountReceived || grandTotal),
+    pending_reminder_date: tx.pending_reminder_date || '',
+    line_items: (tx.line_items || []).map((item) => {
+      const split = resolveLineGstSplit(item);
+      const gstOn = Boolean(item.gst_applicable ?? parseFloat(item.gst_amount) > 0);
+      return {
+        _key: ++lineKey,
+        description: item.description,
+        qty: String(item.qty),
+        unit_price: String(item.unit_price),
+        gst_applicable: gstOn,
+        cgst_amount: gstOn ? String(split.cgst_amount || '') : '',
+        sgst_amount: gstOn ? String(split.sgst_amount || '') : '',
+      };
+    }),
   };
 }
 
@@ -105,6 +132,7 @@ function invalidateFinanceQueries(queryClient) {
   queryClient.invalidateQueries({ queryKey: ['daybook-dashboard'] });
   queryClient.invalidateQueries({ queryKey: ['finance-ledger'] });
   queryClient.invalidateQueries({ queryKey: ['finance-trial-balance'] });
+  queryClient.invalidateQueries({ queryKey: ['gst'] });
 }
 
 export default function AddTransactionPage() {
@@ -121,6 +149,9 @@ export default function AddTransactionPage() {
   });
   const [formError, setFormError] = useState('');
   const [formReady, setFormReady] = useState(!isEdit);
+  const [showVendorModal, setShowVendorModal] = useState(false);
+  /** @type {[{[id:string]: { selected: boolean, amount: string }}, Function]} */
+  const [pendingSelections, setPendingSelections] = useState({});
 
   const categoryType = form.transaction_type === 'debit' ? 'expense' : 'income';
 
@@ -130,7 +161,7 @@ export default function AddTransactionPage() {
     enabled: isEdit && !tenantRequired,
   });
 
-  const { data: vendorData } = useQuery({
+  const { data: vendorData, isLoading: vendorLoading } = useQuery({
     queryKey: ['finance-vendors-active', selectedTenantId],
     queryFn: () => financeApi.listVendors({ active_only: true }),
     enabled: !tenantRequired,
@@ -142,12 +173,6 @@ export default function AddTransactionPage() {
     enabled: !tenantRequired,
   });
 
-  const { data: paymentModeData } = useQuery({
-    queryKey: ['finance-payment-modes', selectedTenantId],
-    queryFn: () => financeApi.listPaymentModes(),
-    enabled: !tenantRequired,
-  });
-
   useEffect(() => {
     if (!isEdit || !txData?.data?.transaction) return;
     setForm(transactionToForm(txData.data.transaction));
@@ -156,16 +181,71 @@ export default function AddTransactionPage() {
 
   const vendors = vendorData?.data?.vendors || [];
   const categories = categoryData?.data?.categories || [];
-  const paymentModes = paymentModeData?.data?.modes || [];
-  const unmappedModes = paymentModes.filter((m) => !m.mapping?.account_id);
-  const selectedModeUnmapped = paymentModes.some(
-    (m) => m.payment_mode === form.payment_mode && !m.mapping?.account_id
-  );
 
   const selectedVendor = useMemo(
     () => vendors.find((v) => String(v.id) === form.vendor_id) || null,
     [vendors, form.vendor_id]
   );
+
+  const { data: vendorPendingData, isFetching: vendorPendingLoading } = useQuery({
+    queryKey: ['finance-vendor-pending', selectedTenantId, form.vendor_id, id],
+    queryFn: () => financeApi.getVendor(form.vendor_id, isEdit ? { exclude_transaction_id: id } : undefined),
+    enabled: !tenantRequired && Boolean(form.vendor_id),
+  });
+
+  const vendorPendingAmount = parseFloat(vendorPendingData?.data?.pending_amount) || 0;
+  const pendingTransactions =
+    vendorPendingData?.data?.pending_transactions ?? EMPTY_PENDING_TRANSACTIONS;
+
+  useEffect(() => {
+    if (!form.vendor_id) {
+      setPendingSelections((prev) => (Object.keys(prev).length ? {} : prev));
+      return;
+    }
+
+    const list = vendorPendingData?.data?.pending_transactions;
+    if (!list) return;
+
+    setPendingSelections((prev) => {
+      const next = {};
+      list.forEach((tx) => {
+        const key = String(tx.id);
+        next[key] = prev[key] || {
+          selected: false,
+          amount: String(tx.pending_amount || ''),
+        };
+      });
+
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length
+        && nextKeys.every((key) => prev[key]?.selected === next[key].selected && prev[key]?.amount === next[key].amount)
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [form.vendor_id, vendorPendingData?.data?.pending_transactions]);
+
+  const selectedPendingPayments = useMemo(() => {
+    return pendingTransactions
+      .map((tx) => {
+        const sel = pendingSelections[String(tx.id)];
+        if (!sel?.selected) return null;
+        const amount = round2(parseFloat(sel.amount) || 0);
+        return { tx, amount };
+      })
+      .filter(Boolean);
+  }, [pendingTransactions, pendingSelections]);
+
+  const selectedPendingTotal = useMemo(
+    () => round2(selectedPendingPayments.reduce((sum, row) => sum + row.amount, 0)),
+    [selectedPendingPayments]
+  );
+
+  const wantsNewEntry = form.line_items.some((item) => item.description.trim());
+  const wantsPayPending = selectedPendingPayments.length > 0;
 
   const vendorPaymentDetails = useMemo(() => {
     if (selectedVendor) {
@@ -184,19 +264,55 @@ export default function AddTransactionPage() {
   const showBankSection = form.payment_mode === 'bank';
   const showUpiSection = form.payment_mode === 'upi';
   const showChequeSection = form.payment_mode === 'cheque';
-  const vendorRequired = VENDOR_REQUIRED_MODES.includes(form.payment_mode);
   const bankDetailsReady = hasBankDetails(bankDetails);
   const upiDetailsReady = hasUpiDetails({ upi: upiId });
-  const chequeDetailsReady = Boolean(chequeBankName && form.cheque_number.trim());
 
   const totals = useMemo(() => computeTotals(form.line_items), [form.line_items]);
-  const { subtotal, totalGst, grandTotal } = totals;
+  const { subtotal, totalCgst, totalSgst, grandTotal } = totals;
+
+  const paymentSettlement = useMemo(
+    () => computePaymentSettlement(
+      grandTotal,
+      isEdit
+        ? (txData?.data?.transaction?.amount_received ?? form.amount_received)
+        : (form.payment_type === 'full' ? grandTotal : form.amount_received)
+    ),
+    [grandTotal, form.payment_type, form.amount_received, isEdit, txData]
+  );
+
+  const isPartiallyPaidEdit = isEdit && txData?.data?.transaction?.payment_status === 'partially_paid';
+
+  useEffect(() => {
+    if (form.payment_type !== 'full') return;
+    setForm((prev) => {
+      const nextAmount = grandTotal > 0 ? String(grandTotal) : '';
+      if (prev.amount_received === nextAmount) return prev;
+      return { ...prev, amount_received: nextAmount };
+    });
+  }, [form.payment_type, grandTotal]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload) =>
-      isEdit ? financeApi.updateTransaction(id, payload) : financeApi.createTransaction(payload),
+    mutationFn: async ({ createPayload, payments }) => {
+      for (const payment of payments || []) {
+        await financeApi.recordTransactionPayment(payment.tx.id, {
+          payment_date: form.date,
+          amount: payment.amount,
+          payment_mode: form.payment_mode,
+          cheque_number: form.payment_mode === 'cheque' ? form.cheque_number.trim() || null : null,
+          notes: form.notes.trim() || null,
+        });
+      }
+      if (createPayload) {
+        if (isEdit) {
+          return financeApi.updateTransaction(id, createPayload);
+        }
+        return financeApi.createTransaction(createPayload);
+      }
+      return null;
+    },
     onSuccess: () => {
       invalidateFinanceQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['finance-vendor-pending'] });
       navigate('/transactions');
     },
     onError: (err) => setFormError(err.response?.data?.error?.message || 'Failed to save transaction'),
@@ -209,7 +325,8 @@ export default function AddTransactionPage() {
         if (i !== index) return item;
         const next = { ...item, [field]: value };
         if (field === 'gst_applicable' && !value) {
-          next.gst_percent = '18';
+          next.cgst_amount = '';
+          next.sgst_amount = '';
         }
         return next;
       }),
@@ -227,79 +344,142 @@ export default function AddTransactionPage() {
     }));
   };
 
-  const buildPayload = () => ({
-    date: form.date,
-    transaction_type: form.transaction_type,
-    vendor_id: form.vendor_id ? parseInt(form.vendor_id, 10) : null,
-    category_id: parseInt(form.category_id, 10),
-    payment_mode: form.payment_mode,
-    cheque_number: form.payment_mode === 'cheque' ? form.cheque_number.trim() || null : null,
-    notes: form.notes.trim() || null,
-    line_items: form.line_items.map((item) => ({
-      description: item.description.trim(),
-      qty: parseFloat(item.qty),
-      unit_price: parseFloat(item.unit_price),
-      gst_applicable: Boolean(item.gst_applicable),
-      gst_percent: item.gst_applicable ? parseFloat(item.gst_percent || 0) : 0,
-    })),
-  });
+  const togglePendingSelection = (txId, selected) => {
+    const key = String(txId);
+    setPendingSelections((prev) => ({
+      ...prev,
+      [key]: {
+        selected,
+        amount: prev[key]?.amount || '',
+      },
+    }));
+  };
+
+  const updatePendingPayAmount = (txId, amount) => {
+    const key = String(txId);
+    setPendingSelections((prev) => ({
+      ...prev,
+      [key]: {
+        selected: prev[key]?.selected ?? true,
+        amount,
+      },
+    }));
+  };
+
+  const buildPayload = () => {
+    const payload = {
+      date: form.date,
+      transaction_type: form.transaction_type,
+      vendor_id: form.vendor_id ? parseInt(form.vendor_id, 10) : null,
+      category_id: parseInt(form.category_id, 10),
+      payment_mode: form.payment_mode,
+      cheque_number: form.payment_mode === 'cheque' ? form.cheque_number.trim() || null : null,
+      notes: form.notes.trim() || null,
+      line_items: form.line_items.map((item) => ({
+        description: item.description.trim(),
+        qty: parseFloat(item.qty),
+        unit_price: parseFloat(item.unit_price),
+        gst_applicable: Boolean(item.gst_applicable),
+        cgst_amount: item.gst_applicable ? parseFloat(item.cgst_amount || 0) : 0,
+        sgst_amount: item.gst_applicable ? parseFloat(item.sgst_amount || 0) : 0,
+      })),
+    };
+
+    if (!isEdit) {
+      payload.amount_received = paymentSettlement.amount_received;
+      if (paymentSettlement.pending_amount > 0 && form.pending_reminder_date) {
+        payload.pending_reminder_date = form.pending_reminder_date;
+      }
+    } else if (form.pending_reminder_date || paymentSettlement.pending_amount > 0) {
+      payload.pending_reminder_date = form.pending_reminder_date || null;
+    }
+
+    return payload;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.category_id) {
-      setFormError('Select a category');
-      return;
-    }
-    if (vendorRequired && !form.vendor_id) {
-      setFormError('Select a vendor for this payment mode');
-      return;
-    }
-    if (form.payment_mode === 'bank' && !bankDetailsReady) {
-      setFormError('Selected vendor has no bank details. Add them on the Vendors page first.');
-      return;
-    }
-    if (form.payment_mode === 'upi' && !upiDetailsReady) {
-      setFormError('Selected vendor has no UPI ID. Add it on the Vendors page first.');
-      return;
-    }
-    if (form.payment_mode === 'cheque') {
-      if (!chequeBankName) {
-        setFormError('Selected vendor has no bank name on file. Add bank details on the Vendors page first.');
+    if (isEdit) {
+      if (!form.category_id) {
+        setFormError('Select a category');
         return;
       }
-      if (!form.cheque_number.trim()) {
-        setFormError('Enter the cheque number');
+      if (grandTotal <= 0) {
+        setFormError('Add at least one line item with a positive amount');
         return;
       }
-    }
-    if (selectedModeUnmapped) {
-      setFormError(
-        `Payment mode "${PAYMENT_MODE_LABELS[form.payment_mode]}" is not mapped to a bank/cash account. Configure it under Payment Modes first.`
+      const invalidLine = form.line_items.find((item) => !item.description.trim());
+      if (invalidLine) {
+        setFormError('Every line item needs a product name');
+        return;
+      }
+      const invalidGst = form.line_items.find(
+        (item) => item.gst_applicable && lineCgst(item) <= 0 && lineSgst(item) <= 0
       );
-      return;
-    }
-    if (grandTotal <= 0) {
-      setFormError('Add at least one line item with a positive amount');
-      return;
-    }
-
-    const invalidLine = form.line_items.find((item) => !item.description.trim());
-    if (invalidLine) {
-      setFormError('Every line item needs a product name');
+      if (invalidGst) {
+        setFormError('Enter CGST and/or SGST for lines where GST is enabled');
+        return;
+      }
+      saveMutation.mutate({ createPayload: buildPayload(), payments: [] });
       return;
     }
 
-    const invalidGst = form.line_items.find(
-      (item) => item.gst_applicable && (!item.gst_percent || parseFloat(item.gst_percent) <= 0)
-    );
-    if (invalidGst) {
-      setFormError('Enter GST % for lines where GST is enabled');
+    if (!wantsPayPending && !wantsNewEntry) {
+      setFormError('Select pending amount(s) to pay, or enter a new product item');
       return;
     }
 
-    saveMutation.mutate(buildPayload());
+    if (wantsPayPending) {
+      for (const row of selectedPendingPayments) {
+        if (row.amount <= 0) {
+          setFormError('Enter a valid pay amount for each selected pending entry');
+          return;
+        }
+        if (row.amount > round2(parseFloat(row.tx.pending_amount) || 0)) {
+          setFormError(`Pay amount cannot exceed pending for ${buildTransactionNumber(row.tx)}`);
+          return;
+        }
+      }
+    }
+
+    if (wantsNewEntry) {
+      if (!form.category_id) {
+        setFormError('Select a category for the new entry');
+        return;
+      }
+      if (grandTotal <= 0) {
+        setFormError('Add at least one line item with a positive amount');
+        return;
+      }
+      const invalidLine = form.line_items.find((item) => !item.description.trim());
+      if (invalidLine) {
+        setFormError('Every line item needs a product name');
+        return;
+      }
+      const invalidGst = form.line_items.find(
+        (item) => item.gst_applicable && lineCgst(item) <= 0 && lineSgst(item) <= 0
+      );
+      if (invalidGst) {
+        setFormError('Enter CGST and/or SGST for lines where GST is enabled');
+        return;
+      }
+      const received = paymentSettlement.amount_received;
+      if (received > grandTotal) {
+        setFormError('Amount received cannot exceed grand total');
+        return;
+      }
+      if (form.payment_type === 'partial' && received <= 0) {
+        setFormError('Enter the amount received for a partial payment');
+        return;
+      }
+    }
+
+    saveMutation.mutate({
+      createPayload: wantsNewEntry ? buildPayload() : null,
+      payments: wantsPayPending ? selectedPendingPayments : [],
+    });
   };
 
   if (tenantRequired) {
@@ -330,36 +510,26 @@ export default function AddTransactionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative z-0">
       <PageHeader
-        title={isEdit ? 'Edit Transaction' : 'Add Transaction'}
-        subtitle={
-          isEdit
-            ? 'Updates reverse the old voucher and post a new balanced entry'
-            : 'Posts a balanced payment or receipt voucher to the Day Book'
-        }
+        title={isEdit ? 'Edit Entry' : 'Add Entry'}
+        subtitle={isEdit ? 'Update this payment or receipt' : 'Record a payment or receipt'}
         actions={
-          <Link to="/transactions" className="btn-secondary">
-            Back to list
-          </Link>
+          <button type="button" onClick={() => navigate('/transactions')} className="btn-secondary">
+            Back to Day Book
+          </button>
         }
       />
-
-      {unmappedModes.length > 0 && (
-        <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-          <strong>Setup required:</strong>{' '}
-          {unmappedModes.map((m) => PAYMENT_MODE_LABELS[m.payment_mode]).join(', ')}{' '}
-          {unmappedModes.length === 1 ? 'is' : 'are'} not mapped to a cash/bank account.{' '}
-          <Link to="/finance/payment-modes" className="underline font-medium">
-            Configure Payment Modes
-          </Link>{' '}
-          before posting.
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {formError && (
           <div className="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-100">{formError}</div>
+        )}
+
+        {isEdit && isPartiallyPaidEdit && (
+          <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
+            This entry has a pending balance. You can update transaction details here; use <strong>Receive Payment</strong> on the detail page to record further payments.
+          </div>
         )}
 
         <div className="card p-5">
@@ -372,21 +542,30 @@ export default function AddTransactionPage() {
               onChange={(v) => setForm({ ...form, transaction_type: v, category_id: '' })}
               options={TRANSACTION_TYPES}
             />
-            <Select
-              label={vendorRequired ? 'Vendor' : 'Vendor (optional)'}
-              value={form.vendor_id}
-              onChange={(v) => setForm({ ...form, vendor_id: v })}
-              options={vendors.map((v) => ({ value: String(v.id), label: v.name }))}
-              placeholder={vendorRequired ? 'Select vendor…' : 'None'}
-              required={vendorRequired}
-            />
+            <div>
+              <Select
+                label="Vendor (optional)"
+                value={form.vendor_id}
+                onChange={(v) => setForm({ ...form, vendor_id: v })}
+                options={vendors.map((v) => ({ value: String(v.id), label: v.name }))}
+                placeholder={vendorLoading ? 'Loading vendors…' : 'None'}
+                disabled={vendorLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowVendorModal(true)}
+                className="mt-1.5 text-xs text-brand-600 hover:underline font-medium"
+              >
+                + Add new vendor
+              </button>
+            </div>
             <Select
               label="Category"
               value={form.category_id}
               onChange={(v) => setForm({ ...form, category_id: v })}
               options={categories.map((c) => ({ value: String(c.id), label: `${c.name} (${CATEGORY_TYPE_LABELS[c.type]})` }))}
               placeholder={`Select ${categoryType} category…`}
-              required
+              required={isEdit || wantsNewEntry}
             />
             <Select
               label="Payment Mode"
@@ -407,17 +586,17 @@ export default function AddTransactionPage() {
             </div>
 
             {!form.vendor_id ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-                Select a vendor above to load UPI ID.
-              </div>
+              <p className="text-sm text-slate-500">
+                Select a vendor above to auto-fill UPI ID (optional).
+              </p>
             ) : !upiDetailsReady ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
+              <p className="text-sm text-slate-500">
                 <strong>{selectedVendor?.name || 'This vendor'}</strong> has no UPI ID on file.{' '}
-                <Link to="/vendors" className="underline font-medium">
+                <Link to="/vendors" className="text-brand-600 hover:underline font-medium">
                   Add UPI in Vendors
                 </Link>{' '}
-                before posting a UPI payment.
-              </div>
+                to auto-fill here.
+              </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ReadOnlyField label="UPI ID" value={upiId} />
@@ -435,30 +614,31 @@ export default function AddTransactionPage() {
               </p>
             </div>
 
-            {!form.vendor_id ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-                Select a vendor above to load bank name.
-              </div>
-            ) : !chequeBankName ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-                <strong>{selectedVendor?.name || 'This vendor'}</strong> has no bank name on file.{' '}
-                <Link to="/vendors" className="underline font-medium">
-                  Add bank details in Vendors
-                </Link>{' '}
-                before posting a cheque payment.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {form.vendor_id && chequeBankName ? (
                 <ReadOnlyField label="Bank Name" value={chequeBankName} />
-                <Field
-                  label="Cheque Number"
-                  value={form.cheque_number}
-                  onChange={(v) => setForm({ ...form, cheque_number: v })}
-                  required
-                  placeholder="Enter cheque number"
-                />
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-slate-500 md:col-span-2">
+                  {form.vendor_id
+                    ? (
+                      <>
+                        <strong>{selectedVendor?.name || 'This vendor'}</strong> has no bank name on file.{' '}
+                        <Link to="/vendors" className="text-brand-600 hover:underline font-medium">
+                          Add bank details in Vendors
+                        </Link>{' '}
+                        to auto-fill bank name.
+                      </>
+                    )
+                    : 'Select a vendor above to auto-fill bank name (optional).'}
+                </p>
+              )}
+              <Field
+                label="Cheque Number (optional)"
+                value={form.cheque_number}
+                onChange={(v) => setForm({ ...form, cheque_number: v })}
+                placeholder="Enter cheque number"
+              />
+            </div>
           </div>
         )}
 
@@ -472,17 +652,17 @@ export default function AddTransactionPage() {
             </div>
 
             {!form.vendor_id ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
-                Select a vendor above to load bank name, account number, IFSC, and account holder name.
-              </div>
+              <p className="text-sm text-slate-500">
+                Select a vendor above to auto-fill bank details (optional).
+              </p>
             ) : !bankDetailsReady ? (
-              <div className="px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-100">
+              <p className="text-sm text-slate-500">
                 <strong>{selectedVendor?.name || 'This vendor'}</strong> has no bank details on file.{' '}
-                <Link to="/vendors" className="underline font-medium">
+                <Link to="/vendors" className="text-brand-600 hover:underline font-medium">
                   Add bank details in Vendors
                 </Link>{' '}
-                before posting a bank transfer.
-              </div>
+                to auto-fill here.
+              </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ReadOnlyField label="Bank Name" value={bankDetails.bank_name} />
@@ -496,7 +676,14 @@ export default function AddTransactionPage() {
 
         <div className="card overflow-x-auto overscroll-x-contain">
           <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Product Items</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Product Items</h3>
+              {!isEdit && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select vendor pending to pay, or enter a new item below
+                </p>
+              )}
+            </div>
             <button type="button" onClick={addLine} className="btn-primary text-xs">
               <Plus size={14} /> Add Item
             </button>
@@ -504,6 +691,90 @@ export default function AddTransactionPage() {
 
           <div className="p-5 flex flex-col xl:flex-row gap-6">
             <div className="flex-1 min-w-0 space-y-4">
+              {!isEdit && form.vendor_id && (
+                <div className="border border-orange-100 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2.5 bg-orange-50 border-b border-orange-100 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-orange-900">
+                        Outstanding with {selectedVendor?.name || 'vendor'}
+                      </p>
+                      <p className="text-[11px] text-orange-700/80 mt-0.5">
+                        Tick rows you want to pay now. Leave unchecked to create a new entry only.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-semibold text-orange-800 whitespace-nowrap">
+                      {vendorPendingLoading ? '…' : formatMoney(vendorPendingAmount)}
+                    </span>
+                  </div>
+                  {vendorPendingLoading ? (
+                    <p className="px-3 py-4 text-xs text-slate-400">Loading pending…</p>
+                  ) : pendingTransactions.length === 0 ? (
+                    <p className="px-3 py-4 text-xs text-slate-500">No pending amount for this vendor.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-100">
+                          <tr>
+                            <th className="text-center px-3 py-2 font-semibold w-10">Pay</th>
+                            <th className="text-left px-3 py-2 font-semibold">Date / Txn</th>
+                            <th className="text-left px-3 py-2 font-semibold">Category</th>
+                            <th className="text-right px-3 py-2 font-semibold">Pending</th>
+                            <th className="text-right px-3 py-2 font-semibold w-32">Pay now</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {pendingTransactions.map((tx) => {
+                            const key = String(tx.id);
+                            const sel = pendingSelections[key] || { selected: false, amount: String(tx.pending_amount) };
+                            return (
+                              <tr key={tx.id} className={sel.selected ? 'bg-orange-50/40' : ''}>
+                                <td className="px-3 py-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(sel.selected)}
+                                    onChange={(e) => togglePendingSelection(tx.id, e.target.checked)}
+                                    className="rounded border-slate-300"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <p className="font-medium text-slate-800">{tx.transaction_date}</p>
+                                  <p className="font-mono text-[11px] text-slate-500">{buildTransactionNumber(tx)}</p>
+                                </td>
+                                <td className="px-3 py-2 text-slate-600">{tx.category?.name || '—'}</td>
+                                <td className="px-3 py-2 text-right font-mono font-semibold text-orange-700">
+                                  {formatMoney(tx.pending_amount)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    disabled={!sel.selected}
+                                    value={sel.amount}
+                                    onChange={(e) => updatePendingPayAmount(tx.id, e.target.value)}
+                                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-mono disabled:bg-slate-50 disabled:text-slate-400"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {wantsPayPending && (
+                    <div className="px-3 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between text-xs">
+                      <span className="text-slate-600">Selected to pay</span>
+                      <span className="font-mono font-semibold text-emerald-700">{formatMoney(selectedPendingTotal)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-slate-700 mb-2">
+                  {isEdit ? 'Line items' : 'New entry'}
+                </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border border-slate-200">
@@ -513,8 +784,8 @@ export default function AddTransactionPage() {
                       <th className="text-right px-3 py-2.5 font-semibold w-28">Unit Price *</th>
                       <th className="text-right px-3 py-2.5 font-semibold w-28">Amount</th>
                       <th className="text-center px-3 py-2.5 font-semibold w-16">GST?</th>
-                      <th className="text-right px-3 py-2.5 font-semibold w-20">GST %</th>
-                      <th className="text-right px-3 py-2.5 font-semibold w-28">GST Amt</th>
+                      <th className="text-right px-3 py-2.5 font-semibold w-28">CGST</th>
+                      <th className="text-right px-3 py-2.5 font-semibold w-28">SGST</th>
                       <th className="text-right px-3 py-2.5 font-semibold w-28">Total</th>
                       <th className="px-3 py-2.5 w-10" />
                     </tr>
@@ -528,7 +799,7 @@ export default function AddTransactionPage() {
                             onChange={(e) => updateLine(index, 'description', e.target.value)}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm"
                             placeholder="Enter product or service name"
-                            required
+                            required={wantsNewEntry || isEdit}
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -539,7 +810,7 @@ export default function AddTransactionPage() {
                             value={item.qty}
                             onChange={(e) => updateLine(index, 'qty', e.target.value)}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-mono"
-                            required
+                            required={wantsNewEntry || isEdit}
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -550,7 +821,7 @@ export default function AddTransactionPage() {
                             value={item.unit_price}
                             onChange={(e) => updateLine(index, 'unit_price', e.target.value)}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-mono"
-                            required
+                            required={wantsNewEntry || isEdit}
                           />
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-slate-700">
@@ -568,20 +839,31 @@ export default function AddTransactionPage() {
                           {item.gst_applicable ? (
                             <input
                               type="number"
-                              min="0.01"
-                              max="100"
+                              min="0"
                               step="0.01"
-                              value={item.gst_percent}
-                              onChange={(e) => updateLine(index, 'gst_percent', e.target.value)}
+                              value={item.cgst_amount}
+                              onChange={(e) => updateLine(index, 'cgst_amount', e.target.value)}
                               className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-mono"
-                              required
+                              placeholder="0.00"
                             />
                           ) : (
                             <span className="block text-right text-slate-300 font-mono px-2">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-700">
-                          {formatMoney(lineGstAmount(item))}
+                        <td className="px-3 py-2">
+                          {item.gst_applicable ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.sgst_amount}
+                              onChange={(e) => updateLine(index, 'sgst_amount', e.target.value)}
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right font-mono"
+                              placeholder="0.00"
+                            />
+                          ) : (
+                            <span className="block text-right text-slate-300 font-mono px-2">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right font-mono font-medium text-slate-900">
                           {formatMoney(lineTotal(item))}
@@ -601,30 +883,45 @@ export default function AddTransactionPage() {
                   </tbody>
                 </table>
               </div>
+              </div>
 
               <div>
                 <label className="text-xs font-medium text-slate-600">
-                  Details <span className="text-red-500">*</span>
+                  Details {wantsNewEntry && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
                   rows={4}
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Enter transaction details"
+                  placeholder={wantsPayPending && !wantsNewEntry ? 'Optional note for payment' : 'Enter transaction details'}
                   className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm resize-none"
                 />
               </div>
             </div>
 
-            <div className="xl:w-72 shrink-0">
+            <div className="xl:w-72 shrink-0 space-y-3">
+              {wantsPayPending && (
+                <div className="border border-orange-100 rounded-xl p-4 bg-orange-50 space-y-2">
+                  <p className="text-xs font-semibold text-orange-900">Paying outstanding</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-orange-800">Selected</span>
+                    <span className="font-mono font-semibold text-orange-900">{formatMoney(selectedPendingTotal)}</span>
+                  </div>
+                </div>
+              )}
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <p className="text-xs font-semibold text-slate-700">New entry totals</p>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Subtotal</span>
                   <span className="font-mono font-medium">{formatMoney(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Total GST</span>
-                  <span className="font-mono font-medium">{formatMoney(totalGst)}</span>
+                  <span className="text-slate-600">CGST</span>
+                  <span className="font-mono font-medium">{formatMoney(totalCgst)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">SGST</span>
+                  <span className="font-mono font-medium">{formatMoney(totalSgst)}</span>
                 </div>
                 <div className="border-t border-slate-200 pt-3 flex justify-between">
                   <span className="text-sm font-semibold text-slate-800">Grand Total</span>
@@ -635,24 +932,113 @@ export default function AddTransactionPage() {
           </div>
         </div>
 
+        {!isEdit && wantsNewEntry ? (
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-4">Payment Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Select
+                label="Payment Type"
+                value={form.payment_type}
+                onChange={(v) => setForm({
+                  ...form,
+                  payment_type: v,
+                  amount_received: v === 'full' ? String(grandTotal || '') : form.amount_received,
+                  pending_reminder_date: v === 'full' ? '' : form.pending_reminder_date,
+                })}
+                options={PAYMENT_TYPES}
+              />
+              <ReadOnlyField label="Grand Total" value={formatMoney(grandTotal)} />
+              <div>
+                <Field
+                  label="Initial Amount "
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.payment_type === 'full' ? String(grandTotal || '') : form.amount_received}
+                  onChange={(v) => setForm({ ...form, amount_received: v, payment_type: 'partial' })}
+                  disabled={form.payment_type === 'full'}
+                  placeholder="0.00"
+                />
+                {form.payment_type === 'partial' && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Amount received now when creating this entry
+                  </p>
+                )}
+              </div>
+              <ReadOnlyField label="Pending Amount" value={formatMoney(paymentSettlement.pending_amount)} />
+              <div>
+                <label className="text-xs font-medium text-slate-600">Payment Status</label>
+                <div className="mt-1">
+                  <span className={`inline-flex text-[10px] px-2 py-1 rounded-full font-semibold ${PAYMENT_STATUS_STYLES[paymentSettlement.payment_status]}`}>
+                    {PAYMENT_STATUS_LABELS[paymentSettlement.payment_status]}
+                  </span>
+                </div>
+              </div>
+              {paymentSettlement.pending_amount > 0 && (
+                <Field
+                  label="Pending Reminder Date"
+                  type="date"
+                  value={form.pending_reminder_date}
+                  onChange={(v) => setForm({ ...form, pending_reminder_date: v })}
+                />
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              Payment tracking is operational only in Phase 1. The accounting voucher still records the full grand total.
+            </p>
+          </div>
+        ) : isEdit && paymentSettlement.pending_amount > 0 ? (
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-4">Payment Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <ReadOnlyField label="Grand Total" value={formatMoney(grandTotal)} />
+              <ReadOnlyField label="Amount Received" value={formatMoney(paymentSettlement.amount_received)} />
+              <ReadOnlyField label="Pending Amount" value={formatMoney(paymentSettlement.pending_amount)} />
+              <Field
+                label="Pending Reminder Date"
+                type="date"
+                value={form.pending_reminder_date}
+                onChange={(v) => setForm({ ...form, pending_reminder_date: v })}
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex gap-2 justify-end">
-          <Link to="/transactions" className="btn-secondary">Cancel</Link>
+          <button type="button" onClick={() => navigate('/transactions')} className="btn-secondary">
+            Cancel
+          </button>
           <button
             type="submit"
             disabled={
               saveMutation.isPending
-              || grandTotal <= 0
-              || selectedModeUnmapped
-              || (form.payment_mode === 'bank' && (!form.vendor_id || !bankDetailsReady))
-              || (form.payment_mode === 'upi' && (!form.vendor_id || !upiDetailsReady))
-              || (form.payment_mode === 'cheque' && !chequeDetailsReady)
+              || (isEdit ? grandTotal <= 0 : (!wantsPayPending && !wantsNewEntry))
             }
             className="btn-primary"
           >
-            {saveMutation.isPending ? 'Posting…' : isEdit ? 'Update & Re-post' : 'Save & Post Voucher'}
+            {saveMutation.isPending
+              ? 'Saving…'
+              : isEdit
+                ? 'Update Entry'
+                : wantsPayPending && wantsNewEntry
+                  ? 'Pay Selected & Save Entry'
+                  : wantsPayPending
+                    ? 'Pay Selected'
+                    : 'Save Entry'}
           </button>
         </div>
       </form>
+
+      {showVendorModal ? (
+        <QuickAddVendorModal
+          open={showVendorModal}
+          onClose={() => setShowVendorModal(false)}
+          onCreated={(vendor) => {
+            if (vendor?.id) setForm((prev) => ({ ...prev, vendor_id: String(vendor.id) }));
+            setShowVendorModal(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -676,7 +1062,7 @@ function Field({ label, value, onChange, type = 'text', required, placeholder })
   );
 }
 
-function Select({ label, value, onChange, options, placeholder, required }) {
+function Select({ label, value, onChange, options, placeholder, required, disabled = false }) {
   return (
     <div>
       <label className="text-xs font-medium text-slate-600">
@@ -685,9 +1071,10 @@ function Select({ label, value, onChange, options, placeholder, required }) {
       </label>
       <select
         required={required}
+        disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+        className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((o) => (

@@ -10,10 +10,11 @@ import { useAuthStore } from '../../store/auth.store';
 import { format, parseISO } from 'date-fns';
 import { formatINR } from '../../utils/helpers';
 import SuperAdminDashboard from './SuperAdminDashboard';
+import { isPlatformPortal } from '../../utils/portalContext';
 
 export default function DashboardPage() {
-  const { user, selectedTenantId, setEntitlements } = useAuthStore();
-  const isSuperAdmin = user?.role === 'super_admin';
+  const { user, workspace, selectedTenantId, setEntitlements, accessToken } = useAuthStore();
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
   const isPlatformView = isSuperAdmin && !selectedTenantId;
 
   const { data, isLoading } = useQuery({

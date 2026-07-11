@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth.store';
-import { getDefaultHomeRoute } from './constants/routeAccess';
+import { resolveAuthenticatedLanding } from './utils/portalNavigation';
 import AuthBootstrap from './components/auth/AuthBootstrap';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/auth/LoginPage';
@@ -24,9 +24,6 @@ import SalariesPage from './pages/payroll/SalariesPage';
 import SalaryFeedPage from './pages/payroll/SalaryFeedPage';
 import PayslipsPage from './pages/payroll/PayslipsPage';
 import PFSummaryPage from './pages/finance/PFSummaryPage';
-import DayBookPage from './pages/finance/DayBookPage';
-import AccountLedgerPage from './pages/finance/AccountLedgerPage';
-import TrialBalancePage from './pages/finance/TrialBalancePage';
 import FinanceSummaryPage from './pages/finance/FinanceSummaryPage';
 import GSTPage from './pages/finance/GSTPage';
 import VendorsPage from './pages/finance/VendorsPage';
@@ -37,7 +34,8 @@ import TransactionViewPage from './pages/finance/TransactionViewPage';
 import TransactionInvoicePage from './pages/finance/TransactionInvoicePage';
 import TransactionReceiptPage from './pages/finance/TransactionReceiptPage';
 import DaybookDashboardPage from './pages/finance/DaybookDashboardPage';
-import PaymentModeAccountsPage from './pages/finance/PaymentModeAccountsPage';
+import QuotationsPage from './pages/finance/QuotationsPage';
+import ViewQuotationPage from './pages/finance/ViewQuotationPage';
 import RecruitmentPage from './pages/hr/RecruitmentPage';
 import OnboardingPage from './pages/hr/OnboardingPage';
 import SeparationPage from './pages/hr/SeparationPage';
@@ -86,7 +84,10 @@ import SalaryStructuresPage from './pages/payroll/SalaryStructuresPage';
 import PwaUpdateNotifier from './components/pwa/PwaUpdateNotifier';
 import SubscriptionExpiredPage from './pages/auth/SubscriptionExpiredPage';
 import PlanAccessDeniedPage from './pages/auth/PlanAccessDeniedPage';
+import PortalSelectionPage from './pages/auth/PortalSelectionPage';
+import WorkspaceSelectionPage from './pages/auth/WorkspaceSelectionPage';
 import { isTenantSubscriptionBlocked } from './utils/subscriptionAccess';
+import { isPersonSessionToken } from './utils/jwt';
 import ModuleAccessGuard from './components/auth/ModuleAccessGuard';
 
 const queryClient = new QueryClient({
@@ -99,9 +100,12 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowPersonSession = false }) {
   const token = useAuthStore((s) => s.accessToken);
   if (!token) return <Navigate to="/login" replace />;
+  if (!allowPersonSession && isPersonSessionToken(token)) {
+    return <Navigate to="/select-workspace" replace />;
+  }
   return children;
 }
 
@@ -128,32 +132,56 @@ function PublicRoute({ children }) {
   const token = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const entitlements = useAuthStore((s) => s.entitlements);
-  const role = user?.role;
+  const roles = useAuthStore((s) => s.roles);
+  const defaultRole = useAuthStore((s) => s.defaultRole);
+  const selectedRole = useAuthStore((s) => s.selectedRole);
   const mustChangePassword = user?.must_change_password;
-  if (token) {
+  if (token && isPersonSessionToken(token)) {
+    return <Navigate to="/select-workspace" replace />;
+  }
+  if (token && user && !isPersonSessionToken(token)) {
     if (isTenantSubscriptionBlocked(user, entitlements)) {
       return <Navigate to="/subscription-expired" replace />;
     }
-    if (mustChangePassword && role !== 'super_admin') {
-      return <Navigate to="/me/change-password" replace />;
-    }
-    return <Navigate to={getDefaultHomeRoute(role)} replace />;
+    const landing = resolveAuthenticatedLanding({
+      roles,
+      defaultRole,
+      selectedRole,
+      userRole: user?.role,
+      mustChangePassword,
+    });
+    return <Navigate to={landing} replace />;
   }
   return children;
 }
 
 function HomeRedirect() {
+  const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const entitlements = useAuthStore((s) => s.entitlements);
-  const role = user?.role;
-  const mustChangePassword = user?.must_change_password;
+  const roles = useAuthStore((s) => s.roles);
+  const defaultRole = useAuthStore((s) => s.defaultRole);
+  const selectedRole = useAuthStore((s) => s.selectedRole);
+
+  if (accessToken && isPersonSessionToken(accessToken)) {
+    return <Navigate to="/select-workspace" replace />;
+  }
+
+  if (!accessToken || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const landing = resolveAuthenticatedLanding({
+    roles,
+    defaultRole,
+    selectedRole,
+    userRole: user?.role,
+    mustChangePassword: user?.must_change_password,
+  });
   if (isTenantSubscriptionBlocked(user, entitlements)) {
     return <Navigate to="/subscription-expired" replace />;
   }
-  if (mustChangePassword && role !== 'super_admin') {
-    return <Navigate to="/me/change-password" replace />;
-  }
-  return <Navigate to={getDefaultHomeRoute(role)} replace />;
+  return <Navigate to={landing} replace />;
 }
 
 export default function App() {
@@ -180,6 +208,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <PlanAccessDeniedPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/select-workspace"
+              element={
+                <ProtectedRoute allowPersonSession>
+                  <WorkspaceSelectionPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/select-portal"
+              element={
+                <ProtectedRoute>
+                  <PortalSelectionPage />
                 </ProtectedRoute>
               }
             />
@@ -227,14 +271,14 @@ export default function App() {
               <Route path="me/reimbursements/:id/edit" element={<ModuleAccessGuard module="payroll"><MeReimbursementFormPage /></ModuleAccessGuard>} />
               <Route path="me/reimbursements/:id" element={<ModuleAccessGuard module="payroll"><MeReimbursementViewPage /></ModuleAccessGuard>} />
               <Route path="pf-summary" element={<PFSummaryPage />} />
-              <Route path="daybook" element={<ModuleAccessGuard module="daybook"><DayBookPage /></ModuleAccessGuard>} />
+              <Route path="daybook" element={<Navigate to="/transactions" replace />} />
               <Route path="daybook/dashboard" element={<ModuleAccessGuard module="daybook"><DaybookDashboardPage /></ModuleAccessGuard>} />
-              <Route path="finance/payment-modes" element={<PaymentModeAccountsPage />} />
-              <Route path="account-ledger" element={<AccountLedgerPage />} />
-              <Route path="trial-balance" element={<TrialBalancePage />} />
+              <Route path="finance/payment-modes" element={<Navigate to="/transactions" replace />} />
               <Route path="finance" element={<FinanceSummaryPage />} />
               <Route path="gst" element={<GSTPage />} />
               <Route path="vendors" element={<VendorsPage />} />
+              <Route path="quotations" element={<QuotationsPage />} />
+              <Route path="quotations/:id" element={<ViewQuotationPage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="transactions/add" element={<AddTransactionPage />} />

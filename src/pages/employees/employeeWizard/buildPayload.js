@@ -2,6 +2,18 @@ import { digitsOnly } from './validation';
 import { statutoryFieldsFromForm } from './statutoryFields';
 import { formatPhoneForStorage } from '../../../utils/validation';
 
+/** Normalize roles + default system_role for create/update API payloads. */
+export function resolveEmployeeRolePayload(form) {
+  const roles =
+    Array.isArray(form?.roles) && form.roles.length > 0
+      ? form.roles
+      : form?.system_role
+        ? [form.system_role]
+        : [];
+  const system_role = form?.system_role || roles[0] || 'employee';
+  return { roles, system_role };
+}
+
 export function buildPayload(form) {
   const contacts = (form.emergency_contacts || [])
     .filter((c) => c.contact_name?.trim() && c.contact_phone?.trim())
@@ -14,6 +26,7 @@ export function buildPayload(form) {
 
   const primary = contacts.find((c) => c.is_primary) || contacts[0];
   const statutory = statutoryFieldsFromForm(form);
+  const { roles, system_role } = resolveEmployeeRolePayload(form);
 
   return {
     emp_code: form.emp_code.trim(),
@@ -25,7 +38,8 @@ export function buildPayload(form) {
     gender: form.gender || null,
     blood_group: form.blood_group || null,
     permanent_address: form.permanent_address.trim() || null,
-    system_role: form.system_role,
+    roles,
+    system_role,
     department_id: form.department_id ? parseInt(form.department_id, 10) : null,
     designation_id: form.designation_id ? parseInt(form.designation_id, 10) : null,
     date_of_joining: form.date_of_joining,

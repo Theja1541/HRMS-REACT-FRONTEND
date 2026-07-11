@@ -136,11 +136,12 @@ export default function VoucherEntryForm({ onCancel, onSuccess }) {
   return (
     <div className="card p-5 space-y-4">
       <div>
-        <h3 className="text-sm font-semibold">Manual voucher — {voucherTypeLabel}</h3>
+        <h3 className="text-sm font-semibold">Add Entry — {voucherTypeLabel}</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          For accountant entries (journal, contra, adjustments). Day-to-day payments belong in{' '}
+          <span className="font-medium text-slate-700">Debit</span> = money out / expense.{' '}
+          <span className="font-medium text-slate-700">Credit</span> = money in / income.
+          Both totals must match. For normal vendor payments use{' '}
           <Link to="/transactions/add" className="text-brand-600 hover:underline">Transactions</Link>.
-          Debits must equal credits before posting.
         </p>
       </div>
 
@@ -185,8 +186,8 @@ export default function VoucherEntryForm({ onCancel, onSuccess }) {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-3 py-2 font-semibold min-w-[200px]">Account</th>
-              <th className="text-right px-3 py-2 font-semibold w-28">Debit</th>
-              <th className="text-right px-3 py-2 font-semibold w-28">Credit</th>
+              <th className="text-right px-3 py-2 font-semibold w-28">Debit (Out)</th>
+              <th className="text-right px-3 py-2 font-semibold w-28">Credit (In)</th>
               <th className="text-left px-3 py-2 font-semibold min-w-[140px]">Employee</th>
               <th className="text-left px-3 py-2 font-semibold min-w-[160px]">Line narration</th>
               <th className="w-10" />

@@ -117,8 +117,8 @@ export default function PayslipsPage() {
       setDaybookMessage({
         type: 'error',
         text: errText,
-        link: isSetupError ? '/finance/payment-modes' : '/daybook',
-        linkLabel: isSetupError ? 'Configure Finance Setup' : 'Open Day Book',
+        link: isSetupError ? '/categories' : '/transactions',
+        linkLabel: isSetupError ? 'Setup Categories' : 'Open Day Book',
       });
       return;
     }
@@ -126,15 +126,15 @@ export default function PayslipsPage() {
       setDaybookMessage({
         type: 'success',
         text: `Already synced: accrual ${sync.accrual_voucher_number || '—'}${sync.disbursement_voucher_number ? `, disbursement ${sync.disbursement_voucher_number}` : ''}.`,
-        link: '/daybook',
+        link: '/transactions',
         linkLabel: 'Open Day Book',
       });
       return;
     }
     setDaybookMessage({
       type: 'success',
-      text: `Day Book updated: accrual ${sync.accrual_voucher_number || '—'}${sync.disbursement_voucher_number ? `, disbursement ${sync.disbursement_voucher_number}` : ''}.`,
-      link: '/daybook',
+      text: `Payroll posted to accounts: accrual ${sync.accrual_voucher_number || '—'}${sync.disbursement_voucher_number ? `, disbursement ${sync.disbursement_voucher_number}` : ''}.`,
+      link: '/transactions',
       linkLabel: 'Open Day Book',
     });
   };
@@ -165,8 +165,8 @@ export default function PayslipsPage() {
       setDaybookMessage({
         type: 'error',
         text: errText,
-        link: isUnbalanced ? undefined : '/finance/payment-modes',
-        linkLabel: isUnbalanced ? undefined : 'Configure Finance Setup',
+        link: isUnbalanced ? undefined : '/transactions',
+        linkLabel: isUnbalanced ? undefined : 'Open Day Book',
       });
     },
   });

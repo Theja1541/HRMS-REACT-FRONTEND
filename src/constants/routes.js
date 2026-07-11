@@ -104,17 +104,16 @@ export const NAV_ITEMS = [
     icon: 'TrendingUp',
     collapsible: true,
     items: [
-      { label: 'Day Book Dashboard', path: '/daybook/dashboard', icon: 'LayoutDashboard', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'daybook' },
-      { label: 'Day Book', path: '/daybook', icon: 'BookOpen', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'daybook' },
-      { label: 'Account Ledger', path: '/account-ledger', icon: 'NotebookText', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Trial Balance', path: '/trial-balance', icon: 'Scale', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Financial Summary', path: '/finance', icon: 'TrendingUp', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'GST Monthly', path: '/gst', icon: 'Receipt', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'gst' },
+      // 1. Overview & main book
+      { label: 'Dashboard', path: '/daybook/dashboard', icon: 'LayoutDashboard', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'daybook' },
+      { label: 'Day Book', path: '/transactions', icon: 'BookOpen', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'finance' },
+      // 2. Masters (setup before entries)
       { label: 'Vendors', path: '/vendors', icon: 'Truck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Categories', path: '/categories', icon: 'Tags', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Transactions', path: '/transactions', icon: 'ArrowLeftRight', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'finance' },
-      { label: 'Payment Modes', path: '/finance/payment-modes', icon: 'Wallet', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'PF / ESI Summary', path: '/pf-summary', icon: 'Landmark', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'pf_summary' },
+      { label: 'Quotations', path: '/quotations', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      // 3. Reports & statutory
+      { label: 'Financial Summary', path: '/finance', icon: 'TrendingUp', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
+      { label: 'PF / ESI', path: '/pf-summary', icon: 'Landmark', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'pf_summary' },
     ],
   },
   {
@@ -142,6 +141,7 @@ export const NAV_ITEMS = [
     icon: 'ShieldCheck',
     collapsible: true,
     items: [
+      { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard', roles: ['super_admin'] },
       { label: 'Tenants / Orgs', path: '/tenants', icon: 'Building2', roles: ['super_admin'] },
       { label: 'Tenant Subscriptions', path: '/subscriptions', icon: 'Layers', roles: ['super_admin'] },
       { label: 'Pending Approvals', path: '/pending-approvals', icon: 'ClipboardCheck', roles: ['super_admin'] },
@@ -174,6 +174,35 @@ export function isNavPathActive(pathname, itemPath) {
   if (pathname === itemPath) return true;
   if (itemPath === '/dashboard' || itemPath === '/me') return pathname === itemPath;
   return pathname.startsWith(`${itemPath}/`);
+}
+
+/**
+ * Returns the most specific nav path matching current pathname.
+ * Prevents parent/sibling double-highlighting (e.g. /daybook + /daybook/dashboard).
+ */
+export function getMostSpecificNavPath(pathname, itemPaths = []) {
+  if (!pathname || !itemPaths.length) return null;
+
+  const normalize = (path) => {
+    if (!path) return '';
+    if (path === '/') return '/';
+    return path.endsWith('/') ? path.slice(0, -1) : path;
+  };
+
+  const current = normalize(pathname);
+  const normalizedPaths = itemPaths.map((p) => normalize(p)).filter(Boolean);
+
+  // Exact match wins immediately.
+  if (normalizedPaths.includes(current)) return current;
+
+  // Otherwise choose the longest matching parent path.
+  const candidates = normalizedPaths.filter((itemPath) => {
+    if (itemPath === '/dashboard' || itemPath === '/me') return false;
+    return current.startsWith(`${itemPath}/`);
+  });
+
+  if (!candidates.length) return null;
+  return candidates.sort((a, b) => b.length - a.length)[0];
 }
 
 /** Flatten all nav items for page titles and route rules. */

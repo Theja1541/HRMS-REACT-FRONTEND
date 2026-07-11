@@ -22,17 +22,18 @@ export default function PFSummaryPage() {
 
   const summary = data?.data;
   const totals = summary?.totals;
-  const rows = tab === 'pf' ? summary?.pf?.employees
-    : tab === 'esi' ? summary?.esi?.employees
-      : tab === 'pt' ? summary?.pt?.employees
-        : summary?.employees || [];
+  // Show all payroll employees in each register tab so PF/ESI tabs do not appear blank
+  // when contribution for the month is zero for everyone.
+  const rows = tab === 'pt'
+    ? (summary?.pt?.employees || [])
+    : (summary?.employees || []);
   const { items: visibleRows, pagination } = paginateClient(rows || []);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="PF / ESI / PT Summary"
-        subtitle="Monthly statutory contribution register from processed payroll"
+        title="PF / ESI"
+        subtitle="Monthly PF, ESI, and PT from payroll"
         actions={<PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />}
       />
 
