@@ -6,12 +6,11 @@ import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { Mail, Building2, ArrowLeft, CheckCircle2, AlertCircle, KeyRound, ShieldCheck, Clock } from 'lucide-react';
 import { authApi } from '../../api';
-import { getLastTenantSlug } from '../../utils/lastTenantSlug';
+
 import AuthBrandPanel from '../../components/auth/AuthBrandPanel';
 
 const schema = z.object({
-  email: z.string().email('Invalid email'),
-  tenant_slug: z.string().trim().min(1, 'Organization slug is required'),
+  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
 });
 
 const HIGHLIGHTS = [
@@ -38,14 +37,14 @@ export default function ForgotPasswordPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', tenant_slug: getLastTenantSlug() || '' },
+    defaultValues: { email: '' },
   });
 
   const mutation = useMutation({
     mutationFn: authApi.forgotPassword,
     onSuccess: (res) => {
       setError('');
-      setMessage(res?.message || 'If an account exists with that email, a temporary password has been sent. Use it to sign in — you will be prompted to set a new password.');
+      setMessage(res?.message || 'If an account exists with that email, a temporary password has been sent. You will be prompted to set a new permanent password when you sign in.');
     },
     onError: (err) => {
       setMessage('');
@@ -79,11 +78,10 @@ export default function ForgotPasswordPage() {
 
           <div className="max-w-md">
             <h2 className="text-3xl xl:text-[34px] font-bold leading-tight">
-              Forgot your password?<br />No worries.
+              Reset your password
             </h2>
             <p className="mt-4 text-md text-white/70 leading-relaxed">
-              Enter your work email and organization slug. We'll send a temporary
-              password to your inbox — use it to sign in and set a new one.
+              Enter your work email and we'll send you a temporary password to regain access to your account.
             </p>
 
             <ul className="mt-10 space-y-5">
@@ -118,20 +116,20 @@ export default function ForgotPasswordPage() {
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900">Forgot password</h1>
             <p className="mt-1.5 text-md text-slate-500">
-              We'll email you a temporary password to sign in with.
+              Enter your registered email address to receive a temporary password.
             </p>
           </div>
 
           {message && (
-            <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800" role="status" aria-live="polite">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{message}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-700" role="alert" aria-live="assertive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
@@ -141,40 +139,31 @@ export default function ForgotPasswordPage() {
             className="space-y-5"
           >
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Work email
               </label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                 <input
+                  id="email"
                   {...register('email')}
                   type="email"
                   autoComplete="email"
                   placeholder="you@company.com"
                   className={inputClass}
+                  disabled={mutation.isPending}
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                 />
               </div>
               {errors.email && (
-                <p className="mt-1.5 text-xs text-red-500">{errors.email.message}</p>
+                <p id="email-error" className="mt-1.5 text-xs text-red-500" role="alert">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Organization slug
-              </label>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  {...register('tenant_slug')}
-                  placeholder="technova"
-                  className={inputClass}
-                />
-              </div>
-              {errors.tenant_slug && (
-                <p className="mt-1.5 text-xs text-red-500">{errors.tenant_slug.message}</p>
-              )}
-            </div>
+
 
             <button
               type="submit"

@@ -1,7 +1,7 @@
 import { authApi } from '../api';
 import { useAuthStore } from '../store/auth.store';
 import { isPersonSessionToken, isWorkspaceSessionToken, decodeJwtPayload, workspaceIdFromToken, workspaceIdFromAnyToken } from './jwt';
-import { setLastTenantSlug } from './lastTenantSlug';
+
 
 export function normalizeAuthUser(raw) {
   if (!raw) return null;
@@ -35,7 +35,7 @@ export async function activateAndHydrateWorkspace(workspaceId) {
   const defaultRole = meRes.data.defaultRole || workspace.defaultRole;
 
   if (user?.type !== 'super_admin' && workspace?.slug) {
-    setLastTenantSlug(workspace.slug);
+
   }
 
   return {
