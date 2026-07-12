@@ -92,7 +92,17 @@ export function validateStep(step, form) {
 
   if (step === 2) {
     if (!form.date_of_joining) errors.date_of_joining = 'Joining date is required';
-    if (!form.system_role) errors.system_role = 'Role is required';
+    if (!form.roles?.length) errors.roles = 'At least one role is required';
+    if (form.roles?.length && !form.system_role) {
+      errors.system_role = 'Default role is required';
+    }
+    if (
+      form.roles?.length &&
+      form.system_role &&
+      !form.roles.includes(form.system_role)
+    ) {
+      errors.system_role = 'Default role must be one of the selected roles';
+    }
   }
 
   if (step === 3) {

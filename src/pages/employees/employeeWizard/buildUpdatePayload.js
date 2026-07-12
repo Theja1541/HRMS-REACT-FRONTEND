@@ -1,5 +1,6 @@
 import { statutoryFieldsFromForm } from './statutoryFields';
 import { formatPhoneForStorage } from '../../../utils/validation';
+import { resolveEmployeeRolePayload } from './buildPayload';
 
 function strOrNull(v) {
   return v === '' || v === undefined ? null : v;
@@ -29,6 +30,7 @@ function dateOrNull(v) {
 /** Whitelisted payload for PUT /employees/:id — avoids sending nested relations/extra DB fields. */
 export function buildUpdatePayload(form) {
   const statutory = statutoryFieldsFromForm(form);
+  const { roles, system_role } = resolveEmployeeRolePayload(form);
 
   return {
     emp_code: form.emp_code?.trim() ?? '',
@@ -50,7 +52,8 @@ export function buildUpdatePayload(form) {
     employment_type: form.employment_type || 'full_time',
     date_of_joining: dateOrNull(form.date_of_joining),
     status: form.status,
-    system_role: form.system_role,
+    roles,
+    system_role,
     pan_number: panOrNull(form.pan_number),
     aadhaar_number: digitsOrNull(form.aadhaar_number),
     ...statutory,

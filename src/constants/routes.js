@@ -112,10 +112,7 @@ export const NAV_ITEMS = [
       { label: 'Categories', path: '/categories', icon: 'Tags', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Quotations', path: '/quotations', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       // 3. Reports & statutory
-      { label: 'Account Ledger', path: '/account-ledger', icon: 'NotebookText', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'Trial Balance', path: '/trial-balance', icon: 'Scale', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
       { label: 'Financial Summary', path: '/finance', icon: 'TrendingUp', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'finance' },
-      { label: 'GST', path: '/gst', icon: 'Receipt', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'gst' },
       { label: 'PF / ESI', path: '/pf-summary', icon: 'Landmark', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'pf_summary' },
     ],
   },

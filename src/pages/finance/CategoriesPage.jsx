@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Search, Trash2, Tags } from 'lucide-react';
 import { financeApi } from '../../api';
@@ -233,12 +232,7 @@ export default function CategoriesPage() {
                       {category.account ? (
                         <div>
                           <p className="font-mono text-slate-700">{category.account.code}</p>
-                          <Link
-                            to={`/account-ledger?accountId=${category.account.id}`}
-                            className="text-brand-600 hover:underline"
-                          >
-                            {category.account.name}
-                          </Link>
+                          <p className="text-slate-600">{category.account.name}</p>
                         </div>
                       ) : (
                         '—'

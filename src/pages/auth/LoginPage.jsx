@@ -19,14 +19,11 @@ import {
 } from 'lucide-react';
 import { authApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
-import { getDefaultHomeRoute } from '../../constants/routeAccess';
+import { resolveAuthenticatedLanding } from '../../utils/portalNavigation';
 import { isTenantSubscriptionBlocked } from '../../utils/subscriptionAccess';
-import {
-  clearLastTenantSlug,
-  getLastTenantSlug,
-  setLastTenantSlug,
-} from '../../utils/lastTenantSlug';
+
 import { getLoginErrorMessage } from '../../utils/authErrors';
+import { workspaceFromAccessToken } from '../../utils/workspaceSession';
 import AuthBrandPanel from '../../components/auth/AuthBrandPanel';
 
 const SUPERADMIN_LOGIN_EMAIL = (
@@ -34,9 +31,8 @@ const SUPERADMIN_LOGIN_EMAIL = (
 ).trim().toLowerCase();
 
 const schema = z.object({
-  email: z.string().email('Invalid email'),
-  password: z.string().min(1, 'Password required'),
-  tenant_slug: z.string().trim().min(1, 'Organization slug is required'),
+  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 const HIGHLIGHTS = [
@@ -63,6 +59,7 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const tenantFromUrl = searchParams.get('tenant')?.trim().toLowerCase() || '';
   const login = useAuthStore((s) => s.login);
+  const beginPersonSession = useAuthStore((s) => s.beginPersonSession);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -79,18 +76,28 @@ export default function LoginPage() {
     defaultValues: {
       email: '',
       password: '',
-      tenant_slug: tenantFromUrl || getLastTenantSlug() || '',
     },
   });
 
   const mutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (res, variables) => {
-      const user = res.data.user;
-      if (user?.type !== 'super_admin') {
-        setLastTenantSlug(user?.tenant?.slug || variables.tenant_slug);
+      if (res.data?.requiresWorkspaceSelection) {
+        beginPersonSession(res.data.accessToken, res.data.workspaces || null);
+        navigate('/select-workspace', { replace: true });
+        return;
       }
-      login({ accessToken: res.data.accessToken, user, entitlements: res.data.entitlements });
+
+      const user = res.data.user;
+      login({
+        accessToken: res.data.accessToken,
+        user,
+        entitlements: res.data.entitlements,
+        roles: res.data.roles,
+        defaultRole: res.data.defaultRole,
+        selectedRole: res.data.defaultRole,
+        workspace: res.data.workspace || workspaceFromAccessToken(res.data.accessToken),
+      });
       if (isTenantSubscriptionBlocked(res.data.user, res.data.entitlements)) {
         navigate('/subscription-expired', { replace: true });
         return;
@@ -99,7 +106,17 @@ export default function LoginPage() {
         navigate('/me/change-password', { replace: true });
         return;
       }
-      navigate(getDefaultHomeRoute(res.data.user?.role));
+      const roles = res.data.roles?.length ? res.data.roles : [res.data.user?.role].filter(Boolean);
+      navigate(
+        resolveAuthenticatedLanding({
+          roles,
+          defaultRole: res.data.defaultRole,
+          selectedRole: res.data.defaultRole,
+          userRole: res.data.user?.role,
+          forcePortalSelection: roles.length > 1,
+        }),
+        { replace: true }
+      );
     },
     onError: (err, variables) => {
       const isSuperAdminAttempt =
@@ -109,7 +126,7 @@ export default function LoginPage() {
         err.response?.data?.error?.code === 'INVALID_CREDENTIALS';
 
       if (isInvalidCredentials && !isSuperAdminAttempt) {
-        clearLastTenantSlug();
+        // Ignored
       }
 
       setError(getLoginErrorMessage(err));
@@ -194,15 +211,15 @@ export default function LoginPage() {
           </div>
 
           {notice && (
-            <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800" role="status" aria-live="polite">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{notice}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3.5 py-3 text-sm text-red-700" role="alert" aria-live="assertive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
@@ -212,27 +229,33 @@ export default function LoginPage() {
             className="space-y-5"
           >
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Email address
               </label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                 <input
+                  id="email"
                   {...register('email')}
                   type="email"
                   autoComplete="email"
                   placeholder="you@company.com"
                   className={inputClass}
+                  disabled={isBusy}
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                 />
               </div>
               {errors.email && (
-                <p className="mt-1.5 text-xs text-red-500">{errors.email.message}</p>
+                <p id="email-error" className="mt-1.5 text-xs text-red-500" role="alert">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">
                   Password
                 </label>
                 <Link
@@ -243,44 +266,36 @@ export default function LoginPage() {
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                 <input
+                  id="password"
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••"
                   className={`${inputClass} pr-10`}
+                  disabled={isBusy}
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? 'password-error' : undefined}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600"
+                  aria-pressed={showPassword}
+                  disabled={isBusy}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600 disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>
+                <p id="password-error" className="mt-1.5 text-xs text-red-500" role="alert">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Organization slug
-              </label>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  {...register('tenant_slug')}
-                  placeholder="technova"
-                  className={inputClass}
-                />
-              </div>
-              {errors.tenant_slug && (
-                <p className="mt-1.5 text-xs text-red-500">{errors.tenant_slug.message}</p>
-              )}
-            </div>
 
             <button
               type="submit"

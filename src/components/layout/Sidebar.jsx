@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import * as Icons from 'lucide-react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
-import { authApi, leaveApi, hrApi, portalApi, brandingApi } from '../../api';
+import { leaveApi, hrApi, portalApi, brandingApi } from '../../api';
 import { NAV_ITEMS, getMostSpecificNavPath, isNavItemVisible, isNavPathActive } from '../../constants/routes';
 import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
+import { isPlatformPortal, resolvePortalRole } from '../../utils/portalContext';
 // import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
 
 const DESKTOP_MEDIA = '(min-width: 1024px)';
@@ -137,7 +138,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
 }
 
 export default function Sidebar() {
-  const { user, selectedTenantId, setSelectedTenantId, entitlements } = useAuthStore();
+  const { user, workspace, roles, selectedRole, selectedTenantId, setSelectedTenantId, entitlements, accessToken } = useAuthStore();
   const {
     sidebarCollapsed,
     toggleSidebarCollapsed,
@@ -147,9 +148,8 @@ export default function Sidebar() {
     toggleNavSection,
     setNavSectionExpanded,
   } = useUiStore();
-  const navigate = useNavigate();
   const location = useLocation();
-  const role = user?.role || user?.system_role;
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
   const moduleCodes = entitlements?.module_codes ?? EMPTY_MODULE_CODES;
   const moduleCodesKey = useMemo(() => moduleCodes.join(','), [moduleCodes]);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_MEDIA).matches);
@@ -187,7 +187,7 @@ export default function Sidebar() {
     pendingPolicies: pendingPolicies > 0 ? pendingPolicies : 0,
   };
 
-  const isSuperAdmin = role === 'super_admin';
+  const isSuperAdmin = isPlatformPortal(accessToken, workspace);
 
   const handleNavItemNavigate = (item) => {
     if (isSuperAdmin && item?.path === '/dashboard') {
@@ -239,15 +239,6 @@ export default function Sidebar() {
       }
     });
   }, [location.pathname, role, moduleCodesKey, expandedNavSections, setNavSectionExpanded, navGroups]);
-
-  const handleLogout = async () => {
-    try {
-      await authApi.logout();
-    } finally {
-      useAuthStore.getState().logout();
-      navigate('/login');
-    }
-  };
 
   const tenantName =
     user?.tenant?.name ||
@@ -466,7 +457,7 @@ export default function Sidebar() {
         </nav>
 
         <div className={cn('border-t border-slate-800', isIconOnly ? 'p-2' : 'p-4')}>
-          <div className={cn('flex items-center', isIconOnly ? 'flex-col gap-2' : 'gap-2')}>
+          <div className={cn('flex items-center', isIconOnly ? 'justify-center' : 'gap-2')}>
             <Avatar name={user?.name || user?.first_name || 'User'} size="md" />
             {showLabels && (
               <div className="min-w-0 flex-1">
@@ -478,14 +469,6 @@ export default function Sidebar() {
                 </div>
               </div>
             )}
-            <button
-              type="button"
-              onClick={handleLogout}
-              title="Sign out"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors shrink-0"
-            >
-              <LogOut size={14} />
-            </button>
           </div>
         </div>
       </aside>

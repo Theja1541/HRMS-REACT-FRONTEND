@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.store';
+import { isPersonSessionToken, workspaceIdFromAnyToken } from '../utils/jwt';
+import { isPlatformPortal } from '../utils/portalContext';
 import { SUBSCRIPTION_BLOCK_CODES, markSubscriptionBlocked } from '../utils/subscriptionAccess';
 
 const api = axios.create({
@@ -33,8 +35,21 @@ api.interceptors.request.use((config) => {
     delete config.headers.Authorization;
   }
   const tenantId = useAuthStore.getState().selectedTenantId;
+  const token = useAuthStore.getState().accessToken;
+  const workspace = useAuthStore.getState().workspace;
   const isGlobalSmtpScope = config.params?.scope === 'global';
-  if (tenantId && !isGlobalSmtpScope) {
+  const isPlatformRequest =
+    isPlatformPortal(token, workspace) || workspaceIdFromAnyToken(token) === 'platform';
+  const isAuthPersonFlow =
+    config.url?.includes('/auth/workspaces') || config.url?.includes('/auth/activate-workspace');
+  if (
+    tenantId &&
+    token &&
+    !isPersonSessionToken(token) &&
+    !isPlatformRequest &&
+    !isAuthPersonFlow &&
+    !isGlobalSmtpScope
+  ) {
     config.params = { ...config.params, tenant_id: tenantId };
   }
   if (config.data instanceof FormData) {
@@ -77,16 +92,20 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
-        const newToken = data.data.accessToken;
-        useAuthStore.getState().setAccessToken(newToken);
+        let newToken = data.data.accessToken;
+        const { promoteToWorkspaceAccessToken } = await import('../utils/workspaceSession');
+        if (!isPersonSessionToken(newToken)) {
+          newToken = await promoteToWorkspaceAccessToken(newToken);
+        }
+
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
-        const onLoginPage = window.location.pathname === '/login';
-        if (!onLoginPage) {
+        const onAuthPage = ['/login', '/select-workspace'].includes(window.location.pathname);
+        if (!onAuthPage) {
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);
