@@ -108,6 +108,15 @@ export const attendanceApi = {
   checkOut: () => api.post('/attendance/check-out').then((r) => r.data),
 };
 
+export const attendancePolicyApi = {
+  list: (params) => api.get('/attendance-policies', { params }).then((r) => r.data),
+  get: (id) => api.get(`/attendance-policies/${id}`).then((r) => r.data),
+  create: (payload) => api.post('/attendance-policies', payload).then((r) => r.data),
+  update: (id, payload) => api.put(`/attendance-policies/${id}`, payload).then((r) => r.data),
+  delete: (id) => api.delete(`/attendance-policies/${id}`).then((r) => r.data),
+  setDefault: (id) => api.post(`/attendance-policies/${id}/set-default`).then((r) => r.data),
+};
+
 export const shiftApi = {
   listShifts: (params) => api.get('/shifts', { params }).then((r) => r.data),
   createShift: (payload) => api.post('/shifts', payload).then((r) => r.data),
@@ -664,6 +673,12 @@ export const brandingApi = {
     return api.post('/settings/company/branding/logo', formData).then((r) => r.data);
   },
 };
+
+export const workingCalendarApi = {
+  get: () => api.get('/attendance/working-calendar').then((r) => r.data),
+  update: (payload) => api.put('/attendance/working-calendar', payload).then((r) => r.data),
+};
+
 
 export const smtpApi = {
   getSettings: (params) => api.get('/settings/smtp', { params, timeout: 30000 }).then((r) => r.data),

@@ -46,6 +46,7 @@ export function buildPayload(form) {
     branch_id: form.branch_id ? parseInt(form.branch_id, 10) : null,
     employment_type: form.employment_type,
     reporting_to: form.reporting_to ? parseInt(form.reporting_to, 10) : null,
+    attendance_policy_id: form.attendance_policy_id ? parseInt(form.attendance_policy_id, 10) : null,
     work_from_home: form.work_from_home,
     aadhaar_number: digitsOnly(form.aadhaar_number) || null,
     bank_name: form.bank_name.trim() || null,

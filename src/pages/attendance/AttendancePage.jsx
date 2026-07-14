@@ -19,6 +19,7 @@ import {
   getCalendarColumnClasses,
 } from '../../utils/calendarGrid.utils';
 import { useTablePagination } from '../../hooks/useTablePagination';
+import MarkAttendanceModal from '../../components/attendance/MarkAttendanceModal';
 
 const TABS = [
   { id: 'daily', label: 'Daily Attendance' },
@@ -131,6 +132,7 @@ export default function AttendancePage() {
   const [bulkStatus, setBulkStatus] = useState('present');
   const [openMenu, setOpenMenu] = useState(null);
   const [toast, setToast] = useState(null);
+  const [modalState, setModalState] = useState({ isOpen: false, employee: null, status: 'present' });
   const menuRef = useRef(null);
   const {
     setPage: setDailyPage,
@@ -254,7 +256,13 @@ export default function AttendancePage() {
       });
       return;
     }
-    markMutation.mutate({ employee_id: employeeId, date: selectedDate, status });
+    setModalState({ isOpen: true, employee: row.employee, status, record: row });
+  };
+
+  const handleSaveAttendance = (payload) => {
+    markMutation.mutate(payload, {
+      onSuccess: () => setModalState({ isOpen: false, employee: null, status: 'present', record: null })
+    });
   };
 
   const revokeWfh = (employeeId) => {
@@ -413,6 +421,9 @@ export default function AttendancePage() {
                         <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Department</th>
                         <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Shift</th>
                         <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Attendance Status</th>
+                        <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Check In</th>
+                        <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Check Out</th>
+                        <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hours</th>
                         <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -436,6 +447,15 @@ export default function AttendancePage() {
                                 source={row.source}
                                 leaveType={row.leave_type}
                               />
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-600 font-medium">
+                              {row.check_in ? new Date(row.check_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-600 font-medium">
+                              {row.check_out ? new Date(row.check_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                              {row.effective_hours != null ? `${row.effective_hours}h` : '—'}
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-end gap-1.5 relative">
@@ -547,6 +567,7 @@ export default function AttendancePage() {
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-center">Absent</th>
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-center">Leave</th>
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-center">LOP</th>
+                          <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600 text-center">Total Hours</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -560,6 +581,7 @@ export default function AttendancePage() {
                             <td className="px-4 py-3 text-center text-red-600 font-medium">{s.absent}</td>
                             <td className="px-4 py-3 text-center text-purple-600 font-medium">{s.leave}</td>
                             <td className="px-4 py-3 text-center text-orange-600 font-medium">{s.lop}</td>
+                            <td className="px-4 py-3 text-center text-brand-700 font-bold">{s.total_hours ? `${s.total_hours}h` : '—'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -659,6 +681,16 @@ export default function AttendancePage() {
           )}
         </>
       )}
+      <MarkAttendanceModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ isOpen: false, employee: null, status: 'present', record: null })}
+        employee={modalState.employee || {}}
+        existingRecord={modalState.record}
+        selectedDate={selectedDate}
+        initialStatus={modalState.status}
+        onSave={handleSaveAttendance}
+        isPending={markMutation.isPending}
+      />
     </div>
   );
 }

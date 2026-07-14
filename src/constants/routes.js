@@ -79,6 +79,7 @@ export const NAV_ITEMS = [
     icon: 'Banknote',
     collapsible: true,
     items: [
+      { label: 'Run Payroll', path: '/payroll/run', icon: 'PlayCircle', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'salaries' },
       { label: 'Salaries', path: '/salaries', icon: 'Banknote', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'salaries' },
       { label: 'Salary Structures', path: '/payroll/structures', icon: 'Layers', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'salaries' },
       { label: 'Payslips', path: '/payslips', icon: 'FileText', roles: ['super_admin', 'owner', 'hr', 'pf_team'], moduleCode: 'payslips' },

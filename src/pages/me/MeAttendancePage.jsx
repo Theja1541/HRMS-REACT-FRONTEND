@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { attendanceApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
+import CheckInOutWidget from '../../components/attendance/CheckInOutWidget';
 import { ATTENDANCE_STATUS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 
@@ -46,6 +47,8 @@ export default function MeAttendancePage() {
           </div>
         }
       />
+
+      <CheckInOutWidget />
 
       {isLoading ? (
         <div className="card p-12 text-center text-slate-400">Loading attendance…</div>

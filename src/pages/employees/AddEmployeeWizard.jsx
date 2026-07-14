@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { employeeApi, departmentApi, designationApi, branchApi, payrollApi, probationPolicyApi } from '../../api';
+import { employeeApi, departmentApi, designationApi, branchApi, payrollApi, probationPolicyApi, attendancePolicyApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
 import {
   BLOOD_GROUPS,
@@ -75,6 +75,10 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
     queryKey: ['employees-managers'],
     queryFn: () => employeeApi.list({ limit: 200 }),
   });
+  const { data: attendancePolicyData } = useQuery({
+    queryKey: ['attendance-policies'],
+    queryFn: () => attendancePolicyApi.list({}),
+  });
 
   const { data: editEmployeeData, isLoading: loadingEmployee } = useQuery({
     queryKey: ['employee', employeeId, 'wizard', mode],
@@ -100,6 +104,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
     );
   }, [allDesignations, form.department_id]);
   const branches = branchData?.data?.branches || [];
+  const attendancePolicies = attendancePolicyData?.data?.policies || [];
   const managers = (empData?.data?.employees || []).filter((e) =>
     (e.roles?.length ? e.roles : [e.system_role]).some((role) =>
       ['manager', 'hr', 'owner'].includes(role)
@@ -582,6 +587,14 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   <option value="">Select location</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}{b.city ? ` — ${b.city}` : ''}</option>
+                  ))}
+                </select>
+              </WizardField>
+              <WizardField label="Attendance Policy" error={errors.attendance_policy_id}>
+                <select value={form.attendance_policy_id} onChange={(e) => set('attendance_policy_id', e.target.value)} className={ic(errors.attendance_policy_id)}>
+                  <option value="">Tenant Default Policy</option>
+                  {attendancePolicies.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} {p.is_default ? '(Default)' : ''}</option>
                   ))}
                 </select>
               </WizardField>
