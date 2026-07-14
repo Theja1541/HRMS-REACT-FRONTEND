@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, ClipboardCheck, HelpCircle, LogOut, Menu, Search } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Avatar, RoleBadge } from '../shared/StatusBadge';
+import { resolvePortalRole } from '../../utils/portalContext';
 import { NAV_ITEMS, flattenNavItems } from '../../constants/routes';
 import { authApi, billingApi, platformApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
@@ -11,6 +13,7 @@ import { formatDistanceToNow, parseISO } from 'date-fns';
 import RoleSwitcher from './RoleSwitcher';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import { isPlatformPortal } from '../../utils/portalContext';
+import { User } from 'lucide-react';
 
 const PAGE_TITLES = {};
 flattenNavItems().forEach((item) => {
@@ -49,7 +52,12 @@ export default function Topbar() {
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const title = PAGE_TITLES[location.pathname] || 'HRMS';
+
+  const roles = useAuthStore((s) => s.roles);
+  const selectedRole = useAuthStore((s) => s.selectedRole);
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
 
   useEffect(() => {
     setOpen(false);
@@ -196,16 +204,47 @@ export default function Topbar() {
           <HelpCircle size={16} />
         </Link>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 shrink-0 transition-colors"
-          title="Logout"
-          aria-label="Logout"
-        >
-          <LogOut size={16} />
-          <span className="hidden sm:inline text-xs font-medium">Logout</span>
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setProfileOpen(!profileOpen)}
+            className="flex items-center gap-2 h-8 px-2 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <Avatar name={user?.name || user?.first_name || 'User'} size="sm" />
+          </button>
+
+          {profileOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} aria-hidden />
+              <div className="absolute right-0 top-10 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                  <p className="text-sm font-semibold text-slate-800 truncate">
+                    {user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate mt-0.5"><RoleBadge role={role} /></p>
+                </div>
+                
+                <Link
+                  to="/me/change-password"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <User size={16} />
+                  <span>Change Password</span>
+                </Link>
+                
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {searchOpen && (

@@ -456,21 +456,6 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className={cn('border-t border-slate-800', isIconOnly ? 'p-2' : 'p-4')}>
-          <div className={cn('flex items-center', isIconOnly ? 'justify-center' : 'gap-2')}>
-            <Avatar name={user?.name || user?.first_name || 'User'} size="md" />
-            {showLabels && (
-              <div className="min-w-0 flex-1">
-                <p className="text-slate-300 text-xs font-medium truncate">
-                  {user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
-                </p>
-                <div className="mt-1">
-                  <RoleBadge role={role} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </aside>
     </>
   );

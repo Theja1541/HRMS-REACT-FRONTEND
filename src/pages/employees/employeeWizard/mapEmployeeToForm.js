@@ -34,6 +34,7 @@ export function mapEmployeeToForm(employee, salary = null) {
     branch_id: employee.branch_id ? String(employee.branch_id) : '',
     employment_type: employee.employment_type || 'full_time',
     reporting_to: employee.reporting_to ? String(employee.reporting_to) : '',
+    attendance_policy_id: employee.attendance_policy_id ? String(employee.attendance_policy_id) : '',
     work_from_home: Boolean(employee.work_from_home),
     uan_number: employee.uan_number || '',
     bank_name: employee.bank_name || '',

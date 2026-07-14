@@ -72,11 +72,17 @@ function maskAccount(num) {
   return s.length > 4 ? `XXXXXX${s.slice(-4)}` : s;
 }
 
-function buildAmountMap(lines = []) {
+function buildAmountMap(lines) {
   const map = {};
-  lines.forEach((line) => {
-    map[line.name] = parseFloat(line.amount || 0);
-  });
+  let arr = lines || [];
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch (e) { arr = []; }
+  }
+  if (Array.isArray(arr)) {
+    arr.forEach((line) => {
+      map[line.name] = parseFloat(line.amount || 0);
+    });
+  }
   return map;
 }
 
@@ -127,7 +133,11 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
     amount: deductionMap[name] ?? 0,
   }));
 
-  (payslip?.deductions || []).forEach((line) => {
+  let rawDeductions = payslip?.deductions || [];
+  if (typeof rawDeductions === 'string') {
+    try { rawDeductions = JSON.parse(rawDeductions); } catch(e) { rawDeductions = []; }
+  }
+  (Array.isArray(rawDeductions) ? rawDeductions : []).forEach((line) => {
     if (line.source !== 'salary_feed') return;
     const amount = parseFloat(line.amount || 0);
     if (amount <= 0) return;

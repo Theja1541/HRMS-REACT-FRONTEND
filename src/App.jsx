@@ -16,12 +16,14 @@ import BillingPage from './pages/admin/BillingPage';
 import TenantSubscriptionsPage from './pages/admin/TenantSubscriptionsPage';
 import PendingApprovalsPage from './pages/admin/PendingApprovalsPage';
 import SettingsPage from './pages/admin/SettingsPage';
+import WorkingCalendarPage from './pages/admin/WorkingCalendarPage';
 import AttendancePage from './pages/attendance/AttendancePage';
 import LeavesPage from './pages/leave/LeavesPage';
 import LeaveSettingsPage from './pages/leave/LeaveSettingsPage';
 import HolidayCalendarPage from './pages/holidays/HolidayCalendarPage';
 import SalariesPage from './pages/payroll/SalariesPage';
 import SalaryFeedPage from './pages/payroll/SalaryFeedPage';
+import PayrollPreviewPage from './pages/payroll/PayrollPreviewPage';
 import PayslipsPage from './pages/payroll/PayslipsPage';
 import PFSummaryPage from './pages/finance/PFSummaryPage';
 import FinanceSummaryPage from './pages/finance/FinanceSummaryPage';
@@ -242,6 +244,7 @@ export default function App() {
               <Route path="holidays" element={<ModuleAccessGuard module="leaves"><HolidayCalendarPage /></ModuleAccessGuard>} />
               <Route path="leaves/settings" element={<ModuleAccessGuard module="leaves"><LeaveSettingsPage /></ModuleAccessGuard>} />
               <Route path="salaries" element={<ModuleAccessGuard module="payroll"><SalariesPage /></ModuleAccessGuard>} />
+              <Route path="payroll/run" element={<ModuleAccessGuard module="payroll"><PayrollPreviewPage /></ModuleAccessGuard>} />
               <Route path="payslips" element={<ModuleAccessGuard module="payroll"><PayslipsPage /></ModuleAccessGuard>} />
               <Route path="salary-feed" element={<ModuleAccessGuard module="payroll"><SalaryFeedPage /></ModuleAccessGuard>} />
               <Route path="payroll/reimbursements" element={<ModuleAccessGuard module="payroll"><ReimbursementApprovalsPage /></ModuleAccessGuard>} />
@@ -315,6 +318,8 @@ export default function App() {
               <Route path="billing" element={<BillingPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/subscription" element={<SettingsPage />} />
+              <Route path="settings/working-calendar" element={<WorkingCalendarPage />} />
+              <Route path="settings/attendance-policy" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<HomeRedirect />} />
           </Routes>

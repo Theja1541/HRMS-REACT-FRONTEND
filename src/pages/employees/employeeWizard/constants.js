@@ -18,6 +18,7 @@ export const INITIAL_FORM = {
   branch_id: '',
   employment_type: 'full_time',
   reporting_to: '',
+  attendance_policy_id: '',
   work_from_home: false,
   uan_number: '',
   bank_name: '',
