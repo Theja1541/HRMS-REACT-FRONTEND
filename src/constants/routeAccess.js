@@ -42,7 +42,7 @@ const EXPLICIT_ROUTE_RULES = [
   { path: '/transactions/add', roles: ADMIN_ROLES },
   { path: '/quotations/:id', roles: ADMIN_ROLES },
   { path: '/resignations', roles: [...ADMIN_ROLES, 'manager'] },
-  { path: '/me/change-password', roles: ['employee', 'manager', 'owner', 'hr'] },
+  { path: '/me/change-password', roles: ['employee', 'manager', 'owner', 'hr', 'pf_team', 'auditor'] },
   { path: '/me/reimbursements/new', roles: ['employee', 'manager'] },
   { path: '/me/reimbursements/:id/edit', roles: ['employee', 'manager'] },
   { path: '/me/reimbursements/:id', roles: ['employee', 'manager'] },

@@ -7,12 +7,15 @@ import BrandingSettingsTab from './BrandingSettingsTab';
 import WorkingCalendarPage from './WorkingCalendarPage';
 import AttendancePolicyPage from './AttendancePolicyPage';
 import ChangePasswordForm from '../../components/auth/ChangePasswordForm';
+import MfaSettings from '../../components/auth/MfaSettings';
 import { useAuthStore } from '../../store/auth.store';
 import { cn } from '../../utils/helpers';
 
 const ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
+const SECURITY_ROLES = ['employee', 'manager', 'pf_team', 'auditor'];
 
 const TABS = [
+  { id: 'security', label: 'Security', roles: SECURITY_ROLES },
   { id: 'branding', label: 'Branding', roles: ADMIN_ROLES },
   { id: 'smtp', label: 'Email / SMTP', roles: ADMIN_ROLES },
   { id: 'subscription', label: 'Subscription', path: '/settings/subscription', roles: ['owner', 'hr'] },
@@ -24,6 +27,7 @@ function tabFromPath(pathname, role) {
   if (pathname.includes('/settings/subscription')) return 'subscription';
   if (pathname.includes('/settings/working-calendar')) return 'working_calendar';
   if (pathname.includes('/settings/attendance-policy')) return 'attendance_policy';
+  if (SECURITY_ROLES.includes(role)) return 'security';
   return 'branding';
 }
 
@@ -94,6 +98,19 @@ export default function SettingsPage() {
         </div>
 
         <div className="p-4">
+          {tab === 'security' && SECURITY_ROLES.includes(role) && (
+            <div className="max-w-lg space-y-8">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Password Settings</h3>
+                <ChangePasswordForm showIntro submitLabel="Update Password" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Multi-Factor Authentication</h3>
+                <MfaSettings />
+              </div>
+            </div>
+          )}
+
           {tab === 'branding' && isAdmin && <BrandingSettingsTab />}
 
           {tab === 'smtp' && isAdmin && <SmtpSettingsTab />}

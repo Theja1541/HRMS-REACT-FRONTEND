@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           <p className="text-xs text-white/40">
-            © {new Date().getFullYear()} HRMS. All rights reserved.
+            © 2025 Genius Minds Making Code Pvt. Ltd.
           </p>
         </div>
       </div>

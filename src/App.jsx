@@ -5,6 +5,7 @@ import { resolveAuthenticatedLanding } from './utils/portalNavigation';
 import AuthBootstrap from './components/auth/AuthBootstrap';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/auth/LoginPage';
+import MfaVerificationPage from './pages/auth/MfaVerificationPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
@@ -194,6 +195,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+            <Route path="/mfa-verify" element={<PublicRoute><MfaVerificationPage /></PublicRoute>} />
             <Route path="/careers/:tenantSlug" element={<CareersPage />} />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />

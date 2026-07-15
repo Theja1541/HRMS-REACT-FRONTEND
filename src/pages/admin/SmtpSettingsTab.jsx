@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff, Mail, RefreshCw, Save, Send } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, Mail, RefreshCw, Save, Send } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { smtpApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
@@ -111,6 +111,7 @@ export default function SmtpSettingsTab() {
   });
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const authEnabled = form.smtp_auth_enabled !== false;
 
   const handleProviderChange = (provider) => {
     const preset = SMTP_PROVIDERS[provider];
@@ -131,6 +132,7 @@ export default function SmtpSettingsTab() {
     smtp_host: form.smtp_host.trim(),
     smtp_port: parseInt(form.smtp_port, 10),
     encryption_type: form.encryption_type,
+    smtp_auth_enabled: authEnabled,
     smtp_username: form.smtp_username.trim(),
     ...(form.smtp_password ? { smtp_password: form.smtp_password.replace(/\s+/g, '') } : {}),
   });
@@ -283,20 +285,37 @@ export default function SmtpSettingsTab() {
                     {ENCRYPTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </Field>
-                <Field label="SMTP Username" required hint="For Gmail, use your full email address (not display name)">
+                <Field label="SMTP Authentication">
+                  <button
+                    type="button"
+                    onClick={() => set('smtp_auth_enabled', !authEnabled)}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium",
+                      authEnabled ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-600 border-slate-200"
+                    )}
+                  >
+                    {authEnabled ? <CheckCircle2 size={16} /> : <Mail size={16} />}
+                    {authEnabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Turn this off for SMTP relays that do not require username/password.
+                  </p>
+                </Field>
+                <Field label="SMTP Username" required={authEnabled} hint={authEnabled ? 'For Gmail, use your full email address (not display name)' : 'Not required when authentication is disabled.'}>
                   <input
-                    required
+                    required={authEnabled}
                     type="email"
                     value={form.smtp_username}
                     onChange={(e) => set('smtp_username', e.target.value)}
                     placeholder="you@gmail.com"
+                    disabled={!authEnabled}
                     className={inputCls}
                   />
                 </Field>
                 <Field
                   label="SMTP Password"
-                  required={!passwordConfigured}
-                  hint={passwordConfigured ? 'Leave blank to keep existing password. Gmail: use App Password (16 chars, no spaces).' : 'Gmail: generate an App Password at myaccount.google.com → Security → App passwords'}
+                  required={authEnabled && !passwordConfigured}
+                  hint={!authEnabled ? 'Not required when authentication is disabled.' : passwordConfigured ? 'Leave blank to keep existing password. Gmail: use App Password (16 chars, no spaces).' : 'Gmail: generate an App Password at myaccount.google.com → Security → App passwords'}
                 >
                   <div className="relative">
                     <input
@@ -304,6 +323,7 @@ export default function SmtpSettingsTab() {
                       value={form.smtp_password}
                       onChange={(e) => set('smtp_password', e.target.value)}
                       placeholder={passwordConfigured ? 'Password Configured' : 'Enter SMTP password'}
+                      disabled={!authEnabled}
                       className={cn(inputCls, 'pr-10')}
                     />
                     <button
@@ -405,3 +425,4 @@ export default function SmtpSettingsTab() {
     </div>
   );
 }
+

@@ -1,28 +1,26 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Mail,
-  Lock,
-  Building2,
+  AlertCircle,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
   Eye,
   EyeOff,
-  AlertCircle,
+  Lock,
+  Mail,
   ShieldCheck,
-  BarChart3,
   Users,
-  ArrowRight,
-  CheckCircle2,
 } from 'lucide-react';
 import { authApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
+import { getLoginErrorMessage } from '../../utils/authErrors';
 import { resolveAuthenticatedLanding } from '../../utils/portalNavigation';
 import { isTenantSubscriptionBlocked } from '../../utils/subscriptionAccess';
-
-import { getLoginErrorMessage } from '../../utils/authErrors';
 import { workspaceFromAccessToken } from '../../utils/workspaceSession';
 import AuthBrandPanel from '../../components/auth/AuthBrandPanel';
 
@@ -53,11 +51,29 @@ const HIGHLIGHTS = [
   },
 ];
 
+function SupportDetails() {
+  return (
+    <div className="mt-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-xs leading-6 text-slate-500 shadow-sm">
+      <p>
+        Support Email:{' '}
+        <a className="font-medium text-brand-600 hover:text-brand-700 hover:underline" href="mailto:Support@geniusmindstech.com">
+          Support@geniusmindstech.com
+        </a>
+      </p>
+      <p>
+        Support Mobile:{' '}
+        <a className="font-medium text-brand-600 hover:text-brand-700 hover:underline" href="tel:+917893985329">
+          +91 78939 85329
+        </a>
+      </p>
+      <p>© 2025 Genius Minds Making Code Pvt. Ltd.</p>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const tenantFromUrl = searchParams.get('tenant')?.trim().toLowerCase() || '';
   const login = useAuthStore((s) => s.login);
   const beginPersonSession = useAuthStore((s) => s.beginPersonSession);
   const [error, setError] = useState('');
@@ -73,15 +89,18 @@ export default function LoginPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const mutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (res, variables) => {
+    onSuccess: (res) => {
+      if (res.data?.requiresMfa) {
+        sessionStorage.setItem('mfa_temp_token', res.data.tempToken);
+        navigate('/mfa-verify', { replace: true });
+        return;
+      }
+
       if (res.data?.requiresWorkspaceSelection) {
         beginPersonSession(res.data.accessToken, res.data.workspaces || null);
         navigate('/select-workspace', { replace: true });
@@ -98,14 +117,17 @@ export default function LoginPage() {
         selectedRole: res.data.defaultRole,
         workspace: res.data.workspace || workspaceFromAccessToken(res.data.accessToken),
       });
+
       if (isTenantSubscriptionBlocked(res.data.user, res.data.entitlements)) {
         navigate('/subscription-expired', { replace: true });
         return;
       }
+
       if (res.data.user?.must_change_password) {
         navigate('/me/change-password', { replace: true });
         return;
       }
+
       const roles = res.data.roles?.length ? res.data.roles : [res.data.user?.role].filter(Boolean);
       navigate(
         resolveAuthenticatedLanding({
@@ -126,7 +148,7 @@ export default function LoginPage() {
         err.response?.data?.error?.code === 'INVALID_CREDENTIALS';
 
       if (isInvalidCredentials && !isSuperAdminAttempt) {
-        // Ignored
+        // Keep message generic.
       }
 
       setError(getLoginErrorMessage(err));
@@ -146,15 +168,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Branded panel */}
-      <div className="relative hidden lg:flex lg:w-1/2 overflow-hidden bg-slate-900">
+      <div className="relative hidden lg:flex lg:w-1/2 overflow-hidden bg-slate-950">
         <div className="absolute inset-0 bg-gradient-to-br from-brand-700 via-slate-900 to-slate-950" />
-        {/* Decorative glows */}
-        <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-brand-600/30 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-96 w-96 translate-x-1/3 translate-y-1/3 rounded-full bg-brand-600/20 blur-3xl" />
-        {/* Subtle grid */}
         <div
-          className="absolute inset-0 opacity-[0.08]"
+          className="absolute inset-0 opacity-[0.09]"
           style={{
             backgroundImage:
               'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)',
@@ -163,13 +180,15 @@ export default function LoginPage() {
         />
 
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-white">
-          <AuthBrandPanel variant="dark" />
+          <AuthBrandPanel variant="dark" size="large" />
 
           <div className="max-w-md">
-            <h2 className="text-3xl xl:text-[34px] font-bold leading-tight">
-              Manage your people,<br />all in one place.
+            <h2 className="text-4xl font-bold leading-tight">
+              Manage your people,
+              <br />
+              all in one place.
             </h2>
-            <p className="mt-4 text-md text-white/70 leading-relaxed">
+            <p className="mt-5 text-base text-white/75 leading-7">
               A unified HR, payroll and compliance platform built for modern,
               multi-tenant organisations.
             </p>
@@ -177,28 +196,24 @@ export default function LoginPage() {
             <ul className="mt-10 space-y-5">
               {HIGHLIGHTS.map(({ icon: Icon, title, text }) => (
                 <li key={title} className="flex gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
                     <Icon className="h-5 w-5 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
-                    <p className="text-md font-semibold">{title}</p>
-                    <p className="text-sm text-white/60 mt-0.5">{text}</p>
+                    <p className="text-base font-semibold">{title}</p>
+                    <p className="text-sm text-white/65 mt-0.5">{text}</p>
                   </div>
                 </li>
               ))}
             </ul>
           </div>
 
-          <p className="text-xs text-white/40">
-            © {new Date().getFullYear()} HRMS. All rights reserved.
-          </p>
+          <div />
         </div>
       </div>
 
-      {/* Form panel */}
       <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md">
-          {/* Mobile brand */}
           <div className="mb-8 lg:hidden">
             <AuthBrandPanel variant="light" />
           </div>
@@ -224,10 +239,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="space-y-5"
-          >
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Email address
@@ -296,7 +308,6 @@ export default function LoginPage() {
               )}
             </div>
 
-
             <button
               type="submit"
               disabled={isBusy}
@@ -305,7 +316,7 @@ export default function LoginPage() {
               {mutation.isPending ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  Signing in…
+                  Signing in...
                 </>
               ) : (
                 <>
@@ -316,27 +327,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials — hidden for now
-          <div className="mt-8 rounded-xl border border-slate-200 bg-white p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Demo credentials
-            </p>
-            <dl className="space-y-1.5 text-xs text-slate-600">
-              <div className="flex justify-between gap-3">
-                <dt className="font-medium text-slate-700">Admin</dt>
-                <dd className="text-slate-500">arjun@technova.com / Welcome@123</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="font-medium text-slate-700">PF Team</dt>
-                <dd className="text-slate-500">deepa@technova.com / Welcome@123</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="font-medium text-slate-700">Super Admin</dt>
-                <dd className="text-slate-500">superadmin@hrms.app / SuperSecure@123</dd>
-              </div>
-            </dl>
-          </div>
-          */}
+          <SupportDetails />
         </div>
       </div>
     </div>

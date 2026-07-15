@@ -5,8 +5,9 @@ import { resolveAssetUrl, cn } from '../../utils/helpers';
 /**
  * Platform branding for login / forgot-password (super-admin uploaded logo).
  */
-export default function AuthBrandPanel({ variant = 'dark' }) {
+export default function AuthBrandPanel({ variant = 'dark', size = 'default' }) {
   const isDark = variant === 'dark';
+  const isLarge = size === 'large';
 
   const { data } = useQuery({
     queryKey: ['platform-branding-public'],
@@ -20,22 +21,30 @@ export default function AuthBrandPanel({ variant = 'dark' }) {
   const brandSubtitle = 'Enterprise Platform';
 
   return (
-    <div className="flex items-center gap-3">
+    <div className={cn('flex items-center', isLarge ? 'gap-4' : 'gap-3')}>
       {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt={`${brandTitle} logo`}
+        <div
           className={cn(
-            'h-11 w-11 shrink-0 rounded-xl object-contain p-1',
-            isDark ? 'bg-white/10 ring-1 ring-white/20' : 'border border-slate-200 bg-white'
+            'shrink-0 overflow-hidden flex items-center justify-center',
+            isLarge ? 'h-20 w-20 rounded-2xl p-1.5' : 'h-16 w-16 rounded-2xl p-1.5',
+            isDark
+              ? 'bg-white shadow-2xl shadow-black/20 ring-1 ring-white/30'
+              : 'border border-slate-200 bg-white shadow-sm'
           )}
-        />
+        >
+          <img
+            src={logoUrl}
+            alt={`${brandTitle} logo`}
+            className="h-full w-full object-contain"
+          />
+        </div>
       ) : (
         <div
           className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-bold',
+            'flex shrink-0 items-center justify-center rounded-2xl font-bold',
+            isLarge ? 'h-20 w-20 text-2xl' : 'h-16 w-16 text-xl',
             isDark
-              ? 'bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-sm'
+              ? 'bg-white text-brand-700 ring-1 ring-white/30 shadow-2xl shadow-black/20'
               : 'bg-brand-600 text-white'
           )}
         >
@@ -43,10 +52,12 @@ export default function AuthBrandPanel({ variant = 'dark' }) {
         </div>
       )}
       <div>
-        <p className={cn('text-lg font-semibold leading-none', isDark ? 'text-white' : 'text-slate-900')}>
+        <p className={cn(isLarge ? 'text-2xl' : 'text-xl', 'font-bold leading-none', isDark ? 'text-white' : 'text-slate-900')}>
           {brandTitle}
         </p>
-        <p className={cn('mt-1 text-xs', isDark ? 'text-white/60' : 'text-slate-500')}>{brandSubtitle}</p>
+        <p className={cn(isLarge ? 'mt-2 text-sm' : 'mt-1.5 text-xs', isDark ? 'text-white/70' : 'text-slate-500')}>
+          {brandSubtitle}
+        </p>
       </div>
     </div>
   );
