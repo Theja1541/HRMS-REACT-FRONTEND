@@ -15,6 +15,12 @@ export const authApi = {
   listWorkspaces: () => api.get('/auth/workspaces').then((r) => r.data),
   activateWorkspace: (workspaceId) =>
     api.post('/auth/activate-workspace', { workspaceId }).then((r) => r.data),
+  verifyMfa: (payload, tempToken) =>
+    api.post('/auth/mfa/verify', payload, { headers: { Authorization: `Bearer ${tempToken}` } }).then((r) => r.data),
+  resendMfa: (tempToken) =>
+    api.post('/auth/mfa/resend', {}, { headers: { Authorization: `Bearer ${tempToken}` } }).then((r) => r.data),
+  enableMfa: (payload) => api.post('/auth/mfa/enable', payload).then((r) => r.data),
+  disableMfa: (payload) => api.post('/auth/mfa/disable', payload).then((r) => r.data),
 };
 
 export const careersApi = {

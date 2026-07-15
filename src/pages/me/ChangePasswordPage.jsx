@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ChangePasswordForm from '../../components/auth/ChangePasswordForm';
+import MfaSettings from '../../components/auth/MfaSettings';
 import { useAuthStore } from '../../store/auth.store';
 import { authApi } from '../../api';
 
@@ -30,21 +31,31 @@ export default function ChangePasswordPage() {
   return (
     <div className="space-y-6 max-w-lg">
       <PageHeader
-        title={forced ? 'Set your password' : 'Change password'}
+        title={forced ? 'Set your password' : 'Security Settings'}
         subtitle={
           forced
             ? 'Replace your temporary password, then you will be redirected to sign in again'
-            : 'Update your portal sign-in password'
+            : 'Update your portal sign-in password and authentication methods'
         }
       />
 
-      <div className="card p-6">
-        <ChangePasswordForm
-          forced={forced}
-          showIntro={!forced}
-          submitLabel={forced ? 'Save & sign in' : 'Update Password'}
-          onSuccess={handleSuccess}
-        />
+      <div className="card p-6 space-y-8">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Password Settings</h3>
+          <ChangePasswordForm
+            forced={forced}
+            showIntro={!forced}
+            submitLabel={forced ? 'Save & sign in' : 'Update Password'}
+            onSuccess={handleSuccess}
+          />
+        </div>
+        
+        {!forced && (
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Multi-Factor Authentication</h3>
+            <MfaSettings />
+          </div>
+        )}
       </div>
     </div>
   );

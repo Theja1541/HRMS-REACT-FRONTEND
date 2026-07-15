@@ -4,6 +4,7 @@ import { Save, Clock, AlertCircle } from 'lucide-react';
 import { employeeApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import ChangePasswordForm from '../../components/auth/ChangePasswordForm';
+import MfaSettings from '../../components/auth/MfaSettings';
 import InternationalPhoneInput from '../../components/shared/InternationalPhoneInput';
 import { formatPhoneForStorage, isValidInternationalPhone } from '../../utils/validation';
 import { Avatar } from '../../components/shared/StatusBadge';
@@ -422,7 +423,18 @@ export default function MeProfilePage() {
           </div>
         )}
 
-        {tab === 'security' && <ChangePasswordForm />}
+        {tab === 'security' && (
+          <div className="space-y-8">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Password Settings</h3>
+              <ChangePasswordForm />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 mb-4 border-b pb-2">Multi-Factor Authentication</h3>
+              <MfaSettings />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

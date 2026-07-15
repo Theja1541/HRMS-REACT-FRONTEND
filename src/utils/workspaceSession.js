@@ -21,22 +21,30 @@ export function normalizeAuthUser(raw) {
  */
 export async function activateAndHydrateWorkspace(workspaceId) {
   const activateRes = await authApi.activateWorkspace(workspaceId);
+
+  if (activateRes.data.requiresMfa) {
+    return {
+      requiresMfa: true,
+      tempToken: activateRes.data.tempToken,
+    };
+  }
+
+  if (!activateRes.data.accessToken) {
+    console.error('[activateAndHydrateWorkspace] No accessToken in response:', activateRes);
+    throw new Error('Workspace activation failed: no access token returned');
+  }
+
   const accessToken = activateRes.data.accessToken;
+  // Set token in store BEFORE calling /me so the interceptor sends the right token
   useAuthStore.getState().setAccessToken(accessToken);
 
-  const workspace = {
-    ...activateRes.data.workspace,
-    ...workspaceFromAccessToken(accessToken),
-  };
+  const workspace = activateRes.data.workspace || workspaceFromAccessToken(accessToken);
 
-  const meRes = await authApi.me(accessToken);
+  // Call /me without explicit token — interceptor will use the store token we just set
+  const meRes = await authApi.me();
   const user = normalizeAuthUser(meRes.data.user);
   const roles = meRes.data.roles?.length ? meRes.data.roles : workspace.roles;
   const defaultRole = meRes.data.defaultRole || workspace.defaultRole;
-
-  if (user?.type !== 'super_admin' && workspace?.slug) {
-
-  }
 
   return {
     accessToken,

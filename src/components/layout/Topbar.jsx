@@ -230,7 +230,7 @@ export default function Topbar() {
                   className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 >
                   <User size={16} />
-                  <span>Change Password</span>
+                  <span>Security Settings</span>
                 </Link>
                 
                 <button
