@@ -22,9 +22,10 @@ import {
 } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import InternationalPhoneInput from '../../components/shared/InternationalPhoneInput';
-import { INITIAL_FORM } from './employeeWizard/constants';
+import { INITIAL_FORM, WORK_MODE_OPTIONS, PROBATION_DURATION_OPTIONS } from './employeeWizard/constants';
 import { validateStep, validateAllSteps } from './employeeWizard/validation';
 import { buildPayload } from './employeeWizard/buildPayload';
+import { buildUpdatePayload } from './employeeWizard/buildUpdatePayload';
 import { useEmployeeDraft } from './employeeWizard/useEmployeeDraft';
 import WizardField, { inputClass, readOnlyClass } from './employeeWizard/WizardField';
 import DocumentDropzone from './employeeWizard/DocumentDropzone';
@@ -50,7 +51,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   const loadEmployee = Boolean(employeeId);
   const { selectedTenantId } = useAuthStore();
   const { companySlug, isLoading: companySlugLoading, isSuperAdmin } = useTenantCompanySlug();
-  const { loadDraft, saveDraft, clearDraft, scheduleAutoSave, draftNotice } = useEmployeeDraft(selectedTenantId);
+  const { loadDraft, saveDraft, clearDraft, scheduleAutoSave, cancelAutoSave, draftNotice } = useEmployeeDraft(selectedTenantId);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(INITIAL_FORM);
@@ -61,6 +62,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   const [submitError, setSubmitError] = useState('');
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState(null);
+  const [draftGateReady, setDraftGateReady] = useState(!isAdd);
 
   const { data: deptData } = useQuery({
     queryKey: ['departments', 'active', selectedTenantId],
@@ -119,13 +121,13 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   const { data: probationData } = useQuery({
     queryKey: ['probation-policies-preview', selectedTenantId],
     queryFn: () => probationPolicyApi.list({ status: 'active' }),
-    enabled: isAdd,
+    enabled: isAdd || isEdit,
     staleTime: 5 * 60 * 1000,
   });
   const probationPolicies = probationData?.data?.policies || [];
 
   const probationPreview = useMemo(() => {
-    if (!isAdd || !form.date_of_joining || !probationPolicies.length) return null;
+    if (!form.has_probation || !form.date_of_joining || !probationPolicies.length) return null;
 
     const { department_id, designation_id, employment_type, date_of_joining } = form;
 
@@ -172,18 +174,23 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
 
     if (!bestPolicy) return null;
 
+    const durationMonths = PROBATION_DURATION_OPTIONS.includes(Number(form.probation_duration_months))
+      ? Number(form.probation_duration_months)
+      : 6;
+
     const d = new Date(date_of_joining + 'T00:00:00');
-    d.setMonth(d.getMonth() + bestPolicy.default_duration_months);
+    d.setMonth(d.getMonth() + durationMonths);
     const endDate = d.toISOString().slice(0, 10);
 
     return {
       policy_name: bestPolicy.policy_name,
-      duration_months: bestPolicy.default_duration_months,
+      duration_months: durationMonths,
       probation_start_date: date_of_joining,
       probation_end_date: endDate,
     };
   }, [
-    isAdd,
+    form.has_probation,
+    form.probation_duration_months,
     probationPolicies,
     form.department_id,
     form.designation_id,
@@ -192,13 +199,18 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   ]);
 
   useEffect(() => {
-    if (!isAdd) return;
+    if (!isAdd) {
+      setDraftGateReady(true);
+      return;
+    }
+    cancelAutoSave();
     const draft = loadDraft();
     if (draft?.form) {
       setShowDraftPrompt(true);
       setDraftSavedAt(draft.savedAt);
     }
-  }, [loadDraft, isAdd]);
+    setDraftGateReady(true);
+  }, [loadDraft, isAdd, cancelAutoSave]);
 
   useEffect(() => {
     if (!loadEmployee || !editEmployeeData?.data?.employee) return;
@@ -214,9 +226,9 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   }, [loadEmployee, editEmployeeData, salaryHistoryData]);
 
   useEffect(() => {
-    if (!isAdd) return;
+    if (!isAdd || !draftGateReady || showDraftPrompt) return;
     scheduleAutoSave(form, step, documentMetaFromFiles(documents));
-  }, [form, step, documents, scheduleAutoSave, isAdd]);
+  }, [form, step, documents, scheduleAutoSave, isAdd, draftGateReady, showDraftPrompt]);
 
   const set = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -263,21 +275,38 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   };
 
   const restoreDraft = () => {
+    cancelAutoSave();
     const draft = loadDraft();
-    if (!draft) return;
+    if (!draft?.form) {
+      setShowDraftPrompt(false);
+      return;
+    }
     const restoredForm = {
       ...draft.form,
       roles: draft.form.roles?.length ? draft.form.roles : [draft.form.system_role || 'employee'],
       system_role: draft.form.system_role || draft.form.roles?.[0] || 'employee',
+      work_mode:
+        draft.form.work_mode ||
+        (draft.form.work_from_home ? 'remote' : 'office'),
+      has_probation: draft.form.has_probation === true,
+      probation_duration_months: draft.form.probation_duration_months || 6,
     };
     setForm(restoredForm);
     setStep(draft.step || 1);
+    setErrors({});
     setShowDraftPrompt(false);
   };
 
   const discardDraft = () => {
+    cancelAutoSave();
     clearDraft();
     setShowDraftPrompt(false);
+  };
+
+  const handleManualSaveDraft = () => {
+    if (showDraftPrompt) return;
+    cancelAutoSave();
+    saveDraft(form, step, documentMetaFromFiles(documents));
   };
 
   const handleNext = () => {
@@ -305,9 +334,8 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
     setSubmitError('');
 
     try {
-      const payload = buildPayload(form);
-
       if (isEdit) {
+        const payload = buildUpdatePayload(form);
         await employeeApi.update(employeeId, payload);
         const uploads = Object.entries(documents).filter(([, file]) => file);
         for (const [docType, file] of uploads) {
@@ -326,6 +354,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
           await payrollApi.assignSalaryStructure(salaryPayload);
         }
       } else {
+        const payload = buildPayload(form);
         const res = await employeeApi.create(payload);
         const newEmployeeId = res?.data?.employee?.id;
         let createResult = {
@@ -388,10 +417,10 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                 {draftNotice}
               </span>
             )}
-            {!isView && !isEdit && (
+            {!isView && !isEdit && !showDraftPrompt && (
               <button
                 type="button"
-                onClick={() => saveDraft(form, step, documentMetaFromFiles(documents))}
+                onClick={handleManualSaveDraft}
                 className="btn-secondary text-xs py-1 px-2 hidden sm:inline-flex"
               >
                 <Save size={13} /> Save Draft
@@ -606,14 +635,58 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   ))}
                 </select>
               </WizardField>
-              <WizardField label="Work From Home" error={errors.work_from_home}>
-                <select value={form.work_from_home ? 'yes' : 'no'} onChange={(e) => set('work_from_home', e.target.value === 'yes')} className={ic(errors.work_from_home)}>
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
+              <WizardField label="Work Mode" error={errors.work_mode}>
+                <select value={form.work_mode || 'office'} onChange={(e) => set('work_mode', e.target.value)} className={ic(errors.work_mode)}>
+                  {WORK_MODE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </WizardField>
 
-              {isAdd && probationPreview && (
+              <WizardField label="Has Probation" error={errors.has_probation}>
+                  <select
+                    value={form.has_probation ? 'yes' : 'no'}
+                    onChange={(e) => {
+                      const enabled = e.target.value === 'yes';
+                      setForm((prev) => ({
+                        ...prev,
+                        has_probation: enabled,
+                        probation_duration_months: enabled
+                          ? prev.probation_duration_months || 6
+                          : prev.probation_duration_months,
+                        status: enabled
+                          ? isAdd || prev.status === 'active' || prev.status === 'probation'
+                            ? 'probation'
+                            : prev.status
+                          : prev.status === 'probation'
+                            ? 'active'
+                            : prev.status,
+                      }));
+                    }}
+                    className={ic(errors.has_probation)}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </WizardField>
+
+              {form.has_probation && (
+                <WizardField label="Probation Duration" error={errors.probation_duration_months}>
+                  <select
+                    value={form.probation_duration_months || 6}
+                    onChange={(e) => set('probation_duration_months', parseInt(e.target.value, 10))}
+                    className={ic(errors.probation_duration_months)}
+                  >
+                    {PROBATION_DURATION_OPTIONS.map((months) => (
+                      <option key={months} value={months}>
+                        {months} {months === 1 ? 'month' : 'months'}
+                      </option>
+                    ))}
+                  </select>
+                </WizardField>
+              )}
+
+              {form.has_probation && probationPreview && (
                 <div className="sm:col-span-2 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
                   <div className="flex items-center gap-1.5 mb-3">
                     <CalendarClock size={13} className="text-brand-600" />
@@ -645,12 +718,24 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                 </div>
               )}
 
-              {isAdd && !probationPreview && form.date_of_joining && !!probationData && (
+              {form.has_probation && !probationPreview && form.date_of_joining && !!probationData && (
                 <div className="sm:col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <CalendarClock size={13} className="text-slate-400" />
                     <p className="text-xs text-slate-400">
-                      No active probation policy found — employee will be set to <span className="font-medium text-slate-500">active</span> on creation.
+                      No active probation policy found — employee will be set to <span className="font-medium text-slate-500">active</span>
+                      {isAdd ? ' on creation' : ' if probation cannot be applied'}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!form.has_probation && (
+                <div className="sm:col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarClock size={13} className="text-slate-400" />
+                    <p className="text-xs text-slate-400">
+                      Probation disabled — employee will be {isAdd ? 'created' : 'saved'} as <span className="font-medium text-slate-500">active</span>.
                     </p>
                   </div>
                 </div>
@@ -840,7 +925,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   lookups={lookups}
                   onGoToStep={setStep}
                   readOnly={isView}
-                  probationPreview={isAdd ? probationPreview : undefined}
+                  probationPreview={probationPreview}
                   companySlug={companySlug}
                   employeeId={employeeId}
                 />
@@ -859,10 +944,10 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
           </button>
 
           <div className="flex items-center gap-2">
-            {isAdd && (
+            {isAdd && !showDraftPrompt && (
               <button
                 type="button"
-                onClick={() => saveDraft(form, step, documentMetaFromFiles(documents))}
+                onClick={handleManualSaveDraft}
                 className="btn-secondary sm:hidden"
               >
                 <Save size={14} />

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Briefcase, Pencil, ExternalLink, Users, UserPlus, Eye } from 'lucide-react';
+import { Plus, Briefcase, Pencil, ExternalLink, Users, UserPlus, Eye, Upload, Paperclip, X } from 'lucide-react';
 import CandidateDetailDrawer from '../../components/recruitment/CandidateDetailDrawer';
 import { hrApi, departmentApi, designationApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
@@ -17,7 +17,7 @@ import {
   APPLICATION_SOURCE_LABELS,
   EMPTY_OPENING_FORM,
 } from '../../constants/recruitment';
-import { formatINR, cn } from '../../utils/helpers';
+import { formatINR, cn, resolveAssetUrl } from '../../utils/helpers';
 import { formatPhoneForStorage, isValidInternationalPhone, isValidEmail } from '../../utils/validation';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
@@ -55,6 +55,10 @@ function openingToForm(opening) {
     location: opening.location || '',
     employment_type: opening.employment_type || 'full_time',
     description: opening.description || '',
+    attachment: null,
+    existing_attachment_url: opening.attachment_url || '',
+    existing_attachment_name: opening.attachment_name || '',
+    remove_attachment: false,
     min_experience: opening.min_experience ?? '',
     max_ctc: opening.max_ctc ?? '',
     closes_at: opening.closes_at ? String(opening.closes_at).slice(0, 10) : '',
@@ -154,21 +158,25 @@ export default function RecruitmentPage() {
     setOpeningModal({ mode: 'edit', id: opening.id });
   };
 
-  const buildOpeningPayload = () => ({
-    title: openingForm.title.trim(),
-    department_id: openingForm.department_id ? parseInt(openingForm.department_id, 10) : null,
-    designation_id: openingForm.designation_id ? parseInt(openingForm.designation_id, 10) : null,
-    openings: parseInt(openingForm.openings, 10) || 1,
-    status: openingForm.status,
-    posting_type: openingForm.posting_type,
-    is_referral_eligible: openingForm.is_referral_eligible,
-    location: openingForm.location.trim() || null,
-    employment_type: openingForm.employment_type,
-    description: openingForm.description.trim() || null,
-    min_experience: openingForm.min_experience !== '' ? parseFloat(openingForm.min_experience) : null,
-    max_ctc: openingForm.max_ctc !== '' ? parseFloat(openingForm.max_ctc) : null,
-    closes_at: openingForm.closes_at || null,
-  });
+  const buildOpeningPayload = () => {
+    const fd = new FormData();
+    fd.append('title', openingForm.title.trim());
+    if (openingForm.department_id) fd.append('department_id', openingForm.department_id);
+    if (openingForm.designation_id) fd.append('designation_id', openingForm.designation_id);
+    fd.append('openings', String(parseInt(openingForm.openings, 10) || 1));
+    fd.append('status', openingForm.status);
+    fd.append('posting_type', openingForm.posting_type);
+    fd.append('is_referral_eligible', String(openingForm.is_referral_eligible));
+    if (openingForm.location.trim()) fd.append('location', openingForm.location.trim());
+    fd.append('employment_type', openingForm.employment_type);
+    fd.append('description', openingForm.description.trim());
+    if (openingForm.min_experience !== '') fd.append('min_experience', openingForm.min_experience);
+    if (openingForm.max_ctc !== '') fd.append('max_ctc', openingForm.max_ctc);
+    if (openingForm.closes_at) fd.append('closes_at', openingForm.closes_at);
+    if (openingForm.attachment) fd.append('attachment', openingForm.attachment);
+    if (openingForm.remove_attachment) fd.append('remove_attachment', 'true');
+    return fd;
+  };
 
   const stats = {
     open: openings.filter((o) => o.status === 'open').length,
@@ -399,6 +407,10 @@ export default function RecruitmentPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (!openingForm.description.trim()) {
+                window.alert('Job description is required');
+                return;
+              }
               saveOpening.mutate(buildOpeningPayload());
             }}
             className="space-y-4 max-h-[70vh] overflow-y-auto pr-1"
@@ -454,14 +466,64 @@ export default function RecruitmentPage() {
               </label>
             )}
             <div>
-              <label className="text-xs font-medium text-slate-600">Job description</label>
+              <label className="text-xs font-medium text-slate-600">
+                Job description <span className="text-red-500">*</span>
+              </label>
               <textarea
                 value={openingForm.description}
                 onChange={(e) => setOpeningForm({ ...openingForm, description: e.target.value })}
                 rows={4}
+                required
                 className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
                 placeholder="Responsibilities, qualifications, and what success looks like…"
               />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600">Job description attachment</label>
+              <p className="text-[11px] text-slate-400 mt-0.5 mb-1">
+                Optional. Internal and external candidates can view and download this file.
+              </p>
+              {openingForm.existing_attachment_url && !openingForm.remove_attachment && !openingForm.attachment && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <Paperclip size={14} className="text-slate-400 shrink-0" />
+                  <a
+                    href={resolveAssetUrl(openingForm.existing_attachment_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 truncate text-brand-600 hover:underline"
+                  >
+                    {openingForm.existing_attachment_name || 'Current attachment'}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setOpeningForm({ ...openingForm, remove_attachment: true, attachment: null })}
+                    className="text-slate-400 hover:text-red-600"
+                    title="Remove attachment"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <label className="mt-1 flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 cursor-pointer hover:bg-slate-50">
+                <Upload size={14} />
+                {openingForm.attachment
+                  ? openingForm.attachment.name
+                  : openingForm.remove_attachment
+                    ? 'Choose a new file (current will be removed)'
+                    : 'Upload PDF, DOC, DOCX, or image'}
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                  className="sr-only"
+                  onChange={(e) =>
+                    setOpeningForm({
+                      ...openingForm,
+                      attachment: e.target.files?.[0] || null,
+                      remove_attachment: false,
+                    })
+                  }
+                />
+              </label>
             </div>
             {careersSlug && openingForm.posting_type !== 'internal' && openingForm.status === 'open' && (
               <p className="text-xs text-slate-500 flex items-center gap-1">

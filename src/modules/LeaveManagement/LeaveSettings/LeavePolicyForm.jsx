@@ -167,9 +167,46 @@ export default function LeavePolicyForm({ open, initial, leaveTypes, onClose, on
 
         <SectionTitle>Approval workflow</SectionTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Select label="Approval chain" value={form.approval_levels} onChange={(v) => set('approval_levels', v)} options={APPROVAL_LEVELS} placeholder="" />
-          <Field label="Auto-approve under (days)" type="number" step="0.5" min="0" value={form.auto_approve_under_days} onChange={(v) => set('auto_approve_under_days', v)} hint="0 = disabled" />
+          <Select
+            label="Approval chain"
+            value={form.approval_levels}
+            onChange={(v) => set('approval_levels', v)}
+            options={APPROVAL_LEVELS.map((o) => ({ value: o.value, label: o.label }))}
+            placeholder=""
+            required
+          />
+          <Field
+            label="Auto-approve under (days)"
+            type="number"
+            step="0.5"
+            min="0"
+            value={form.auto_approve_under_days}
+            onChange={(v) => set('auto_approve_under_days', v)}
+            hint="0 = disabled. Requests at or below this length skip the chain."
+          />
         </div>
+        {(() => {
+          const chain = APPROVAL_LEVELS.find((o) => o.value === form.approval_levels) || APPROVAL_LEVELS[0];
+          return (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold text-slate-800">{chain.label}</p>
+              <p className="text-[11px] text-slate-500 mt-1">{chain.description}</p>
+              <ol className="mt-3 flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                {chain.steps.map((step, index) => (
+                  <li key={step} className="flex items-center gap-2 text-xs text-slate-700">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-bold shrink-0">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                    {index < chain.steps.length - 1 && (
+                      <span className="hidden sm:inline text-slate-300 mx-1">→</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          );
+        })()}
 
         <Checkbox label="Policy active" checked={form.is_active} onChange={(v) => set('is_active', v)} />
 

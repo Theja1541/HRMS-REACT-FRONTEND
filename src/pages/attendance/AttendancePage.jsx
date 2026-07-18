@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { attendanceApi, departmentApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import ExportExcelButton from '../../components/shared/ExportExcelButton';
@@ -20,6 +20,7 @@ import {
 } from '../../utils/calendarGrid.utils';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import MarkAttendanceModal from '../../components/attendance/MarkAttendanceModal';
+import MonthlyBulkEditBar from '../../components/attendance/MonthlyBulkEditBar';
 
 const TABS = [
   { id: 'daily', label: 'Daily Attendance' },
@@ -146,6 +147,8 @@ export default function AttendancePage() {
   } = useTablePagination({ resetDeps: [tab, month, year, departmentId] });
 
   const isManager = user?.role === 'manager';
+  const canFinalize = ['super_admin', 'owner', 'admin', 'hr'].includes(user?.role);
+  const canEditAttendance = ['super_admin', 'owner', 'admin', 'manager'].includes(user?.role);
   const { data: deptData } = useQuery({
     queryKey: ['departments', 'active'],
     queryFn: () => departmentApi.list({ status: 'active' }),
@@ -178,6 +181,49 @@ export default function AttendancePage() {
     placeholderData: (previous) => previous,
   });
 
+  const { data: finalizationData } = useQuery({
+    queryKey: ['attendance-finalization', month, year],
+    queryFn: () => attendanceApi.getFinalization({ month, year }),
+    enabled: tab === 'monthly',
+    staleTime: 30_000,
+  });
+  const finalization = finalizationData?.data;
+  const incompleteList = finalization?.incomplete || [];
+  const incompleteByEmployeeId = Object.fromEntries(
+    incompleteList.map((row) => [row.employee_id, row])
+  );
+
+  const finalizeMutation = useMutation({
+    mutationFn: () => attendanceApi.finalize({ month, year }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-finalization', month, year] });
+      setToast('Attendance finalized — payroll can now be generated for this month');
+      setTimeout(() => setToast(null), 4000);
+    },
+    onError: (err) => {
+      const incomplete = err.response?.data?.error?.incomplete;
+      const message =
+        incomplete?.length > 0
+          ? `Cannot finalize — ${incomplete.length} employee(s) have incomplete attendance`
+          : err.response?.data?.error?.message || 'Failed to finalize attendance';
+      setToast(message);
+      setTimeout(() => setToast(null), 5000);
+    },
+  });
+
+  const unfinalizeMutation = useMutation({
+    mutationFn: () => attendanceApi.unfinalize({ month, year }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-finalization', month, year] });
+      setToast('Attendance unlocked — marking is allowed again');
+      setTimeout(() => setToast(null), 4000);
+    },
+    onError: (err) => {
+      setToast(err.response?.data?.error?.message || 'Failed to unlock attendance');
+      setTimeout(() => setToast(null), 5000);
+    },
+  });
+
   const markMutation = useMutation({
     mutationFn: attendanceApi.mark,
     onSuccess: (res) => {
@@ -188,6 +234,10 @@ export default function AttendancePage() {
         setToast(`Comp-off credited: ${res.data.comp_off.creditDays} day(s)`);
         setTimeout(() => setToast(null), 4000);
       }
+    },
+    onError: (err) => {
+      setToast(err.response?.data?.error?.message || 'Unable to mark attendance');
+      setTimeout(() => setToast(null), 5000);
     },
   });
 
@@ -212,10 +262,21 @@ export default function AttendancePage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['attendance-daily'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-register'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-finalization', month, year] });
+      const updated = res.data?.updated ?? res.data?.count ?? 0;
+      const skipped = res.data?.skipped_leave_sync || 0;
       if (res.data?.comp_off_credited) {
-        setToast(`Comp-off auto-credited for ${res.data.comp_off_credited} employee(s)`);
-        setTimeout(() => setToast(null), 4000);
+        setToast(`Updated ${updated} · Comp-off credited for ${res.data.comp_off_credited}`);
+      } else if (skipped) {
+        setToast(`Updated ${updated} · Skipped ${skipped} leave-synced day(s)`);
+      } else {
+        setToast(`Attendance updated for ${updated} employee(s)`);
       }
+      setTimeout(() => setToast(null), 4000);
+    },
+    onError: (err) => {
+      setToast(err.response?.data?.error?.message || 'Unable to update attendance');
+      setTimeout(() => setToast(null), 5000);
     },
   });
 
@@ -260,8 +321,20 @@ export default function AttendancePage() {
   };
 
   const handleSaveAttendance = (payload) => {
-    markMutation.mutate(payload, {
-      onSuccess: () => setModalState({ isOpen: false, employee: null, status: 'present', record: null })
+    const body = {
+      ...payload,
+      ...(modalState.forceOverride ? { force_override: true } : {}),
+    };
+    markMutation.mutate(body, {
+      onSuccess: () =>
+        setModalState({
+          isOpen: false,
+          employee: null,
+          status: 'present',
+          record: null,
+          date: null,
+          forceOverride: false,
+        }),
     });
   };
 
@@ -277,6 +350,60 @@ export default function AttendancePage() {
       status: bulkStatus,
     }));
     if (!records.length) return;
+    bulkMutation.mutate({ records });
+  };
+
+  const openMonthlyCellEdit = (employee, day) => {
+    if (!canEditAttendance || finalization?.finalized) return;
+    if (day.source === 'leave_sync') {
+      if (!window.confirm('This day is synced from an approved leave. Override and edit attendance?')) return;
+    }
+    setModalState({
+      isOpen: true,
+      employee,
+      status: day.status || 'present',
+      record: day.status
+        ? {
+            status: day.status,
+            check_in: day.check_in,
+            check_out: day.check_out,
+            notes: day.notes,
+            source: day.source,
+          }
+        : null,
+      date: day.date,
+      forceOverride: day.source === 'leave_sync',
+    });
+  };
+
+  const applyMonthlyBulk = ({ mode, date, status, check_in, check_out }) => {
+    if (!grid.length || !date) return;
+
+    const eligible = grid.filter(({ days }) => {
+      const day = days.find((d) => d.date === date);
+      return day && day.day_type !== 'not_employed';
+    });
+    if (!eligible.length) {
+      setToast('No employed staff on this date to update');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const label =
+      mode === 'status'
+        ? `Apply "${status.replace(/_/g, ' ')}" to ${eligible.length} employee(s) on ${date}?`
+        : mode === 'check_in'
+          ? `Set check-in for ${eligible.length} employee(s) on ${date}?`
+          : `Set check-out for ${eligible.length} employee(s) on ${date}?`;
+    if (!window.confirm(label)) return;
+
+    const records = eligible.map(({ employee }) => {
+      const base = { employee_id: employee.id, date };
+      if (mode === 'status') return { ...base, status };
+      if (mode === 'check_in') return { ...base, status: status || 'present', check_in };
+      return { ...base, check_out };
+    });
+
     bulkMutation.mutate({ records });
   };
 
@@ -398,9 +525,108 @@ export default function AttendancePage() {
                   disabled={!grid.length || monthlyLoading}
                   onExport={() => exportAttendanceRegisterExcel(monthlyData)}
                 />
+                {canFinalize && (
+                  finalization?.finalized ? (
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                      disabled={unfinalizeMutation.isPending}
+                      onClick={() => {
+                        if (window.confirm('Unlock attendance for this month? Marking will be allowed again until re-finalized.')) {
+                          unfinalizeMutation.mutate();
+                        }
+                      }}
+                    >
+                      <Unlock size={14} />
+                      {unfinalizeMutation.isPending ? 'Unlocking…' : 'Unlock Attendance'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-primary text-xs inline-flex items-center gap-1.5"
+                      disabled={finalizeMutation.isPending}
+                      onClick={() => {
+                        if (window.confirm('Finalize attendance for this month? Payroll can run only after finalization, and marking will be locked.')) {
+                          finalizeMutation.mutate();
+                        }
+                      }}
+                    >
+                      <Lock size={14} />
+                      {finalizeMutation.isPending ? 'Finalizing…' : 'Finalize Attendance'}
+                    </button>
+                  )
+                )}
               </div>
             )}
           </div>
+
+          {tab === 'monthly' && finalization && (
+            <div
+              className={cn(
+                'rounded-lg border text-xs',
+                finalization.finalized
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                  : 'bg-amber-50 text-amber-900 border-amber-100'
+              )}
+            >
+              <div className="px-3 py-2 flex items-start gap-2">
+                {!finalization.finalized && finalization.incomplete_count > 0 && (
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                )}
+                <div className="min-w-0 flex-1">
+                  {finalization.finalized
+                    ? `Attendance finalized${finalization.finalized_at ? ` on ${new Date(finalization.finalized_at).toLocaleString('en-IN')}` : ''} — payroll generation is allowed; marking is locked.`
+                    : finalization.incomplete_count > 0
+                      ? `Not finalized — ${finalization.incomplete_count} employee(s) have incomplete attendance (unmarked working days and/or missing check-outs). Fix the list below before finalizing.`
+                      : 'Not finalized — finalize attendance before generating payroll for this month.'}
+                </div>
+              </div>
+
+              {!finalization.finalized && incompleteList.length > 0 && (
+                <div className="border-t border-amber-200/70 bg-white/60 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-amber-800/80">
+                        <th className="px-3 py-2 font-semibold">Employee</th>
+                        <th className="px-3 py-2 font-semibold text-center">Unmarked days</th>
+                        <th className="px-3 py-2 font-semibold text-center">Missing check-outs</th>
+                        <th className="px-3 py-2 font-semibold">Issue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100">
+                      {incompleteList.map((row) => {
+                        const parts = [];
+                        if (row.unmarked_days > 0) parts.push(`${row.unmarked_days} unmarked`);
+                        if (row.missing_checkouts_count > 0) {
+                          parts.push(`${row.missing_checkouts_count} missing check-out`);
+                        }
+                        return (
+                          <tr key={row.employee_id} className="bg-white/40">
+                            <td className="px-3 py-2">
+                              <span className="font-mono text-slate-500 mr-1.5">{row.emp_code}</span>
+                              <span className="font-medium text-slate-800">{row.name}</span>
+                            </td>
+                            <td className="px-3 py-2 text-center font-semibold text-orange-700">
+                              {row.unmarked_days || 0}
+                            </td>
+                            <td className="px-3 py-2 text-center font-semibold text-amber-700">
+                              {row.missing_checkouts_count || 0}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {parts.join(' · ') || 'Incomplete'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="px-3 py-2 text-[11px] text-amber-800/80 border-t border-amber-100">
+                    Tip: the grid can show Present (P) while check-out is still missing — use Bulk Check-out or click a day cell to set punch times.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {tab === 'daily' && (
             <div className="card overflow-x-auto overscroll-x-contain">
@@ -551,6 +777,16 @@ export default function AttendancePage() {
                 <SummaryCard label="Total LOP Days" value={totals.lop} color="text-orange-600" />
               </div>
 
+              {canEditAttendance && (
+                <MonthlyBulkEditBar
+                  dates={dates}
+                  employeeCount={grid.length}
+                  disabled={!!finalization?.finalized}
+                  isPending={bulkMutation.isPending}
+                  onApply={applyMonthlyBulk}
+                />
+              )}
+
               <div className="card overflow-x-auto overscroll-x-contain">
                 <div className="px-4 py-3 border-b border-slate-200">
                   <h3 className="text-sm font-semibold text-slate-800">Employee-wise Summary</h3>
@@ -568,22 +804,46 @@ export default function AttendancePage() {
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-center">Leave</th>
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-center">LOP</th>
                           <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600 text-center">Total Hours</th>
+                          <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 text-center">Issues</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {visibleSummaries.map((s) => (
-                          <tr key={s.employee_id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3">
-                              <span className="text-slate-400 font-mono text-xs mr-2">{s.emp_code}</span>
-                              <span className="font-medium text-slate-900">{s.name}</span>
-                            </td>
-                            <td className="px-4 py-3 text-center text-emerald-700 font-medium">{s.present}</td>
-                            <td className="px-4 py-3 text-center text-red-600 font-medium">{s.absent}</td>
-                            <td className="px-4 py-3 text-center text-purple-600 font-medium">{s.leave}</td>
-                            <td className="px-4 py-3 text-center text-orange-600 font-medium">{s.lop}</td>
-                            <td className="px-4 py-3 text-center text-brand-700 font-bold">{s.total_hours ? `${s.total_hours}h` : '—'}</td>
-                          </tr>
-                        ))}
+                        {visibleSummaries.map((s) => {
+                          const issue = incompleteByEmployeeId[s.employee_id];
+                          return (
+                            <tr
+                              key={s.employee_id}
+                              className={cn('hover:bg-slate-50', issue && 'bg-amber-50/70')}
+                            >
+                              <td className="px-4 py-3">
+                                <span className="text-slate-400 font-mono text-xs mr-2">{s.emp_code}</span>
+                                <span className="font-medium text-slate-900">{s.name}</span>
+                                {issue && (
+                                  <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                    Incomplete
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center text-emerald-700 font-medium">{s.present}</td>
+                              <td className="px-4 py-3 text-center text-red-600 font-medium">{s.absent}</td>
+                              <td className="px-4 py-3 text-center text-purple-600 font-medium">{s.leave}</td>
+                              <td className="px-4 py-3 text-center text-orange-600 font-medium">{s.lop}</td>
+                              <td className="px-4 py-3 text-center text-brand-700 font-bold">{s.total_hours ? `${s.total_hours}h` : '—'}</td>
+                              <td className="px-4 py-3 text-center text-[11px] text-amber-800">
+                                {issue
+                                  ? [
+                                      issue.unmarked_days > 0 ? `${issue.unmarked_days} unmarked` : null,
+                                      issue.missing_checkouts_count > 0
+                                        ? `${issue.missing_checkouts_count} no check-out`
+                                        : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ') || '—'
+                                  : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -634,28 +894,75 @@ export default function AttendancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {grid.map(({ employee, days }) => (
-                        <tr key={employee.id}>
-                          <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium text-slate-800 whitespace-nowrap border-r border-slate-200">
+                      {grid.map(({ employee, days }) => {
+                        const issue = incompleteByEmployeeId[employee.id];
+                        return (
+                        <tr key={employee.id} className={issue ? 'bg-amber-50/40' : undefined}>
+                          <td
+                            className={cn(
+                              'sticky left-0 z-10 px-3 py-2 font-medium text-slate-800 whitespace-nowrap border-r border-slate-200',
+                              issue ? 'bg-amber-50' : 'bg-white'
+                            )}
+                          >
                             <span className="text-slate-400 font-mono mr-1">{employee.emp_code}</span>
                             {employee.first_name} {employee.last_name}
+                            {issue && (
+                              <span
+                                className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 align-middle"
+                                title={[
+                                  issue.unmarked_days > 0 ? `${issue.unmarked_days} unmarked` : null,
+                                  issue.missing_checkouts_count > 0
+                                    ? `${issue.missing_checkouts_count} missing check-out`
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              />
+                            )}
                           </td>
                           {days.map((day) => {
                             const meta = dateMetaMap[day.date];
                             const col = getCalendarColumnClasses(meta?.day_type);
+                            const notEmployed = day.day_type === 'not_employed';
                             const displayStatus = day.status || (day.day_type === 'weekend' ? 'weekend' : day.day_type === 'holiday' ? 'holiday' : null);
                             const cfg = displayStatus ? ATTENDANCE_STATUS[displayStatus] : null;
                             const shiftLabel = day.shift?.week_off ? 'O' : day.shift?.code;
+                            const editable = canEditAttendance && !finalization?.finalized && !notEmployed;
+                            const punchStatuses = ['present', 'half_day', 'late', 'wfh'];
+                            const missingCheckout =
+                              punchStatuses.includes(day.status) && day.check_in && !day.check_out;
+                            const unmarkedWorking =
+                              !day.status && day.day_type === 'working' && !day.shift?.week_off;
                             return (
                               <td
                                 key={day.date}
-                                className={cn('px-0.5 py-1 text-center', col.cell)}
-                                title={[columnTitle(meta), day.shift?.name].filter(Boolean).join(' · ')}
+                                className={cn('px-0.5 py-1 text-center', col.cell, notEmployed && 'opacity-40')}
+                                title={[
+                                  columnTitle(meta),
+                                  notEmployed ? 'Not employed on this date (before joining / after exit)' : null,
+                                  day.shift?.name,
+                                  day.check_in || day.check_out
+                                    ? `In ${day.check_in ? new Date(day.check_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'} · Out ${day.check_out ? new Date(day.check_out).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}`
+                                    : null,
+                                  missingCheckout ? 'Missing check-out' : null,
+                                  unmarkedWorking ? 'Unmarked working day' : null,
+                                  editable ? 'Click to edit' : null,
+                                ].filter(Boolean).join(' · ')}
                               >
-                                <span
+                                <button
+                                  type="button"
+                                  disabled={!editable}
+                                  onClick={() => openMonthlyCellEdit(employee, day)}
                                   className={cn(
-                                    'w-7 h-7 rounded text-[10px] font-bold mx-auto flex items-center justify-center relative',
-                                    day.status && cfg ? cfg.color : 'bg-white/80 text-slate-600 ring-1 ring-slate-200/60'
+                                    'w-7 h-7 rounded text-[10px] font-bold mx-auto flex items-center justify-center relative transition-shadow',
+                                    notEmployed
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                      : day.status && cfg
+                                        ? cfg.color
+                                        : 'bg-white/80 text-slate-600 ring-1 ring-slate-200/60',
+                                    (missingCheckout || unmarkedWorking) && 'ring-2 ring-amber-400',
+                                    editable && 'hover:ring-2 hover:ring-brand-400 cursor-pointer',
+                                    !editable && 'cursor-default'
                                   )}
                                 >
                                   {day.source === 'leave_sync' && day.leave_type?.color_code && (
@@ -664,15 +971,21 @@ export default function AttendancePage() {
                                       style={{ backgroundColor: day.leave_type.color_code }}
                                     />
                                   )}
-                                  {day.status
-                                    ? ATTENDANCE_STATUS[day.status]?.label || '?'
-                                    : shiftLabel || (meta?.day_type === 'holiday' ? 'H' : meta?.day_type === 'weekend' ? '—' : '+')}
-                                </span>
+                                  {missingCheckout && (
+                                    <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white" />
+                                  )}
+                                  {notEmployed
+                                    ? '—'
+                                    : day.status
+                                      ? ATTENDANCE_STATUS[day.status]?.label || '?'
+                                      : shiftLabel || (meta?.day_type === 'holiday' ? 'H' : meta?.day_type === 'weekend' ? '—' : '+')}
+                                </button>
                               </td>
                             );
                           })}
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -683,10 +996,19 @@ export default function AttendancePage() {
       )}
       <MarkAttendanceModal
         isOpen={modalState.isOpen}
-        onClose={() => setModalState({ isOpen: false, employee: null, status: 'present', record: null })}
+        onClose={() =>
+          setModalState({
+            isOpen: false,
+            employee: null,
+            status: 'present',
+            record: null,
+            date: null,
+            forceOverride: false,
+          })
+        }
         employee={modalState.employee || {}}
         existingRecord={modalState.record}
-        selectedDate={selectedDate}
+        selectedDate={modalState.date || selectedDate}
         initialStatus={modalState.status}
         onSave={handleSaveAttendance}
         isPending={markMutation.isPending}

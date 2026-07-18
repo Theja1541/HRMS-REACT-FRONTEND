@@ -192,7 +192,15 @@ export default function LeavesPage({ selfService = false }) {
 
   const approveMutation = useMutation({
     mutationFn: leaveApi.approve,
-    onSuccess: invalidateLeaveQueries,
+    onSuccess: (res) => {
+      invalidateLeaveQueries();
+      if (res?.data?.pendingHr || res?.pendingHr) {
+        window.alert('Manager approval recorded. Request is now pending HR/Admin final approval.');
+      }
+    },
+    onError: (err) => {
+      window.alert(err.response?.data?.error?.message || 'Failed to approve leave request');
+    },
   });
 
   const rejectMutation = useMutation({

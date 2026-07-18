@@ -47,7 +47,7 @@ export function buildPayload(form) {
     employment_type: form.employment_type,
     reporting_to: form.reporting_to ? parseInt(form.reporting_to, 10) : null,
     attendance_policy_id: form.attendance_policy_id ? parseInt(form.attendance_policy_id, 10) : null,
-    work_from_home: form.work_from_home,
+    work_mode: form.work_mode || 'office',
     aadhaar_number: digitsOnly(form.aadhaar_number) || null,
     bank_name: form.bank_name.trim() || null,
     account_number: digitsOnly(form.account_number) || null,
@@ -58,6 +58,9 @@ export function buildPayload(form) {
     emergency_contact: primary?.contact_phone || null,
     emergency_contacts: contacts,
     notes: form.notes.trim() || null,
-    status: form.status,
+    has_probation: form.has_probation === true,
+    probation_duration_months:
+      form.has_probation === true ? parseInt(form.probation_duration_months, 10) || 6 : null,
+    status: form.has_probation === true ? 'probation' : 'active',
   };
 }

@@ -35,6 +35,8 @@ const EXPLICIT_ROUTE_RULES = [
   { path: '/payroll/tax-settings', roles: ADMIN_ROLES },
   { path: '/payroll/structures', roles: ADMIN_ROLES },
   { path: '/employees/:id', roles: [...ADMIN_ROLES, 'manager', 'pf_team'] },
+  { path: '/projects/:projectId', roles: ['super_admin', 'owner', 'hr', 'manager', 'employee'] },
+  { path: '/projects/:projectId/:tab', roles: ['super_admin', 'owner', 'hr', 'manager', 'employee'] },
   { path: '/transactions/:id/receipt', roles: [...ADMIN_ROLES, 'auditor'] },
   { path: '/transactions/:id/invoice', roles: [...ADMIN_ROLES, 'auditor'] },
   { path: '/transactions/:id/edit', roles: ADMIN_ROLES },

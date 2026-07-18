@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, IndianRupee } from 'lucide-react';
+import { Plus, IndianRupee, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { payrollApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
@@ -10,6 +10,7 @@ import SalaryStructureEditor from '../employees/employeeWizard/SalaryStructureEd
 import {
   INITIAL_SALARY_STRUCTURE,
   buildSalaryAssignPayload,
+  mapSalaryRecordToStructure,
   validateWizardStructure,
 } from '../employees/employeeWizard/salaryStructure';
 import { formatINR } from '../../utils/helpers';
@@ -18,9 +19,14 @@ import { ADMIN_ROLES } from '../../constants/routeAccess';
 
 const EMPTY_STRUCTURE = { ...INITIAL_SALARY_STRUCTURE, skip_salary: false };
 
+function firstOfCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 const INITIAL_STRUCTURE_FORM = {
   employee_id: '',
-  effective_from: new Date().toISOString().slice(0, 10),
+  effective_from: firstOfCurrentMonth(),
   revision_reason: '',
   salary_structure: { ...EMPTY_STRUCTURE },
   salary_structure_template_id: '',
@@ -31,6 +37,7 @@ export default function SalariesPage() {
   const user = useAuthStore((s) => s.user);
   const canWrite = ADMIN_ROLES.includes(user?.role);
   const [showAssign, setShowAssign] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [structureForm, setStructureForm] = useState(INITIAL_STRUCTURE_FORM);
   const [formError, setFormError] = useState('');
   const { setPage, setLimit, paginateClient } = useTablePagination();
@@ -42,20 +49,50 @@ export default function SalariesPage() {
 
   const closeAssign = () => {
     setShowAssign(false);
+    setIsEditMode(false);
     setFormError('');
     setStructureForm({
       ...INITIAL_STRUCTURE_FORM,
+      effective_from: firstOfCurrentMonth(),
       salary_structure: { ...EMPTY_STRUCTURE },
     });
+  };
+
+  const openAssign = () => {
+    setIsEditMode(false);
+    setFormError('');
+    setStructureForm({
+      ...INITIAL_STRUCTURE_FORM,
+      effective_from: firstOfCurrentMonth(),
+      salary_structure: { ...EMPTY_STRUCTURE },
+    });
+    setShowAssign(true);
+  };
+
+  const openEdit = (emp) => {
+    const s = emp.salary;
+    setIsEditMode(!!s);
+    setFormError('');
+    setStructureForm({
+      employee_id: String(emp.id),
+      effective_from: s?.effective_from
+        ? String(s.effective_from).slice(0, 10)
+        : firstOfCurrentMonth(),
+      revision_reason: s ? 'Salary revision' : '',
+      salary_structure: s ? mapSalaryRecordToStructure(s) : { ...EMPTY_STRUCTURE },
+      salary_structure_template_id: '',
+    });
+    setShowAssign(true);
   };
 
   const assignStructureMutation = useMutation({
     mutationFn: payrollApi.assignSalaryStructure,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['salaries'] });
+      queryClient.invalidateQueries({ queryKey: ['salaries-registry'] });
       closeAssign();
     },
-    onError: (err) => setFormError(err.response?.data?.error?.message || 'Failed to assign salary structure'),
+    onError: (err) => setFormError(err.response?.data?.error?.message || 'Failed to save salary structure'),
   });
 
   const employees = data?.data?.employees || [];
@@ -79,7 +116,7 @@ export default function SalariesPage() {
       parseInt(structureForm.employee_id, 10),
       structureForm.effective_from,
       structureForm.salary_structure,
-      structureForm.revision_reason || 'Salary assignment',
+      structureForm.revision_reason || (isEditMode ? 'Salary revision' : 'Salary assignment'),
       structureForm.salary_structure_template_id || null
     );
 
@@ -93,7 +130,7 @@ export default function SalariesPage() {
         subtitle="Employee CTC registry and salary assignments"
         actions={
           canWrite && (
-            <button type="button" onClick={() => setShowAssign(true)} className="btn-primary">
+            <button type="button" onClick={openAssign} className="btn-primary">
               <Plus size={14} /> Assign Salary
             </button>
           )
@@ -112,6 +149,9 @@ export default function SalariesPage() {
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase text-slate-500">Basic</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase text-slate-500">Net (Est.)</th>
                 <th className="px-4 py-2.5 text-[10px] font-semibold uppercase text-slate-500">Effective</th>
+                {canWrite && (
+                  <th className="px-4 py-2.5 text-[10px] font-semibold uppercase text-slate-500 text-right">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -146,6 +186,18 @@ export default function SalariesPage() {
                     <td className="px-4 py-3 font-mono text-xs">{s ? formatINR(s.basic) : '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-emerald-700">{netEst ? formatINR(netEst) : '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{s?.effective_from || '—'}</td>
+                    {canWrite && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(emp)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil size={12} />
+                          {s ? 'Edit' : 'Assign'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -167,7 +219,7 @@ export default function SalariesPage() {
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[92dvh] sm:max-h-[90vh] shadow-xl flex flex-col overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
               <h3 className="font-semibold flex items-center gap-2">
-                <IndianRupee size={16} /> Assign Salary
+                <IndianRupee size={16} /> {isEditMode ? 'Edit Salary' : 'Assign Salary'}
               </h3>
               <button type="button" onClick={closeAssign} className="text-slate-400 hover:text-slate-600 text-xl leading-none">
                 ×
@@ -185,7 +237,8 @@ export default function SalariesPage() {
                   <select
                     value={structureForm.employee_id}
                     onChange={(e) => setStructureForm({ ...structureForm, employee_id: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    disabled={isEditMode}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm disabled:bg-slate-50 disabled:text-slate-600"
                   >
                     <option value="">Select employee</option>
                     {employees.map((e) => (
@@ -203,6 +256,11 @@ export default function SalariesPage() {
                     onChange={(e) => setStructureForm({ ...structureForm, effective_from: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
                   />
+                  {isEditMode && (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Same date updates the current record. A new date creates a salary revision.
+                    </p>
+                  )}
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium text-slate-600">Revision reason (optional)</label>
@@ -246,7 +304,7 @@ export default function SalariesPage() {
                 onClick={handleAssignStructure}
                 className="btn-primary"
               >
-                {isSaving ? 'Saving…' : 'Assign'}
+                {isSaving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Assign'}
               </button>
             </div>
           </div>

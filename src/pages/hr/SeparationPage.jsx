@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Banknote, ClipboardList, Plus, Eye } from 'lucide-react';
+import { Banknote, BookOpen, ClipboardList, Plus, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { hrApi, employeeApi } from '../../api';
+import { hrApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import SeparationDetailDrawer from '../../components/separation/SeparationDetailDrawer';
 import { SEPARATION_STATUSES } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import { useTablePagination } from '../../hooks/useTablePagination';
+import { useAuthStore } from '../../store/auth.store';
+import { resolvePortalRole } from '../../utils/portalContext';
 
 export default function SeparationPage() {
   const queryClient = useQueryClient();
+  const { user, workspace, roles, selectedRole, accessToken } = useAuthStore();
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
+  const isHrAdmin = ['super_admin', 'owner', 'hr', 'admin'].includes(role);
   const [showForm, setShowForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [completeError, setCompleteError] = useState(null);
@@ -22,28 +27,73 @@ export default function SeparationPage() {
   });
 
   const { data, isLoading } = useQuery({ queryKey: ['separations'], queryFn: () => hrApi.listSeparations() });
-  const { data: empData } = useQuery({ queryKey: ['employees-active'], queryFn: () => employeeApi.list({ status: 'active' }) });
+  const { data: empData } = useQuery({
+    queryKey: ['separation-eligible-employees'],
+    queryFn: () => hrApi.listSeparationEligibleEmployees({ limit: 500 }),
+    enabled: isHrAdmin,
+  });
 
   const createMutation = useMutation({
     mutationFn: hrApi.createSeparation,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['separations'] }); setShowForm(false); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['separations'] });
+      queryClient.invalidateQueries({ queryKey: ['separation-eligible-employees'] });
+      setShowForm(false);
+      setCompleteError(null);
+    },
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, ...payload }) => hrApi.updateSeparation(id, payload),
     onSuccess: (data, variables) => {
       setCompleteError(null);
-      queryClient.invalidateQueries({ queryKey: ['separations'] });
-      queryClient.invalidateQueries({ queryKey: ['separation-clearance', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['separation-fnf', variables.id] });
       const updated = data?.data?.request;
       if (updated) setSelectedRequest(updated);
+
+      const isEligibilityOnly =
+        !variables.status &&
+        !variables.fnf_status &&
+        (variables.rehire_eligible !== undefined ||
+          variables.is_blacklisted !== undefined ||
+          variables.rehire_block_reason !== undefined ||
+          variables.blacklist_reason !== undefined);
+
+      queryClient.invalidateQueries({ queryKey: ['separations'] });
+      queryClient.invalidateQueries({ queryKey: ['separation-hiring-eligibility-events', variables.id] });
+
+      // Status transitions bootstrap clearance / KT / F&F — refresh those panels
+      if (!isEligibilityOnly) {
+        queryClient.invalidateQueries({ queryKey: ['separation-clearance', variables.id] });
+        queryClient.invalidateQueries({ queryKey: ['separation-fnf', variables.id] });
+        queryClient.invalidateQueries({ queryKey: ['separation-kt', variables.id] });
+        queryClient.invalidateQueries({ queryKey: ['kt-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['employee-archive'] });
+        queryClient.invalidateQueries({ queryKey: ['separation-exit-interview', variables.id] });
+      }
     },
     onError: (err) => {
       const code = err?.response?.data?.error?.code;
       const msg = err?.response?.data?.error?.message;
       if (code === 'CLEARANCE_PENDING' || code === 'CLEARANCE_INCOMPLETE' || code === 'CLEARANCE_REJECTED') {
         setCompleteError(msg || 'Cannot complete: mandatory clearance items are still pending.');
+        return;
       }
+      if (code === 'KT_PENDING' || code === 'KT_INCOMPLETE') {
+        setCompleteError(msg || 'Cannot complete: knowledge transfer must be approved first.');
+        return;
+      }
+      if (code === 'EXIT_INTERVIEW_PENDING' || code === 'EXIT_INTERVIEW_INCOMPLETE') {
+        setCompleteError(msg || 'Cannot complete: exit interview must be completed or waived by HR.');
+        return;
+      }
+      if (code === 'ASSET_RETURNS_INCOMPLETE') {
+        setCompleteError(msg || 'Cannot complete: all assigned assets must be returned first.');
+        return;
+      }
+      if (code === 'VALIDATION_ERROR') {
+        setCompleteError(msg || 'Validation failed');
+        return;
+      }
+      setCompleteError(msg || 'Failed to update separation. Check the server logs and try again.');
     },
   });
 
@@ -55,18 +105,30 @@ export default function SeparationPage() {
     <div className="space-y-6">
       <PageHeader
         title="Separation"
-        subtitle="Exit workflow, clearance and F&F tracking"
+        subtitle={isHrAdmin ? 'Exit workflow, clearance and F&F tracking' : 'Team exit status for your direct reports'}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/clearance-templates" className="btn-secondary text-xs">
-              <ClipboardList size={14} /> Manage Templates
+            {isHrAdmin && (
+              <Link to="/clearance-templates" className="btn-secondary text-xs">
+                <ClipboardList size={14} /> Manage Templates
+              </Link>
+            )}
+            <Link to="/knowledge-transfer" className="btn-secondary text-xs">
+              <BookOpen size={14} /> Knowledge Transfer
             </Link>
-            <Link to="/fnf-settlements" className="btn-secondary text-xs">
-              <Banknote size={14} /> F&amp;F Queue
+            <Link to="/exit-interviews" className="btn-secondary text-xs">
+              Exit Interviews
             </Link>
-            <button type="button" onClick={() => setShowForm(true)} className="btn-primary">
-              <Plus size={14} /> Initiate Exit
-            </button>
+            {isHrAdmin && (
+              <Link to="/fnf-settlements" className="btn-secondary text-xs">
+                <Banknote size={14} /> F&amp;F Queue
+              </Link>
+            )}
+            {isHrAdmin && (
+              <button type="button" onClick={() => setShowForm(true)} className="btn-primary">
+                <Plus size={14} /> Initiate Exit
+              </button>
+            )}
           </div>
         }
       />
@@ -108,13 +170,20 @@ export default function SeparationPage() {
                       >
                         <Eye size={12} /> View
                       </button>
-                      {r.status === 'initiated' && (
+                      {isHrAdmin && r.status === 'initiated' && (
                         <button type="button" onClick={() => updateMutation.mutate({ id: r.id, status: 'approved' })} className="btn-secondary text-[10px] py-1">Approve</button>
                       )}
-                      {r.status === 'approved' && (
-                        <button type="button" onClick={() => updateMutation.mutate({ id: r.id, status: 'clearance_pending' })} className="btn-secondary text-[10px] py-1">Clearance</button>
+                      {isHrAdmin && r.status === 'approved' && (
+                        <button
+                          type="button"
+                          onClick={() => updateMutation.mutate({ id: r.id, status: 'clearance_pending' })}
+                          className="btn-secondary text-[10px] py-1"
+                          title="Bootstrap clearance, KT, exit interview, assets & F&F"
+                        >
+                          Start Workflow
+                        </button>
                       )}
-                      {r.status === 'clearance_pending' && (
+                      {isHrAdmin && r.status === 'clearance_pending' && (
                         <button
                           type="button"
                           disabled={updateMutation.isPending}
@@ -135,7 +204,6 @@ export default function SeparationPage() {
       </div>
       {completeError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 flex items-start gap-2">
-          <span className="font-semibold shrink-0">Cannot complete:</span>
           <span>{completeError}</span>
           <button type="button" onClick={() => setCompleteError(null)} className="ml-auto text-red-400 hover:text-red-700 leading-none">×</button>
         </div>
@@ -155,8 +223,9 @@ export default function SeparationPage() {
         <SeparationDetailDrawer
           request={requests.find((r) => r.id === selectedRequest.id) || selectedRequest}
           onClose={() => setSelectedRequest(null)}
-          onUpdate={(payload) => updateMutation.mutate(payload)}
+          onUpdate={(payload) => updateMutation.mutateAsync(payload)}
           isUpdating={updateMutation.isPending}
+          updateError={completeError}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ['separations'] })}
         />
       )}
@@ -170,8 +239,16 @@ export default function SeparationPage() {
                 <label className="text-xs font-medium text-slate-600">Employee</label>
                 <select value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
                   <option value="">Select…</option>
-                  {employees.map((e) => <option key={e.id} value={e.id}>{e.emp_code} — {e.first_name} {e.last_name}</option>)}
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.emp_code} — {e.first_name} {e.last_name}
+                      {e.status === 'probation' ? ' (Probation)' : ''}
+                    </option>
+                  ))}
                 </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Active and probation employees who have already joined. Future joiners, resigned, terminated, and archived staff are excluded.
+                </p>
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-600">Exit Type</label>
@@ -193,7 +270,12 @@ export default function SeparationPage() {
               </div>
             </div>
             <div className="flex gap-2 justify-end mt-4">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+              {createMutation.isError && (
+                <p className="flex-1 text-xs text-rose-600 self-center">
+                  {createMutation.error?.response?.data?.error?.message || 'Failed to initiate separation'}
+                </p>
+              )}
+              <button type="button" onClick={() => { setShowForm(false); createMutation.reset(); }} className="btn-secondary">Cancel</button>
               <button type="button" disabled={!form.employee_id || !form.last_working_date || createMutation.isPending} onClick={() => createMutation.mutate({ ...form, employee_id: parseInt(form.employee_id, 10) })} className="btn-primary">Submit</button>
             </div>
           </div>

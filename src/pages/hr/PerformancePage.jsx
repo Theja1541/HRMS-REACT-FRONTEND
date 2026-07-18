@@ -1,6 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Rocket, Star, Target, Users, CheckCircle2, ClipboardList } from 'lucide-react';
+import {
+  Plus,
+  Rocket,
+  Star,
+  Target,
+  Users,
+  CheckCircle2,
+  ClipboardList,
+  Pencil,
+  Power,
+  PowerOff,
+  X,
+  Trash2,
+} from 'lucide-react';
 import { hrApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
@@ -16,12 +29,25 @@ const REVIEW_PIPELINE = [
   { key: 'completed', label: 'Completed' },
 ];
 
+const EMPTY_CYCLE_FORM = {
+  name: '',
+  cycle_type: 'annual',
+  start_date: new Date().toISOString().slice(0, 10),
+  end_date: `${new Date().getFullYear()}-12-31`,
+  goals: [''],
+};
+
+const GOAL_MATCH_OPTIONS = [
+  { value: 'matched', label: 'Matched', activeClass: 'bg-emerald-600 text-white border-emerald-600' },
+  { value: 'not_matched', label: 'Not matched', activeClass: 'bg-red-600 text-white border-red-600' },
+];
+
 function PerformanceWorkflowBanner() {
   const steps = [
-    { n: 1, title: 'Create cycle', text: 'Define annual, quarterly, or probation review period.' },
-    { n: 2, title: 'Launch', text: 'Generate review records for all active employees.' },
+    { n: 1, title: 'Create cycle', text: 'Define period and set cycle goals.' },
+    { n: 2, title: 'Launch', text: 'Generate reviews for active employees with those goals.' },
     { n: 3, title: 'Self review', text: 'Employees rate themselves and add comments.' },
-    { n: 4, title: 'Manager review', text: 'Managers rate direct reports and finalize scores.' },
+    { n: 4, title: 'Manager review', text: 'Managers rate reports and mark goals matched / not matched.' },
   ];
 
   return (
@@ -81,6 +107,180 @@ function ReviewPipeline({ status }) {
   );
 }
 
+function FieldLabel({ children, required }) {
+  return (
+    <label className="text-xs font-medium text-slate-600">
+      {children}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+  );
+}
+
+function GoalMatchBadge({ status }) {
+  const styles = {
+    matched: 'bg-emerald-50 text-emerald-700',
+    not_matched: 'bg-red-50 text-red-700',
+    pending: 'bg-slate-100 text-slate-600',
+  };
+  const labels = {
+    matched: 'Matched',
+    not_matched: 'Not matched',
+    pending: 'Pending',
+  };
+  const key = status || 'pending';
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', styles[key] || styles.pending)}>
+      {labels[key] || 'Pending'}
+    </span>
+  );
+}
+
+function CycleFormModal({ title, form, setForm, onClose, onSubmit, loading, submitLabel }) {
+  const addGoal = () => setForm({ ...form, goals: [...form.goals, ''] });
+  const updateGoal = (index, value) => {
+    const goals = [...form.goals];
+    goals[index] = value;
+    setForm({ ...form, goals });
+  };
+  const removeGoal = (index) => {
+    const goals = form.goals.filter((_, i) => i !== index);
+    setForm({ ...form, goals: goals.length ? goals : [''] });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+        <h3 className="font-semibold mb-4">{title}</h3>
+        <div className="space-y-3">
+          <div>
+            <FieldLabel required>Cycle name</FieldLabel>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. FY 2025 Annual Review"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
+            />
+          </div>
+          <div>
+            <FieldLabel required>Type</FieldLabel>
+            <select
+              value={form.cycle_type}
+              onChange={(e) => setForm({ ...form, cycle_type: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
+            >
+              {['annual', 'quarterly', 'probation'].map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel required>Start date</FieldLabel>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
+              />
+            </div>
+            <div>
+              <FieldLabel required>End date</FieldLabel>
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <FieldLabel>Cycle goals</FieldLabel>
+              <button type="button" onClick={addGoal} className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
+                <Plus size={12} /> Add goal
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5 mb-2">
+              Goals are copied to every employee review when the cycle is launched.
+            </p>
+            <div className="space-y-2">
+              {form.goals.map((goal, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    value={goal}
+                    onChange={(e) => updateGoal(index, e.target.value)}
+                    placeholder={`Goal ${index + 1}`}
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeGoal(index)}
+                    className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    title="Remove goal"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-5">
+          <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+          <button
+            type="button"
+            disabled={!form.name.trim() || !form.start_date || !form.end_date || loading}
+            onClick={onSubmit}
+            className="btn-primary"
+          >
+            {loading ? 'Saving…' : submitLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildCyclePayload(form) {
+  return {
+    name: form.name.trim(),
+    cycle_type: form.cycle_type,
+    start_date: form.start_date,
+    end_date: form.end_date,
+    goals: form.goals.map((g) => g.trim()).filter(Boolean).map((title) => ({ title, status: 'pending' })),
+  };
+}
+
+function cycleToForm(cycle) {
+  const goals = Array.isArray(cycle.goals) && cycle.goals.length
+    ? cycle.goals.map((g) => g.title || g)
+    : [''];
+  return {
+    name: cycle.name || '',
+    cycle_type: cycle.cycle_type || 'annual',
+    start_date: cycle.start_date ? String(cycle.start_date).slice(0, 10) : '',
+    end_date: cycle.end_date ? String(cycle.end_date).slice(0, 10) : '',
+    goals,
+  };
+}
+
+function normalizeReviewGoals(goals) {
+  if (!Array.isArray(goals)) return [];
+  return goals
+    .map((g) => ({
+      title: typeof g === 'string' ? g : (g.title || ''),
+      status: ['matched', 'not_matched', 'pending'].includes(g?.status) ? g.status : 'pending',
+    }))
+    .filter((g) => g.title);
+}
+
+/** Prefer review goals; fall back to cycle goals when reviews were launched before goals existed. */
+function resolveReviewGoals(review) {
+  const fromReview = normalizeReviewGoals(review?.goals);
+  if (fromReview.length) return fromReview;
+  return normalizeReviewGoals(review?.cycle?.goals);
+}
+
 export default function PerformancePage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -89,21 +289,16 @@ export default function PerformancePage() {
   const isManagerOnly = isManager && !isAdmin;
   const [tab, setTab] = useState(isManagerOnly ? 'team' : 'reviews');
   const [cycleFilter, setCycleFilter] = useState('');
-  const [showCycleForm, setShowCycleForm] = useState(false);
+  const [cycleModal, setCycleModal] = useState(null);
+  const [cycleForm, setCycleForm] = useState(EMPTY_CYCLE_FORM);
   const { setPage, setLimit, paginateClient } = useTablePagination({ resetDeps: [tab, cycleFilter] });
-  const [cycleForm, setCycleForm] = useState({
-    name: '',
-    cycle_type: 'annual',
-    start_date: new Date().toISOString().slice(0, 10),
-    end_date: `${new Date().getFullYear()}-12-31`,
-  });
   const [editingReview, setEditingReview] = useState(null);
   const [reviewForm, setReviewForm] = useState({
     self_rating: '',
     self_comments: '',
     manager_rating: '',
     manager_comments: '',
-    goals: '',
+    goals: [],
   });
 
   const reviewParams = useMemo(() => {
@@ -122,25 +317,39 @@ export default function PerformancePage() {
     queryFn: () => hrApi.listPerformanceReviews(reviewParams),
   });
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['perf-cycles'] });
+    queryClient.invalidateQueries({ queryKey: ['perf-reviews'] });
+  };
+
   const createCycle = useMutation({
     mutationFn: hrApi.createPerformanceCycle,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['perf-cycles'] });
-      setShowCycleForm(false);
+      invalidate();
+      setCycleModal(null);
+      setCycleForm(EMPTY_CYCLE_FORM);
     },
+  });
+  const updateCycle = useMutation({
+    mutationFn: ({ id, payload }) => hrApi.updatePerformanceCycle(id, payload),
+    onSuccess: () => {
+      invalidate();
+      setCycleModal(null);
+      setCycleForm(EMPTY_CYCLE_FORM);
+    },
+  });
+  const updateCycleStatus = useMutation({
+    mutationFn: ({ id, status }) => hrApi.updatePerformanceCycleStatus(id, { status }),
+    onSuccess: invalidate,
   });
   const launchCycle = useMutation({
     mutationFn: hrApi.launchPerformanceCycle,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['perf-cycles'] });
-      queryClient.invalidateQueries({ queryKey: ['perf-reviews'] });
-    },
+    onSuccess: invalidate,
   });
   const updateReview = useMutation({
     mutationFn: ({ id, ...payload }) => hrApi.updatePerformanceReview(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['perf-reviews'] });
-      queryClient.invalidateQueries({ queryKey: ['perf-cycles'] });
+      invalidate();
       setEditingReview(null);
     },
   });
@@ -166,6 +375,29 @@ export default function PerformancePage() {
   const canEditManager =
     editingReview &&
     (isAdmin || (isManager && editingReview.reviewer_id === user?.id));
+  const canEditGoals =
+    editingReview &&
+    editingReview.status !== 'completed' &&
+    (canEditSelf || canEditManager);
+
+  const openCreateCycle = () => {
+    setCycleForm(EMPTY_CYCLE_FORM);
+    setCycleModal({ mode: 'create' });
+  };
+
+  const openEditCycle = (cycle) => {
+    setCycleForm(cycleToForm(cycle));
+    setCycleModal({ mode: 'edit', id: cycle.id });
+  };
+
+  const saveCycle = () => {
+    const payload = buildCyclePayload(cycleForm);
+    if (cycleModal?.mode === 'edit') {
+      updateCycle.mutate({ id: cycleModal.id, payload });
+    } else {
+      createCycle.mutate(payload);
+    }
+  };
 
   const submitReview = () => {
     const payload = {};
@@ -176,24 +408,40 @@ export default function PerformancePage() {
     if (canEditManager) {
       if (reviewForm.manager_rating) {
         payload.manager_rating = parseFloat(reviewForm.manager_rating);
-        payload.manager_comments = reviewForm.manager_comments;
       }
+      payload.manager_comments = reviewForm.manager_comments;
     }
-    if (reviewForm.goals.trim()) {
-      payload.goals = reviewForm.goals.split('\n').map((g) => g.trim()).filter(Boolean).map((title) => ({ title, status: 'pending' }));
+    // Always persist goal match status when the reviewer can edit.
+    if (canEditGoals && reviewForm.goals.length > 0) {
+      payload.goals = reviewForm.goals
+        .filter((g) => g.title?.trim())
+        .map((g) => ({
+          title: g.title.trim(),
+          status: g.status === 'matched' || g.status === 'not_matched' ? g.status : 'pending',
+        }));
     }
+    if (Object.keys(payload).length === 0) return;
     updateReview.mutate({ id: editingReview.id, ...payload });
   };
 
   const openReview = (r) => {
-    setEditingReview(r);
-    const goalsText = Array.isArray(r.goals) ? r.goals.map((g) => g.title || g).join('\n') : '';
+    const cycle = cycles.find((c) => c.id === r.cycle_id || c.id === r.cycle?.id) || r.cycle;
+    const enriched = { ...r, cycle: cycle ? { ...r.cycle, ...cycle } : r.cycle };
+    setEditingReview(enriched);
     setReviewForm({
       self_rating: r.self_rating || '',
       self_comments: r.self_comments || '',
       manager_rating: r.manager_rating || '',
       manager_comments: r.manager_comments || '',
-      goals: goalsText,
+      goals: resolveReviewGoals(enriched),
+    });
+  };
+
+  const setGoalStatus = (index, status) => {
+    setReviewForm((prev) => {
+      const goals = [...prev.goals];
+      goals[index] = { ...goals[index], status };
+      return { ...prev, goals };
     });
   };
 
@@ -212,7 +460,7 @@ export default function PerformancePage() {
         subtitle="Review cycles, goals, self-assessment, and manager ratings"
         actions={isAdmin && (
           <div className="flex gap-2 flex-wrap">
-            <button type="button" onClick={() => setShowCycleForm(true)} className="btn-secondary">
+            <button type="button" onClick={openCreateCycle} className="btn-secondary">
               <Plus size={14} /> New Cycle
             </button>
             {draftCycle && (
@@ -244,6 +492,15 @@ export default function PerformancePage() {
           <p className="text-xs text-slate-500 mt-1 capitalize">
             {activeCycle.cycle_type} · {activeCycle.start_date} → {activeCycle.end_date}
           </p>
+          {Array.isArray(activeCycle.goals) && activeCycle.goals.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {activeCycle.goals.map((g, i) => (
+                <li key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
+                  {g.title || g}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-3 max-w-md">
             <CycleProgressBar completed={activeCycle.completed_count} total={activeCycle.review_count} />
           </div>
@@ -272,30 +529,73 @@ export default function PerformancePage() {
             <div className="card p-12 text-center text-slate-400 col-span-full">No performance cycles yet</div>
           ) : (
             cycles.map((c) => (
-              <div key={c.id} className="card p-5">
+              <div key={c.id} className="card p-5 flex flex-col">
                 <div className="flex justify-between items-start gap-2">
                   <p className="font-semibold text-slate-900">{c.name}</p>
                   <span className={cn(
                     'text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize',
-                    c.status === 'active' ? 'bg-emerald-50 text-emerald-700' : c.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-600'
+                    c.status === 'active' ? 'bg-emerald-50 text-emerald-700' : c.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'
                   )}>
-                    {c.status}
+                    {c.status === 'closed' ? 'inactive' : c.status}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 capitalize">{c.cycle_type}</p>
                 <p className="text-xs text-slate-400 mt-2">{c.start_date} → {c.end_date}</p>
+                {Array.isArray(c.goals) && c.goals.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Goals</p>
+                    <ul className="space-y-1">
+                      {c.goals.slice(0, 4).map((g, i) => (
+                        <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                          <Target size={11} className="text-brand-600 shrink-0 mt-0.5" />
+                          <span className="line-clamp-1">{g.title || g}</span>
+                        </li>
+                      ))}
+                      {c.goals.length > 4 && (
+                        <li className="text-[10px] text-slate-400">+{c.goals.length - 4} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
                 <div className="mt-4">
                   <CycleProgressBar completed={c.completed_count} total={c.review_count} />
                 </div>
-                {isAdmin && c.status === 'draft' && (
-                  <button
-                    type="button"
-                    onClick={() => launchCycle.mutate(c.id)}
-                    disabled={launchCycle.isPending}
-                    className="btn-primary text-xs mt-4 w-full"
-                  >
-                    <Rocket size={12} className="inline mr-1" /> Launch cycle
-                  </button>
+                {isAdmin && (
+                  <div className="mt-auto pt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => openEditCycle(c)} className="btn-secondary text-xs flex-1">
+                      <Pencil size={12} className="inline mr-1" /> Edit
+                    </button>
+                    {c.status === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => launchCycle.mutate(c.id)}
+                        disabled={launchCycle.isPending}
+                        className="btn-primary text-xs flex-1"
+                      >
+                        <Rocket size={12} className="inline mr-1" /> Launch
+                      </button>
+                    )}
+                    {c.status === 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => updateCycleStatus.mutate({ id: c.id, status: 'closed' })}
+                        disabled={updateCycleStatus.isPending}
+                        className="btn-secondary text-xs flex-1 text-amber-700"
+                      >
+                        <PowerOff size={12} className="inline mr-1" /> Deactivate
+                      </button>
+                    )}
+                    {c.status === 'closed' && (
+                      <button
+                        type="button"
+                        onClick={() => updateCycleStatus.mutate({ id: c.id, status: 'active' })}
+                        disabled={updateCycleStatus.isPending}
+                        className="btn-primary text-xs flex-1"
+                      >
+                        <Power size={12} className="inline mr-1" /> Activate
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))
@@ -384,73 +684,43 @@ export default function PerformancePage() {
         </>
       )}
 
-      {showCycleForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6">
-            <h3 className="font-semibold mb-4">New Performance Cycle</h3>
-            <label className="text-xs font-medium text-slate-600">Cycle name</label>
-            <input
-              value={cycleForm.name}
-              onChange={(e) => setCycleForm({ ...cycleForm, name: e.target.value })}
-              placeholder="e.g. FY 2025 Annual Review"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-3 mt-1"
-            />
-            <label className="text-xs font-medium text-slate-600">Type</label>
-            <select
-              value={cycleForm.cycle_type}
-              onChange={(e) => setCycleForm({ ...cycleForm, cycle_type: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-3 mt-1"
-            >
-              {['annual', 'quarterly', 'probation'].map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="text-xs font-medium text-slate-600">Start date</label>
-                <input
-                  type="date"
-                  value={cycleForm.start_date}
-                  onChange={(e) => setCycleForm({ ...cycleForm, start_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600">End date</label>
-                <input
-                  type="date"
-                  value={cycleForm.end_date}
-                  onChange={(e) => setCycleForm({ ...cycleForm, end_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowCycleForm(false)} className="btn-secondary">Cancel</button>
-              <button type="button" disabled={!cycleForm.name || createCycle.isPending} onClick={() => createCycle.mutate(cycleForm)} className="btn-primary">
-                {createCycle.isPending ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {cycleModal && (
+        <CycleFormModal
+          title={cycleModal.mode === 'edit' ? 'Edit Performance Cycle' : 'New Performance Cycle'}
+          form={cycleForm}
+          setForm={setCycleForm}
+          onClose={() => { setCycleModal(null); setCycleForm(EMPTY_CYCLE_FORM); }}
+          onSubmit={saveCycle}
+          loading={createCycle.isPending || updateCycle.isPending}
+          submitLabel={cycleModal.mode === 'edit' ? 'Save changes' : 'Create'}
+        />
       )}
 
       {editingReview && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-semibold mb-1">
-              Performance Review — {editingReview.employee?.first_name} {editingReview.employee?.last_name}
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">{editingReview.cycle?.name}</p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-semibold mb-1">
+                  Performance Review — {editingReview.employee?.first_name} {editingReview.employee?.last_name}
+                </h3>
+                <p className="text-xs text-slate-500">{editingReview.cycle?.name}</p>
+              </div>
+              <button type="button" onClick={() => setEditingReview(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X size={16} />
+              </button>
+            </div>
 
-            <ReviewPipeline status={editingReview.status} />
+            <div className="mt-3">
+              <ReviewPipeline status={editingReview.status} />
+            </div>
 
             <div className="mt-5 space-y-4">
-              {(canEditSelf || editingReview.self_rating) && editingReview.status !== 'completed' && (
+              {(canEditSelf || editingReview.self_rating || editingReview.self_comments) && (
                 <div className="rounded-lg border border-slate-200 p-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-700">Self assessment</p>
                   <div>
-                    <label className="text-xs font-medium text-slate-600">Self rating (1–5)</label>
+                    <FieldLabel>Self rating (1–5)</FieldLabel>
                     <input
                       type="number"
                       min="1"
@@ -473,11 +743,11 @@ export default function PerformancePage() {
                 </div>
               )}
 
-              {(canEditManager || editingReview.manager_rating) && (
+              {(canEditManager || editingReview.manager_rating || editingReview.manager_comments) && (
                 <div className="rounded-lg border border-slate-200 p-4 space-y-3">
                   <p className="text-xs font-semibold text-slate-700">Manager assessment</p>
                   <div>
-                    <label className="text-xs font-medium text-slate-600">Manager rating (1–5)</label>
+                    <FieldLabel>Manager rating (1–5)</FieldLabel>
                     <input
                       type="number"
                       min="1"
@@ -500,32 +770,55 @@ export default function PerformancePage() {
                 </div>
               )}
 
-              {editingReview.status !== 'completed' && (
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Goals (one per line)</label>
-                  <textarea
-                    value={reviewForm.goals}
-                    onChange={(e) => setReviewForm({ ...reviewForm, goals: e.target.value })}
-                    placeholder="Improve client delivery&#10;Complete certification&#10;Mentor junior team member"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              {Array.isArray(editingReview.goals) && editingReview.goals.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-700 mb-2">Goals</p>
-                  <ul className="space-y-1">
-                    {editingReview.goals.map((g, i) => (
-                      <li key={i} className="text-sm text-slate-600 flex items-center gap-2">
-                        <Target size={12} className="text-brand-600 shrink-0" />
-                        {g.title || g}
+              <div className="rounded-lg border border-slate-200 p-4">
+                <p className="text-xs font-semibold text-slate-700 mb-1">Goal achievement</p>
+                <p className="text-[10px] text-slate-400 mb-3">
+                  For each goal, mark whether it was <strong>Matched</strong> or <strong>Not matched</strong>.
+                </p>
+                {reviewForm.goals.length === 0 ? (
+                  <p className="text-xs text-slate-400">No goals defined for this cycle. Add goals on the cycle, then re-launch or edit the cycle.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {reviewForm.goals.map((g, i) => (
+                      <li key={i} className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-3 space-y-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Target size={14} className="text-brand-600 shrink-0 mt-0.5" />
+                          <span className="text-sm text-slate-800 font-medium">{g.title}</span>
+                        </div>
+                        {canEditGoals ? (
+                          <div className="flex flex-wrap gap-2 pl-5">
+                            {GOAL_MATCH_OPTIONS.map((opt) => {
+                              const selected = g.status === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => setGoalStatus(i, opt.value)}
+                                  className={cn(
+                                    'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                                    selected
+                                      ? opt.activeClass
+                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                  )}
+                                >
+                                  {opt.label}
+                                </button>
+                              );
+                            })}
+                            {g.status === 'pending' && (
+                              <span className="text-[10px] text-slate-400 self-center">Not marked yet</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="pl-5">
+                            <GoalMatchBadge status={g.status} />
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 justify-end mt-6">

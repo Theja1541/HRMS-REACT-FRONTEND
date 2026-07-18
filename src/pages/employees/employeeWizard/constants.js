@@ -19,7 +19,7 @@ export const INITIAL_FORM = {
   employment_type: 'full_time',
   reporting_to: '',
   attendance_policy_id: '',
-  work_from_home: false,
+  work_mode: 'office',
   uan_number: '',
   bank_name: '',
   account_number: '',
@@ -30,7 +30,9 @@ export const INITIAL_FORM = {
   esi_applicable: false,
   esic_number: '',
   notes: '',
-  status: 'probation',
+  has_probation: false,
+  probation_duration_months: 6,
+  status: 'active',
   emergency_contacts: [
     { contact_name: '', contact_phone: '', relationship: '', is_primary: true },
   ],
@@ -42,6 +44,16 @@ export const INITIAL_FORM = {
   },
   salary_structure_template_id: '',
 };
+
+export const WORK_MODE_OPTIONS = [
+  { value: 'office', label: 'Office (On-site)' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'remote', label: 'Remote' },
+];
+
+export const WORK_MODE_LABELS = Object.fromEntries(WORK_MODE_OPTIONS.map((o) => [o.value, o.label]));
+
+export const PROBATION_DURATION_OPTIONS = [1, 2, 3, 6, 9, 12];
 
 export function draftKey(tenantId) {
   return `hrms-employee-master-draft-${tenantId || 'default'}`;

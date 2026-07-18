@@ -230,6 +230,17 @@ export default function Sidebar() {
   }, [location.pathname, closeMobileSidebar]);
 
   useEffect(() => {
+    // Managers / employees: keep self-service + people sections open by default
+    if (['manager', 'employee'].includes(role)) {
+      ['My Work', 'People', 'Projects', 'Platform', 'Overview'].forEach((section) => {
+        if (expandedNavSections[section] === undefined) {
+          setNavSectionExpanded(section, true);
+        }
+      });
+    }
+  }, [role, expandedNavSections, setNavSectionExpanded]);
+
+  useEffect(() => {
     navGroups.forEach((group) => {
       if (group.collapsible === false) return;
       const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));

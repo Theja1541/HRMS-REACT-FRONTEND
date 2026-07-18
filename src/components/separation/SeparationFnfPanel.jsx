@@ -7,23 +7,33 @@ import FnfStatementView from './FnfStatementView';
 import {
   FNF_PAYMENT_MODE_LABELS,
   FNF_PAYMENT_MODES,
+  FNF_PAYMENT_STATUS_CLASSES,
+  FNF_PAYMENT_STATUS_LABELS,
+  FNF_RECON_STATUS_LABELS,
   FNF_SETTLEMENT_STATUSES,
   FNF_SETTLEMENT_STATUS_LABELS,
 } from '../../constants/hr';
 import { useAuthStore } from '../../store/auth.store';
 import { cn } from '../../utils/helpers';
+import { resolvePortalRole } from '../../utils/portalContext';
 
-const HR_ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
+const HR_ADMIN_ROLES = ['super_admin', 'owner', 'hr', 'admin'];
 
 // Component codes available for manual entry, grouped by type
 const MANUAL_EARNING_CODES = [
+  { value: 'bonus', label: 'Bonus' },
+  { value: 'gratuity', label: 'Gratuity' },
+  { value: 'reimbursement', label: 'Reimbursement' },
   { value: 'ex_gratia', label: 'Ex Gratia' },
   { value: 'other_earning', label: 'Other Earning' },
 ];
 const MANUAL_DEDUCTION_CODES = [
-  { value: 'other_deduction', label: 'Other Deduction' },
-  { value: 'advance_recovery', label: 'Advance Recovery' },
+  { value: 'advance_recovery', label: 'Salary Advance Recovery' },
   { value: 'loan_recovery', label: 'Loan Recovery' },
+  { value: 'notice_buyout_recovery', label: 'Notice Recovery' },
+  { value: 'tax_adjustment', label: 'Tax Adjustment' },
+  { value: 'tds', label: 'TDS Adjustment' },
+  { value: 'other_deduction', label: 'Other Deduction' },
 ];
 
 // All 18 statutory component codes — used for "show zero lines" view
@@ -47,14 +57,21 @@ const ALL_DEDUCTION_CODES = [
   { code: 'esi_recovery', label: 'ESI Recovery' },
   { code: 'professional_tax', label: 'Professional Tax' },
   { code: 'tds', label: 'TDS' },
+  { code: 'tax_adjustment', label: 'Tax Adjustment' },
   { code: 'other_deduction', label: 'Other Deductions' },
 ];
 const CODE_DEFAULT_LABELS = {
+  bonus: 'Bonus',
+  gratuity: 'Gratuity',
+  reimbursement: 'Reimbursement',
   ex_gratia: 'Ex Gratia',
   other_earning: '',
   other_deduction: '',
-  advance_recovery: 'Advance Recovery',
+  advance_recovery: 'Salary Advance Recovery',
   loan_recovery: 'Loan Recovery',
+  notice_buyout_recovery: 'Notice Recovery',
+  tax_adjustment: 'Tax Adjustment',
+  tds: 'TDS Adjustment',
 };
 
 const BLANK_ADJUSTMENT = {
@@ -281,8 +298,9 @@ function AdjustmentForm({ form, onChange, error, isPending, onCancel, submitLabe
 
 export default function SeparationFnfPanel({ separationRequestId, settlementId, enabled = true, onSettlementChange }) {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const canManage = HR_ADMIN_ROLES.includes(user?.role);
+  const { user, workspace, roles, selectedRole, accessToken } = useAuthStore();
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
+  const canManage = HR_ADMIN_ROLES.includes(role);
 
   const [showApprove, setShowApprove] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -378,6 +396,12 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
     onError: (err) => setModalError(apiErrorMessage(err, 'Failed to approve settlement')),
   });
 
+  const submitApprovalMutation = useMutation({
+    mutationFn: () => hrApi.submitFnfSettlementApproval(settlement.id, {}),
+    onSuccess: () => { setRecalcError(''); invalidate(); },
+    onError: (err) => setRecalcError(apiErrorMessage(err, 'Failed to submit for approval')),
+  });
+
   const paymentMutation = useMutation({
     mutationFn: () =>
       hrApi.recordFnfPayment(settlement.id, {
@@ -389,6 +413,29 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
       }),
     onSuccess: () => { invalidate(); closePayment(); },
     onError: (err) => setModalError(apiErrorMessage(err, 'Failed to record payment')),
+  });
+
+  const approvePaymentMutation = useMutation({
+    mutationFn: (paymentId) => hrApi.approveFnfPayment(settlement.id, paymentId, {}),
+    onSuccess: () => invalidate(),
+    onError: (err) => setRecalcError(apiErrorMessage(err, 'Failed to approve payment')),
+  });
+
+  const rejectPaymentMutation = useMutation({
+    mutationFn: ({ paymentId, reason }) =>
+      hrApi.rejectFnfPayment(settlement.id, paymentId, { reason }),
+    onSuccess: () => invalidate(),
+    onError: (err) => setRecalcError(apiErrorMessage(err, 'Failed to reject payment')),
+  });
+
+  const reconcilePaymentMutation = useMutation({
+    mutationFn: ({ paymentId, reconciliation_status }) =>
+      hrApi.reconcileFnfPayment(settlement.id, paymentId, { reconciliation_status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fnf-finance-reconciliation'] });
+      invalidate();
+    },
+    onError: (err) => setRecalcError(apiErrorMessage(err, 'Failed to reconcile payment')),
   });
 
   // ── manual component mutations ────────────────────────────────────────────
@@ -417,7 +464,11 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
   const actionPending =
     recalculateMutation.isPending ||
     approveMutation.isPending ||
+    submitApprovalMutation.isPending ||
     paymentMutation.isPending ||
+    approvePaymentMutation.isPending ||
+    rejectPaymentMutation.isPending ||
+    reconcilePaymentMutation.isPending ||
     addComponentMutation.isPending ||
     updateComponentMutation.isPending ||
     deleteComponentMutation.isPending;
@@ -502,9 +553,10 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
 
   const isAutocalcPending = settlement?.status === 'draft';
   const canRecalculate = settlement && ['draft', 'calculated'].includes(settlement.status);
-  const canApprove = settlement?.status === 'calculated';
+  const canSubmitApproval = settlement?.status === 'calculated';
+  const canApprove = settlement && ['calculated', 'pending_approval'].includes(settlement.status);
   const canRecordPayment = settlement && ['approved', 'partially_paid'].includes(settlement.status);
-  const canStatement = settlement && ['calculated', 'approved', 'partially_paid', 'paid'].includes(settlement.status);
+  const canStatement = settlement && ['calculated', 'pending_approval', 'approved', 'partially_paid', 'paid'].includes(settlement.status);
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -637,6 +689,17 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
                 {recalculateMutation.isPending ? 'Calculating…' : 'Recalculate'}
               </button>
             )}
+            {canSubmitApproval && (
+              <button
+                type="button"
+                disabled={actionPending}
+                onClick={() => submitApprovalMutation.mutate()}
+                className="btn-secondary text-[10px] py-1 inline-flex items-center gap-1 text-amber-700 border-amber-200 hover:bg-amber-50"
+              >
+                {submitApprovalMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                Submit for approval
+              </button>
+            )}
             {canApprove && (
               <button
                 type="button"
@@ -736,22 +799,23 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
       {/* Payment history */}
       <div className="border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-          <h4 className="text-xs font-semibold text-slate-800">Payment Details</h4>
+          <h4 className="text-xs font-semibold text-slate-800">Payment History</h4>
           <span className="text-[10px] text-slate-400">{payments.length} payment(s)</span>
         </div>
         {payments.length === 0 ? (
           <p className="p-6 text-xs text-slate-400 text-center">No payments recorded yet</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[640px]">
+            <table className="w-full text-xs min-w-[820px]">
               <thead className="bg-white border-b border-slate-100">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold">Date</th>
                   <th className="text-left px-4 py-2 font-semibold">Amount</th>
                   <th className="text-left px-4 py-2 font-semibold">Method</th>
+                  <th className="text-left px-4 py-2 font-semibold">Status</th>
+                  <th className="text-left px-4 py-2 font-semibold">Recon</th>
                   <th className="text-left px-4 py-2 font-semibold">Reference</th>
-                  <th className="text-left px-4 py-2 font-semibold">Recorded By</th>
-                  <th className="text-left px-4 py-2 font-semibold">Remarks</th>
+                  <th className="text-left px-4 py-2 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -762,10 +826,70 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
                     <td className="px-4 py-2.5 capitalize">
                       {FNF_PAYMENT_MODE_LABELS[payment.payment_mode] || payment.payment_mode}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-slate-600">{payment.reference_number || '—'}</td>
-                    <td className="px-4 py-2.5">{formatPerson(payment.recorder)}</td>
-                    <td className="px-4 py-2.5 text-slate-600 max-w-[180px] truncate" title={payment.notes || ''}>
-                      {payment.notes || '—'}
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          FNF_PAYMENT_STATUS_CLASSES[payment.status]
+                        )}
+                      >
+                        {FNF_PAYMENT_STATUS_LABELS[payment.status] || payment.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600">
+                      {payment.status === 'completed'
+                        ? FNF_RECON_STATUS_LABELS[payment.reconciliation_status] || '—'
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-slate-600">
+                      {payment.reference_number || '—'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {canManage && payment.status === 'pending' && (
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            className="btn-secondary text-[10px] py-0.5 text-emerald-700"
+                            disabled={actionPending}
+                            onClick={() => approvePaymentMutation.mutate(payment.id)}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary text-[10px] py-0.5 text-red-600"
+                            disabled={actionPending}
+                            onClick={() => {
+                              const reason = window.prompt('Rejection reason');
+                              if (reason?.trim()) {
+                                rejectPaymentMutation.mutate({
+                                  paymentId: payment.id,
+                                  reason: reason.trim(),
+                                });
+                              }
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {canManage &&
+                        payment.status === 'completed' &&
+                        payment.reconciliation_status === 'unreconciled' && (
+                          <button
+                            type="button"
+                            className="btn-secondary text-[10px] py-0.5"
+                            disabled={actionPending}
+                            onClick={() =>
+                              reconcilePaymentMutation.mutate({
+                                paymentId: payment.id,
+                                reconciliation_status: 'matched',
+                              })
+                            }
+                          >
+                            Mark matched
+                          </button>
+                        )}
                     </td>
                   </tr>
                 ))}
@@ -875,7 +999,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
       {showPayment && (
         <ActionModal
           title="Record F&F Payment"
-          subtitle={`Balance due: ${formatInr(settlement.balance_due)}`}
+          subtitle={`Balance due: ${formatInr(settlement.balance_due)} · Requires finance approval before payout`}
           onClose={closePayment}
           isPending={paymentMutation.isPending}
         >

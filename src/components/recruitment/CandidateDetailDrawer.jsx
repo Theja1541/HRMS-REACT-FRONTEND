@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { X, Mail, Phone, FileText, ExternalLink, User, Briefcase } from 'lucide-react';
-import { hrApi } from '../../api';
+import { hrApi, employeeApi } from '../../api';
 import { APPLICATION_STATUSES } from '../../constants/hr';
 import {
   APPLICATION_SOURCE_LABELS,
@@ -10,6 +10,7 @@ import {
   EMPLOYMENT_TYPE_LABELS,
 } from '../../constants/recruitment';
 import { formatINR, cn, resolveAssetUrl } from '../../utils/helpers';
+import GenerateOfferLetterAction from '../employees/GenerateOfferLetterAction';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -41,6 +42,25 @@ export default function CandidateDetailDrawer({ applicationId, onClose, onUpdate
   });
 
   const application = data?.data?.application;
+  const showOfferAction = application && ['offer', 'hired'].includes(application.status);
+
+  const { data: linkedEmployeeData } = useQuery({
+    queryKey: ['employee-by-email', application?.email],
+    queryFn: () => employeeApi.list({ search: application.email, limit: 5 }),
+    enabled: !!showOfferAction && !!application?.email && !application?.employee_id,
+  });
+
+  const linkedEmployee =
+    (application?.employee_id
+      ? {
+          id: application.employee_id,
+          emp_code: application.applicant?.emp_code,
+        }
+      : null) ||
+    (linkedEmployeeData?.data?.employees || []).find(
+      (e) => e.email?.toLowerCase() === application?.email?.toLowerCase()
+    ) ||
+    null;
 
   useEffect(() => {
     if (application) {
@@ -199,19 +219,48 @@ export default function CandidateDetailDrawer({ applicationId, onClose, onUpdate
         </div>
 
         {application && (
-          <div className="px-5 py-4 border-t border-slate-200 flex gap-2 justify-end shrink-0">
-            <button type="button" onClick={onClose} className="btn-secondary">Close</button>
-            <button
-              type="button"
-              disabled={updateMutation.isPending}
-              onClick={() => updateMutation.mutate({
-                status: status || application.status,
-                notes,
-              })}
-              className="btn-primary"
-            >
-              {updateMutation.isPending ? 'Saving…' : 'Save changes'}
-            </button>
+          <div className="px-5 py-4 border-t border-slate-200 flex flex-col gap-3 shrink-0">
+            {showOfferAction && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-700">Offer letter</p>
+                  <p className="text-[11px] text-slate-400">
+                    {linkedEmployee
+                      ? `Generate using employee ${linkedEmployee.emp_code || `#${linkedEmployee.id}`}`
+                      : 'Create or link an employee profile for this candidate to generate an offer letter'}
+                  </p>
+                </div>
+                {linkedEmployee ? (
+                  <GenerateOfferLetterAction
+                    employeeId={linkedEmployee.id}
+                    employeeCode={linkedEmployee.emp_code}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="btn-primary text-xs opacity-50 cursor-not-allowed"
+                    title="Create an employee profile for this candidate first"
+                  >
+                    <FileText size={14} /> Generate Offer Letter
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={onClose} className="btn-secondary">Close</button>
+              <button
+                type="button"
+                disabled={updateMutation.isPending}
+                onClick={() => updateMutation.mutate({
+                  status: status || application.status,
+                  notes,
+                })}
+                className="btn-primary"
+              >
+                {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
           </div>
         )}
       </div>

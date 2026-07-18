@@ -19,10 +19,30 @@ export const ACCRUAL_TRIGGERS = [
 ];
 
 export const APPROVAL_LEVELS = [
-  { value: 'manager', label: 'Reporting manager' },
-  { value: 'manager_hr', label: 'Manager → HR/Admin' },
-  { value: 'single', label: 'Single level' },
+  {
+    value: 'manager',
+    label: 'Reporting manager only',
+    description: 'One step — employee’s reporting manager approves (HR/Admin can override).',
+    steps: ['Employee applies', 'Reporting manager approves'],
+  },
+  {
+    value: 'manager_hr',
+    label: 'Manager → HR/Admin',
+    description: 'Two steps — manager approves first, then HR/Admin gives final approval.',
+    steps: ['Employee applies', 'Reporting manager approves', 'HR/Admin final approval'],
+  },
+  {
+    value: 'single',
+    label: 'HR/Admin only',
+    description: 'One step — skips the reporting manager; only HR or Company Admin can approve.',
+    steps: ['Employee applies', 'HR/Admin approves'],
+  },
 ];
+
+export function formatApprovalChain(level) {
+  const found = APPROVAL_LEVELS.find((o) => o.value === level);
+  return found?.label || String(level || 'manager').replace(/_/g, ' ');
+}
 
 export const APPLICABLE_TO = [
   { value: 'all', label: 'All employees' },

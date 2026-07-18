@@ -18,8 +18,18 @@ function normalizeUser(raw) {
   };
 }
 
+function isPublicUnauthedPath(pathname = window.location.pathname) {
+  return (
+    pathname.startsWith('/careers/') ||
+    pathname === '/login' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
+    pathname === '/mfa-verify'
+  );
+}
+
 export default function AuthBootstrap({ children }) {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => isPublicUnauthedPath());
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const beginPersonSession = useAuthStore((s) => s.beginPersonSession);
   const login = useAuthStore((s) => s.login);
@@ -44,6 +54,10 @@ export default function AuthBootstrap({ children }) {
         let token = useAuthStore.getState().accessToken;
 
         if (!token) {
+          // Public pages should not wait on refresh cookie round-trips.
+          if (isPublicUnauthedPath()) {
+            return;
+          }
           const res = await authApi.refresh();
           token = res?.data?.accessToken;
         }

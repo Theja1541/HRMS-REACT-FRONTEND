@@ -217,6 +217,59 @@ export function mountPrintFrame(element, elementId, { title = ' ', forCapture = 
 }
 
 /**
+ * Print an HTML string (full document or fragment) via a hidden iframe.
+ * Used for letter/template previews before PDF download.
+ */
+export function printHtmlDocument(html, options = {}) {
+  const { title = 'Document' } = options;
+  if (!html) return;
+
+  removePrintFrame();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = PRINT_FRAME_ID;
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const frameWindow = iframe.contentWindow;
+  const doc = frameWindow?.document;
+  if (!frameWindow || !doc) {
+    removePrintFrame();
+    throw new Error('Could not create print frame');
+  }
+
+  const source = String(html).trim();
+  const isFullDoc =
+    source.toLowerCase().startsWith('<!doctype') || source.toLowerCase().startsWith('<html');
+
+  doc.open();
+  if (isFullDoc) {
+    doc.write(source);
+  } else {
+    doc.write(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    <style>${BASE_PRINT_STYLES}</style>
+  </head>
+  <body>${source}</body>
+</html>`);
+  }
+  doc.close();
+
+  const triggerPrint = () => {
+    frameWindow.focus();
+    frameWindow.print();
+    frameWindow.onafterprint = removePrintFrame;
+    setTimeout(removePrintFrame, 2000);
+  };
+
+  setTimeout(() => waitForImages(doc, triggerPrint), 250);
+}
+
+/**
  * Print only the target element via a hidden iframe (receipt/invoice/quotation).
  * Does NOT print the main application shell.
  */

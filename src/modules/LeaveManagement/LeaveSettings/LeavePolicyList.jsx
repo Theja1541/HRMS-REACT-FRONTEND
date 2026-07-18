@@ -1,6 +1,6 @@
 import { Pencil, Users, Trash2 } from 'lucide-react';
 import { cn } from '../../../utils/helpers';
-import { formatAccrualSummary } from './leaveSettings.constants';
+import { formatAccrualSummary, formatApprovalChain } from './leaveSettings.constants';
 import { ActiveToggle, EmptyState } from './leaveSettingsUi';
 
 export default function LeavePolicyList({
@@ -56,7 +56,7 @@ export default function LeavePolicyList({
                     <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{p.leaveType?.code}</span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    {formatAccrualSummary(p)} · {p.accrual_trigger?.replace(/_/g, ' ')} · {p.approval_levels?.replace(/_/g, ' ')}
+                    {formatAccrualSummary(p)} · {p.accrual_trigger?.replace(/_/g, ' ')} · Approval: {formatApprovalChain(p.approval_levels)}
                     {p.sandwich_rule_enabled && ' · Sandwich rule'}
                     {p.max_balance_cap != null && ` · max ${parseFloat(p.max_balance_cap)}`}
                   </p>

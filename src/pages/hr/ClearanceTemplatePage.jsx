@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { hrApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
+import { CLEARANCE_DEPARTMENT_LABELS, CLEARANCE_DEPARTMENTS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
 
@@ -44,10 +45,25 @@ const ASSIGNEE_ROLE_OPTIONS = [
   { value: 'employee', label: 'Employee' },
 ];
 
+const DEPARTMENT_OPTIONS = CLEARANCE_DEPARTMENTS.map((value) => ({
+  value,
+  label: CLEARANCE_DEPARTMENT_LABELS[value],
+}));
+
+function inferDepartment(item) {
+  if (item.department && CLEARANCE_DEPARTMENTS.includes(item.department)) return item.department;
+  if (CLEARANCE_DEPARTMENTS.includes(item.default_assignee_role)) return item.default_assignee_role;
+  if (item.category === 'it') return 'it';
+  if (item.category === 'finance') return 'finance';
+  if (item.category === 'admin' || item.category === 'assets') return 'admin';
+  return 'hr';
+}
+
 const EMPTY_ITEM = {
   title: '',
   description: '',
   category: 'hr',
+  department: 'hr',
   is_mandatory: true,
   default_assignee_role: 'hr',
   due_days_before_lwd: '',
@@ -74,6 +90,7 @@ function itemsToForm(items = []) {
     title: item.title || '',
     description: item.description || '',
     category: item.category || 'hr',
+    department: inferDepartment(item),
     is_mandatory: item.is_mandatory !== false,
     default_assignee_role: item.default_assignee_role || 'hr',
     due_days_before_lwd: item.due_days_before_lwd ?? '',
@@ -92,6 +109,7 @@ function buildPayload(form) {
       title: item.title.trim(),
       description: item.description?.trim() || null,
       category: item.category,
+      department: item.department || inferDepartment(item),
       is_mandatory: item.is_mandatory,
       default_assignee_role: item.default_assignee_role,
       due_days_before_lwd:
@@ -121,11 +139,29 @@ function ItemRow({ item, index, onChange, onRemove }) {
           />
           <select
             value={item.category}
-            onChange={(e) => onChange(index, { ...item, category: e.target.value })}
+            onChange={(e) => {
+              const category = e.target.value;
+              const next = { ...item, category };
+              if (!item.department || item.department === inferDepartment(item)) {
+                next.department = inferDepartment({ ...next, department: null });
+              }
+              onChange(index, next);
+            }}
             className="w-28 px-2 py-1.5 border border-slate-200 rounded-lg text-xs"
+            title="Category"
           >
             {CATEGORY_OPTIONS.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <select
+            value={item.department || 'hr'}
+            onChange={(e) => onChange(index, { ...item, department: e.target.value })}
+            className="w-28 px-2 py-1.5 border border-slate-200 rounded-lg text-xs"
+            title="Approving department"
+          >
+            {DEPARTMENT_OPTIONS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
             ))}
           </select>
         </div>
@@ -207,7 +243,7 @@ function ExpandedItems({ templateId }) {
           <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase text-slate-400 tracking-wide">
             <th className="text-left px-3 py-2 w-6">#</th>
             <th className="text-left px-3 py-2">Title</th>
-            <th className="text-left px-3 py-2 hidden sm:table-cell">Category</th>
+            <th className="text-left px-3 py-2 hidden sm:table-cell">Dept</th>
             <th className="text-left px-3 py-2 hidden sm:table-cell">Assigned to</th>
             <th className="text-left px-3 py-2 hidden md:table-cell">Due</th>
             <th className="text-left px-3 py-2">Required</th>
@@ -219,7 +255,7 @@ function ExpandedItems({ templateId }) {
               <td className="px-3 py-2 text-slate-400">{i + 1}</td>
               <td className="px-3 py-2 text-slate-700 font-medium">{item.title}</td>
               <td className="px-3 py-2 text-slate-500 capitalize hidden sm:table-cell">
-                {CATEGORY_OPTIONS.find((c) => c.value === item.category)?.label ?? item.category}
+                {CLEARANCE_DEPARTMENT_LABELS[inferDepartment(item)] ?? item.department}
               </td>
               <td className="px-3 py-2 text-slate-500 capitalize hidden sm:table-cell">
                 {ASSIGNEE_ROLE_OPTIONS.find((r) => r.value === item.default_assignee_role)?.label ??

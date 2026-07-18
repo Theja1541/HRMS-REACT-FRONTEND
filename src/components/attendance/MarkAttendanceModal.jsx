@@ -66,7 +66,9 @@ export default function MarkAttendanceModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-full">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">Mark Attendance</h3>
+            <h3 className="text-lg font-bold text-slate-800">
+              {existingRecord ? 'Edit Attendance' : 'Mark Attendance'}
+            </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               {employee.first_name} {employee.last_name} • {selectedDate}
             </p>

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Play, Check, Lock, Unlock, FileText, Mail, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { payrollApi, portalApi } from '../../api';
+import { payrollApi, portalApi, attendanceApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import ExportExcelButton from '../../components/shared/ExportExcelButton';
 import PayslipView from '../../components/payroll/PayslipView';
@@ -23,8 +23,18 @@ export default function PayslipsPage() {
   const now = new Date();
   const initialMonth = parseInt(searchParams.get('month'), 10);
   const initialYear = parseInt(searchParams.get('year'), 10);
-  const [month, setMonth] = useState(Number.isFinite(initialMonth) ? initialMonth : now.getMonth() + 1);
-  const [year, setYear] = useState(Number.isFinite(initialYear) ? initialYear : now.getFullYear());
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const [month, setMonth] = useState(() => {
+    const m = Number.isFinite(initialMonth) ? initialMonth : currentMonth;
+    const y = Number.isFinite(initialYear) ? initialYear : currentYear;
+    if (y > currentYear || (y === currentYear && m > currentMonth)) return currentMonth;
+    return m;
+  });
+  const [year, setYear] = useState(() => {
+    const y = Number.isFinite(initialYear) ? initialYear : currentYear;
+    return Math.min(y, currentYear);
+  });
   const [selectedPayslipId, setSelectedPayslipId] = useState(null);
   const [processMessage, setProcessMessage] = useState(null);
   const [emailAllMessage, setEmailAllMessage] = useState(null);
@@ -34,9 +44,16 @@ export default function PayslipsPage() {
   const [unlockMessage, setUnlockMessage] = useState(null);
 
   const yearOptions = useMemo(() => {
-    const current = now.getFullYear();
-    return Array.from({ length: 5 }, (_, i) => current - 2 + i);
-  }, []);
+    // Past 2 years through current year only — no future years for payroll runs.
+    return Array.from({ length: 3 }, (_, i) => currentYear - 2 + i);
+  }, [currentYear]);
+
+  const isFuturePeriod = useMemo(() => {
+    const nowDate = new Date();
+    const cm = nowDate.getMonth() + 1;
+    const cy = nowDate.getFullYear();
+    return year > cy || (year === cy && month > cm);
+  }, [month, year]);
 
   const { data: runsData } = useQuery({
     queryKey: ['payroll-runs'],
@@ -58,6 +75,14 @@ export default function PayslipsPage() {
     enabled: isAdmin && !isSelfService,
   });
 
+  const { data: finalizationData } = useQuery({
+    queryKey: ['attendance-finalization', month, year],
+    queryFn: () => attendanceApi.getFinalization({ month, year }),
+    enabled: isAdmin && !isSelfService,
+    staleTime: 30_000,
+  });
+  const attendanceFinalized = !!finalizationData?.data?.finalized;
+
   const { data: detailData } = useQuery({
     queryKey: ['payslip', selectedPayslipId, isSelfService],
     queryFn: () =>
@@ -76,28 +101,62 @@ export default function PayslipsPage() {
       queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
       queryClient.invalidateQueries({ queryKey: ['salaries-registry'] });
       const count = res?.data?.payslips?.length ?? res?.data?.run?.total_employees ?? 0;
-      const skipped = res?.data?.skipped?.length ?? 0;
-      setProcessMessage(
-        skipped > 0
-          ? `Payroll generated for ${count} employees. ${skipped} skipped (no salary for this period).`
-          : `Payroll generated for ${count} employees.`
-      );
+      const skippedRows = res?.data?.skipped || [];
+      const skipped = skippedRows.length;
+      if (skipped > 0) {
+        const noSalary = skippedRows.filter((s) => s.reason === 'no_salary_assigned').length;
+        const joinedAfter = skippedRows.filter((s) => s.reason === 'joined_after_period').length;
+        const notPayable = skippedRows.filter((s) => s.reason === 'not_payable_this_period').length;
+        const parts = [`Payroll generated for ${count} employees.`];
+        if (noSalary) parts.push(`${noSalary} skipped (no salary for this period).`);
+        if (joinedAfter) {
+          parts.push(
+            `${joinedAfter} skipped (joined after this payroll month — will appear from their joining month).`
+          );
+        }
+        if (notPayable) {
+          parts.push(
+            `${notPayable} skipped (salary assigned but no payable days in this period — check joining/exit/salary effective dates).`
+          );
+        }
+        if (!noSalary && !joinedAfter && !notPayable) parts.push(`${skipped} skipped.`);
+        setProcessMessage(parts.join(' '));
+      } else {
+        setProcessMessage(`Payroll generated for ${count} employees.`);
+      }
       const first = res?.data?.payslips?.[0];
       if (first?.id) setSelectedPayslipId(first.id);
+    },
+    onError: (err) => {
+      setPrecheckModal(null);
+      window.alert(err.response?.data?.error?.message || 'Failed to run payroll');
     },
   });
 
   const handleRunPayroll = async () => {
     if (!isAdmin || processMutation.isPending || precheckLoading) return;
+    if (isFuturePeriod) {
+      setProcessMessage(null);
+      window.alert('Cannot run payroll for a future month. Select the current month or an earlier period.');
+      return;
+    }
     setPrecheckLoading(true);
     try {
       const pre = await payrollApi.precheckRun({ month, year });
+      if (!pre?.data?.attendance_finalized) {
+        window.alert(
+          `Attendance for ${month}/${year} is not finalized. Finalize attendance on the Attendance → Monthly Register tab before running payroll.`
+        );
+        return;
+      }
       const incomplete = pre?.data?.incomplete || [];
       if (incomplete.length > 0) {
         setPrecheckModal({ incomplete });
         return;
       }
       processMutation.mutate(false);
+    } catch (err) {
+      window.alert(err.response?.data?.error?.message || 'Failed to run payroll precheck');
     } finally {
       setPrecheckLoading(false);
     }
@@ -214,9 +273,23 @@ export default function PayslipsPage() {
 
   const missingFromRun = useMemo(() => {
     if (!isAdmin || isSelfService) return [];
-    const payslipEmpIds = new Set(payslips.map((p) => p.employee_id));
+    const payslipEmpIds = new Set(payslips.map((p) => Number(p.employee_id)));
     const salaried = (salariesData?.data?.employees || []).filter((e) => e.salary);
-    return salaried.filter((e) => !payslipEmpIds.has(e.id));
+    // Only flag people who are actually payable this month but missing from the draft
+    return salaried.filter(
+      (e) => e.payable_in_period !== false && !payslipEmpIds.has(Number(e.id))
+    );
+  }, [payslips, salariesData, isAdmin, isSelfService]);
+
+  const notPayableThisPeriod = useMemo(() => {
+    if (!isAdmin || isSelfService) return [];
+    const payslipEmpIds = new Set(payslips.map((p) => Number(p.employee_id)));
+    return (salariesData?.data?.employees || []).filter(
+      (e) =>
+        e.salary &&
+        e.payable_in_period === false &&
+        !payslipEmpIds.has(Number(e.id))
+    );
   }, [payslips, salariesData, isAdmin, isSelfService]);
 
   return (
@@ -230,7 +303,13 @@ export default function PayslipsPage() {
               <button
                 type="button"
                 onClick={handleRunPayroll}
-                disabled={processMutation.isPending || precheckLoading || currentRun?.status === 'locked'}
+                disabled={
+                  processMutation.isPending ||
+                  precheckLoading ||
+                  currentRun?.status === 'locked' ||
+                  isFuturePeriod
+                }
+                title={isFuturePeriod ? 'Cannot run payroll for a future month' : undefined}
                 className="btn-primary"
               >
                 <Play size={14} /> {processMutation.isPending || precheckLoading ? 'Processing…' : 'Run Payroll'}
@@ -288,11 +367,40 @@ export default function PayslipsPage() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <select value={month} onChange={(e) => { setMonth(parseInt(e.target.value, 10)); setProcessMessage(null); setUnlockMessage(null); setSelectedPayslipId(null); }} className="text-sm border border-slate-200 rounded-lg px-3 py-2">
-          {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+          {MONTHS.map((m, i) => {
+            const optionMonth = i + 1;
+            const disabledFuture =
+              year > now.getFullYear() ||
+              (year === now.getFullYear() && optionMonth > now.getMonth() + 1);
+            return (
+              <option key={m} value={optionMonth} disabled={disabledFuture}>
+                {m}{disabledFuture ? ' (future)' : ''}
+              </option>
+            );
+          })}
         </select>
-        <select value={year} onChange={(e) => { setYear(parseInt(e.target.value, 10)); setProcessMessage(null); setUnlockMessage(null); setSelectedPayslipId(null); }} className="text-sm border border-slate-200 rounded-lg px-3 py-2">
+        <select
+          value={year}
+          onChange={(e) => {
+            const nextYear = parseInt(e.target.value, 10);
+            const nowDate = new Date();
+            const cm = nowDate.getMonth() + 1;
+            const cy = nowDate.getFullYear();
+            setYear(nextYear);
+            if (nextYear === cy && month > cm) setMonth(cm);
+            setProcessMessage(null);
+            setUnlockMessage(null);
+            setSelectedPayslipId(null);
+          }}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2"
+        >
           {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
+        {isFuturePeriod && isAdmin && !isSelfService && (
+          <span className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5">
+            Future month selected — payroll cannot be run for this period.
+          </span>
+        )}
         <ExportExcelButton
           label="Export Payslips"
           disabled={payslips.length === 0 || isLoading}
@@ -342,15 +450,66 @@ export default function PayslipsPage() {
       )}
 
       {isAdmin && !isSelfService && missingFromRun.length > 0 && (
-        <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
+        <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 space-y-2">
           <p className="font-medium">
             {missingFromRun.length} employee{missingFromRun.length > 1 ? 's' : ''} with assigned salary not in this run
           </p>
-          <p className="text-xs mt-1 text-amber-700">
+          <p className="text-xs text-amber-700">
             {missingFromRun.map((e) => `${e.first_name} ${e.last_name} (${e.emp_code})`).join(', ')}
-            {' — '}
-            Salary is assigned for {MONTHS[month - 1]} {year} but they were not included when this draft was last generated.
-            Click <strong>Run Payroll</strong> to refresh the run and add them.
+          </p>
+          <p className="text-xs text-amber-800">
+            These employees are payable for {MONTHS[month - 1]} {year} but are missing from the current draft.
+            {!attendanceFinalized ? (
+              <>
+                {' '}
+                First <strong>finalize attendance</strong> for {MONTHS[month - 1]} {year} on{' '}
+                <Link to="/attendance?tab=monthly" className="underline font-semibold">
+                  Attendance → Monthly Register
+                </Link>
+                , then click <strong>Run Payroll</strong> to regenerate.
+              </>
+            ) : (
+              <>
+                {' '}
+                Click <strong>Run Payroll</strong> to regenerate this draft and include them
+                {currentRun?.status && currentRun.status !== 'draft'
+                  ? ' (unlock the run first if it is approved/locked)'
+                  : ''}
+                .
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {isAdmin && !isSelfService && notPayableThisPeriod.length > 0 && (
+        <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-2">
+          <p className="font-medium">
+            {notPayableThisPeriod.length} employee{notPayableThisPeriod.length > 1 ? 's' : ''} have salary
+            but are not payable in {MONTHS[month - 1]} {year}
+          </p>
+          <ul className="text-xs text-slate-600 space-y-1">
+            {notPayableThisPeriod.map((e) => {
+              const doj = e.date_of_joining ? String(e.date_of_joining).slice(0, 10) : null;
+              const reason =
+                e.not_payable_reason === 'joined_after_period'
+                  ? `joined ${doj} — after this payroll month`
+                  : `no payable days in this month (joining/exit/salary effective window)`;
+              return (
+                <li key={e.id}>
+                  <span className="font-medium text-slate-800">
+                    {e.first_name} {e.last_name}
+                  </span>{' '}
+                  <span className="font-mono text-slate-400">({e.emp_code})</span>
+                  {' — '}
+                  {reason}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-slate-500">
+            They will appear automatically in the payroll month that covers their joining / salary effective date
+            (e.g. July 2026). No need to re-run this month for them.
           </p>
         </div>
       )}

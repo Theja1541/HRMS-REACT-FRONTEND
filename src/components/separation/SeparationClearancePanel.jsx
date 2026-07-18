@@ -1,20 +1,42 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { Check, MessageSquare, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  History,
+  MessageSquare,
+  Paperclip,
+  RotateCcw,
+  Upload,
+  X,
+} from 'lucide-react';
 import { hrApi } from '../../api';
 import {
-  CLEARANCE_CATEGORY_LABELS,
-  CLEARANCE_ITEM_STATUSES,
+  CLEARANCE_DEPARTMENT_LABELS,
+  CLEARANCE_DEPARTMENTS,
+  CLEARANCE_HISTORY_ACTION_LABELS,
   CLEARANCE_ITEM_STATUS_LABELS,
+  CLEARANCE_ITEM_STATUSES,
   CLEARANCE_STATUSES,
 } from '../../constants/hr';
 import { useAuthStore } from '../../store/auth.store';
 import { cn } from '../../utils/helpers';
+import { resolvePortalRole } from '../../utils/portalContext';
 
 const TERMINAL_ITEM_STATUSES = ['completed', 'waived', 'not_applicable'];
 const LOCKED_CLEARANCE_STATUSES = ['completed', 'cancelled'];
-const HR_ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
+const HR_ADMIN_ROLES = ['super_admin', 'owner', 'hr', 'admin'];
+
+function formatDate(value) {
+  if (!value) return '—';
+  try {
+    return format(parseISO(value), 'dd MMM yyyy');
+  } catch {
+    return value;
+  }
+}
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -31,29 +53,15 @@ function formatPerson(user) {
   return name || user.emp_code || '—';
 }
 
-function formatCategory(category) {
-  return CLEARANCE_CATEGORY_LABELS[category] || category || '—';
-}
-
-function formatItemRemarks(item) {
-  const text = item.remarks?.trim() || item.waiver_reason?.trim();
-  return text || '—';
-}
-
 function apiErrorMessage(err, fallback) {
   return err?.response?.data?.error?.message || fallback;
 }
 
-function canActOnItem(item, clearance) {
-  return (
-    clearance &&
-    !LOCKED_CLEARANCE_STATUSES.includes(clearance.status) &&
-    !TERMINAL_ITEM_STATUSES.includes(item.status)
-  );
-}
-
-function canEditRemarks(clearance) {
-  return clearance && !LOCKED_CLEARANCE_STATUSES.includes(clearance.status);
+function canActOnItem(item, clearance, user, role) {
+  if (!clearance || LOCKED_CLEARANCE_STATUSES.includes(clearance.status)) return false;
+  if (TERMINAL_ITEM_STATUSES.includes(item.status)) return false;
+  if (HR_ADMIN_ROLES.includes(role || user?.role)) return true;
+  return item.assigned_to === user?.id;
 }
 
 function ActionModal({ title, subtitle, children, onClose, isPending }) {
@@ -71,17 +79,50 @@ function ActionModal({ title, subtitle, children, onClose, isPending }) {
   );
 }
 
+function DeptProgressPills({ departmentProgress }) {
+  if (!departmentProgress) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {CLEARANCE_DEPARTMENTS.map((dept) => {
+        const stats = departmentProgress[dept] || { total: 0, completed: 0, pending: 0, rejected: 0 };
+        if (!stats.total) return null;
+        const done = stats.completed === stats.total && stats.rejected === 0;
+        return (
+          <span
+            key={dept}
+            className={cn(
+              'text-[10px] font-semibold px-2 py-1 rounded-full',
+              done
+                ? 'bg-emerald-50 text-emerald-700'
+                : stats.rejected
+                  ? 'bg-red-50 text-red-700'
+                  : 'bg-slate-100 text-slate-600'
+            )}
+          >
+            {CLEARANCE_DEPARTMENT_LABELS[dept]} {stats.completed}/{stats.total}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SeparationClearancePanel({ separationRequestId, enabled = true }) {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const canManage = HR_ADMIN_ROLES.includes(user?.role);
+  const { user, workspace, roles, selectedRole, accessToken } = useAuthStore();
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
+  const isHr = HR_ADMIN_ROLES.includes(role);
 
+  const [expandedDepts, setExpandedDepts] = useState(() => new Set(CLEARANCE_DEPARTMENTS));
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [remarksTarget, setRemarksTarget] = useState(null);
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
   const [approveRemarks, setApproveRemarks] = useState('');
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [remarksText, setRemarksText] = useState('');
+  const [assignForm, setAssignForm] = useState({ assigned_to: '', due_date: '' });
   const [modalError, setModalError] = useState('');
 
   const { data: clearanceData, isLoading: clearanceLoading } = useQuery({
@@ -99,11 +140,24 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
     enabled: enabled && !!clearance?.id,
   });
 
+  const { data: empData } = useQuery({
+    queryKey: ['separation-eligible-employees'],
+    queryFn: () => hrApi.listSeparationEligibleEmployees({ limit: 500 }),
+    enabled: enabled && isHr,
+  });
+
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['clearance-item-history', clearance?.id, historyTarget?.id],
+    queryFn: () => hrApi.getSeparationClearanceItemHistory(clearance.id, historyTarget.id),
+    enabled: !!clearance?.id && !!historyTarget?.id,
+  });
+
   const invalidateClearance = () => {
     if (clearance?.id) {
       queryClient.invalidateQueries({ queryKey: ['separation-clearance-items', clearance.id] });
     }
     queryClient.invalidateQueries({ queryKey: ['separation-clearance', separationRequestId] });
+    queryClient.invalidateQueries({ queryKey: ['separation-clearances'] });
   };
 
   const approveMutation = useMutation({
@@ -111,9 +165,11 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
       hrApi.approveSeparationClearanceItem(clearance.id, itemId, remarks ? { remarks } : {}),
     onSuccess: () => {
       invalidateClearance();
-      closeApproveModal();
+      setApproveTarget(null);
+      setApproveRemarks('');
+      setModalError('');
     },
-    onError: (err) => setModalError(apiErrorMessage(err, 'Failed to approve clearance item')),
+    onError: (err) => setModalError(apiErrorMessage(err, 'Failed to approve')),
   });
 
   const rejectMutation = useMutation({
@@ -121,9 +177,11 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
       hrApi.rejectSeparationClearanceItem(clearance.id, itemId, { remarks }),
     onSuccess: () => {
       invalidateClearance();
-      closeRejectModal();
+      setRejectTarget(null);
+      setRejectRemarks('');
+      setModalError('');
     },
-    onError: (err) => setModalError(apiErrorMessage(err, 'Failed to reject clearance item')),
+    onError: (err) => setModalError(apiErrorMessage(err, 'Failed to reject')),
   });
 
   const remarksMutation = useMutation({
@@ -131,51 +189,74 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
       hrApi.updateSeparationClearanceItemRemarks(clearance.id, itemId, { remarks }),
     onSuccess: () => {
       invalidateClearance();
-      closeRemarksModal();
+      setRemarksTarget(null);
+      setRemarksText('');
+      setModalError('');
     },
     onError: (err) => setModalError(apiErrorMessage(err, 'Failed to update remarks')),
   });
 
+  const assignMutation = useMutation({
+    mutationFn: ({ itemId, ...payload }) =>
+      hrApi.updateSeparationClearanceItemAssignment(clearance.id, itemId, payload),
+    onSuccess: () => {
+      invalidateClearance();
+      setAssignTarget(null);
+      setModalError('');
+    },
+    onError: (err) => setModalError(apiErrorMessage(err, 'Failed to update assignment')),
+  });
+
+  const reattemptMutation = useMutation({
+    mutationFn: (itemId) => hrApi.reattemptSeparationClearanceItem(clearance.id, itemId, {}),
+    onSuccess: invalidateClearance,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: ({ itemId, file }) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      return hrApi.uploadSeparationClearanceAttachment(clearance.id, itemId, fd);
+    },
+    onSuccess: invalidateClearance,
+    onError: (err) => window.alert(apiErrorMessage(err, 'Upload failed')),
+  });
+
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: ({ itemId, attachmentId }) =>
+      hrApi.deleteSeparationClearanceAttachment(clearance.id, itemId, attachmentId),
+    onSuccess: invalidateClearance,
+  });
+
   const actionPending =
-    approveMutation.isPending || rejectMutation.isPending || remarksMutation.isPending;
+    approveMutation.isPending ||
+    rejectMutation.isPending ||
+    remarksMutation.isPending ||
+    assignMutation.isPending;
 
-  const closeApproveModal = () => {
-    if (actionPending) return;
-    setApproveTarget(null);
-    setApproveRemarks('');
-    setModalError('');
-  };
+  const progress = itemsData?.data?.progress || clearance?.progress || {};
+  const departmentProgress = itemsData?.data?.department_progress || {};
+  const items = itemsData?.data?.items || [];
+  const employees = empData?.data?.employees || [];
+  const pct = progress.completion_percentage ?? 0;
 
-  const closeRejectModal = () => {
-    if (actionPending) return;
-    setRejectTarget(null);
-    setRejectRemarks('');
-    setModalError('');
-  };
+  const itemsByDept = useMemo(() => {
+    const map = {};
+    for (const dept of CLEARANCE_DEPARTMENTS) map[dept] = [];
+    for (const item of items) {
+      const dept = CLEARANCE_DEPARTMENTS.includes(item.department) ? item.department : 'hr';
+      map[dept].push(item);
+    }
+    return map;
+  }, [items]);
 
-  const closeRemarksModal = () => {
-    if (actionPending) return;
-    setRemarksTarget(null);
-    setRemarksText('');
-    setModalError('');
-  };
-
-  const openApprove = (item) => {
-    setApproveTarget(item);
-    setApproveRemarks('');
-    setModalError('');
-  };
-
-  const openReject = (item) => {
-    setRejectTarget(item);
-    setRejectRemarks('');
-    setModalError('');
-  };
-
-  const openRemarks = (item) => {
-    setRemarksTarget(item);
-    setRemarksText(item.remarks?.trim() || '');
-    setModalError('');
+  const toggleDept = (dept) => {
+    setExpandedDepts((prev) => {
+      const next = new Set(prev);
+      if (next.has(dept)) next.delete(dept);
+      else next.add(dept);
+      return next;
+    });
   };
 
   if (clearanceLoading) {
@@ -187,15 +268,11 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
         <p className="text-sm font-medium text-slate-700">Clearance not started</p>
         <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-          Approve the separation request to auto-create the exit clearance checklist.
+          Approve the separation request to auto-create the department-wise exit clearance checklist.
         </p>
       </div>
     );
   }
-
-  const progress = itemsData?.data?.progress || clearance.progress || {};
-  const items = itemsData?.data?.items || [];
-  const pct = progress.completion_percentage ?? 0;
 
   return (
     <div className="space-y-4">
@@ -210,11 +287,14 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
           >
             {clearance.status?.replace(/_/g, ' ')}
           </span>
+          <p className="text-[10px] text-slate-400 mt-2">
+            Separation cannot complete until all mandatory department clearances are approved.
+          </p>
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-brand-600">{pct}%</p>
           <p className="text-[10px] text-slate-400">
-            {progress.completed_tasks ?? 0}/{progress.total_tasks ?? 0} tasks done
+            {progress.completed_tasks ?? 0}/{progress.total_tasks ?? 0} approved
           </p>
         </div>
       </div>
@@ -223,246 +303,445 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div className="h-full bg-brand-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <div className="flex flex-wrap gap-4 mt-2 text-[10px] text-slate-500">
-          <span>{progress.pending_tasks ?? 0} pending</span>
-          <span>{progress.rejected_tasks ?? 0} rejected</span>
+        <div className="mt-3">
+          <DeptProgressPills departmentProgress={departmentProgress} />
         </div>
       </div>
 
       {itemsLoading ? (
-        <p className="text-center text-slate-400 py-8 text-sm">Loading tasks…</p>
+        <p className="text-center text-slate-400 py-8 text-sm">Loading department tasks…</p>
       ) : items.length === 0 ? (
         <p className="text-center text-slate-400 py-8 text-sm">No clearance tasks</p>
       ) : (
-        <div className="overflow-x-auto overscroll-x-contain border border-slate-200 rounded-xl">
-          <table className="w-full text-xs min-w-[820px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold">Task</th>
-                <th className="text-left px-4 py-3 font-semibold">Department</th>
-                <th className="text-left px-4 py-3 font-semibold">Status</th>
-                <th className="text-left px-4 py-3 font-semibold">Approved By</th>
-                <th className="text-left px-4 py-3 font-semibold">Approved At</th>
-                <th className="text-left px-4 py-3 font-semibold">Remarks</th>
-                {canManage && <th className="px-4 py-3 font-semibold text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {items.map((item) => {
-                const actionable = canActOnItem(item, clearance);
-                const remarksEditable = canEditRemarks(clearance);
+        <div className="space-y-3">
+          {CLEARANCE_DEPARTMENTS.map((dept) => {
+            const deptItems = itemsByDept[dept] || [];
+            if (!deptItems.length) return null;
+            const expanded = expandedDepts.has(dept);
+            const stats = departmentProgress[dept] || {};
 
-                return (
-                  <tr key={item.id} className="hover:bg-slate-50 align-top">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-800">{item.title}</p>
-                      {item.description && (
-                        <p className="text-slate-400 mt-0.5 line-clamp-2">{item.description}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{formatCategory(item.category)}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                          CLEARANCE_ITEM_STATUSES[item.status]
-                        )}
-                      >
-                        {CLEARANCE_ITEM_STATUS_LABELS[item.status] || item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{formatPerson(item.approver)}</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {formatDateTime(item.approved_at)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 max-w-[220px]">
-                      <p className="whitespace-pre-wrap break-words">{formatItemRemarks(item)}</p>
-                    </td>
-                    {canManage && (
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1 flex-wrap">
-                          {actionable && (
-                            <>
+            return (
+              <div key={dept} className="border border-slate-200 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleDept(dept)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <span className="text-xs font-semibold text-slate-800">
+                      {CLEARANCE_DEPARTMENT_LABELS[dept]}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {stats.completed || 0}/{stats.total || deptItems.length} approved
+                      {stats.rejected ? ` · ${stats.rejected} rejected` : ''}
+                    </span>
+                  </div>
+                </button>
+
+                {expanded && (
+                  <ul className="divide-y divide-slate-100">
+                    {deptItems.map((item) => {
+                      const actionable = canActOnItem(item, clearance, user, role);
+                      const overdue =
+                        item.due_date &&
+                        !TERMINAL_ITEM_STATUSES.includes(item.status) &&
+                        item.due_date < new Date().toISOString().slice(0, 10);
+
+                      return (
+                        <li key={item.id} className="p-4 space-y-2">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-xs font-medium text-slate-800">{item.title}</p>
+                                {item.is_mandatory && (
+                                  <span className="text-[9px] font-semibold uppercase text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+                                    Mandatory
+                                  </span>
+                                )}
+                                {item.escalated_at && (
+                                  <span className="text-[9px] font-semibold uppercase text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
+                                    Escalated
+                                  </span>
+                                )}
+                                {item.sla_breached_at && (
+                                  <span className="text-[9px] font-semibold uppercase text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+                                    SLA breached
+                                  </span>
+                                )}
+                                <span
+                                  className={cn(
+                                    'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                                    CLEARANCE_ITEM_STATUSES[item.status]
+                                  )}
+                                >
+                                  {CLEARANCE_ITEM_STATUS_LABELS[item.status] || item.status}
+                                </span>
+                              </div>
+                              {item.description && (
+                                <p className="text-[11px] text-slate-500 mt-0.5">{item.description}</p>
+                              )}
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                Assignee: {formatPerson(item.assignee)} · Due:{' '}
+                                <span className={overdue ? 'text-red-600 font-semibold' : ''}>
+                                  {formatDate(item.due_date)}
+                                </span>
+                                {item.approver && (
+                                  <> · Approved by {formatPerson(item.approver)}</>
+                                )}
+                              </p>
+                              {(item.remarks || item.waiver_reason) && (
+                                <p className="text-[11px] text-slate-600 mt-1 bg-slate-50 rounded-lg px-2 py-1.5">
+                                  {item.remarks || item.waiver_reason}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              {actionable && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={actionPending}
+                                    onClick={() => {
+                                      setApproveTarget(item);
+                                      setApproveRemarks('');
+                                      setModalError('');
+                                    }}
+                                    className="btn-secondary text-[10px] py-1 text-emerald-700 border-emerald-200"
+                                  >
+                                    <Check size={12} /> Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={actionPending}
+                                    onClick={() => {
+                                      setRejectTarget(item);
+                                      setRejectRemarks('');
+                                      setModalError('');
+                                    }}
+                                    className="btn-secondary text-[10px] py-1 text-red-600 border-red-200"
+                                  >
+                                    <X size={12} /> Reject
+                                  </button>
+                                </>
+                              )}
+                              {isHr && item.status === 'waived' && (
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-[10px] py-1"
+                                  onClick={() => reattemptMutation.mutate(item.id)}
+                                >
+                                  <RotateCcw size={12} /> Re-open
+                                </button>
+                              )}
+                              {!LOCKED_CLEARANCE_STATUSES.includes(clearance.status) &&
+                                (isHr || item.assigned_to === user?.id) && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary text-[10px] py-1"
+                                      onClick={() => {
+                                        setRemarksTarget(item);
+                                        setRemarksText(item.remarks || '');
+                                        setModalError('');
+                                      }}
+                                    >
+                                      <MessageSquare size={12} /> Remarks
+                                    </button>
+                                    <label className="btn-secondary text-[10px] py-1 cursor-pointer inline-flex items-center gap-1">
+                                      <Upload size={12} /> Attach
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) uploadMutation.mutate({ itemId: item.id, file });
+                                          e.target.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </>
+                                )}
+                              {isHr && !LOCKED_CLEARANCE_STATUSES.includes(clearance.status) && (
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-[10px] py-1"
+                                  onClick={() => {
+                                    setAssignTarget(item);
+                                    setAssignForm({
+                                      assigned_to: item.assigned_to ? String(item.assigned_to) : '',
+                                      due_date: item.due_date || '',
+                                    });
+                                    setModalError('');
+                                  }}
+                                >
+                                  Assign / Due
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                disabled={actionPending}
-                                onClick={() => openApprove(item)}
-                                className="btn-secondary text-[10px] py-1 inline-flex items-center gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                                title="Approve clearance item"
+                                className="btn-secondary text-[10px] py-1"
+                                onClick={() => setHistoryTarget(item)}
                               >
-                                <Check size={12} /> Approve
+                                <History size={12} /> History
                               </button>
-                              <button
-                                type="button"
-                                disabled={actionPending}
-                                onClick={() => openReject(item)}
-                                className="btn-secondary text-[10px] py-1 inline-flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                                title="Reject clearance item"
-                              >
-                                <X size={12} /> Reject
-                              </button>
-                            </>
+                            </div>
+                          </div>
+
+                          {item.attachments?.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {item.attachments.map((att) => (
+                                <span
+                                  key={att.id}
+                                  className="inline-flex items-center gap-1 text-[10px] bg-slate-50 border border-slate-100 rounded-lg px-2 py-1"
+                                >
+                                  <Paperclip size={10} className="text-slate-400" />
+                                  <a
+                                    href={att.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-brand-600 hover:underline truncate max-w-[140px]"
+                                  >
+                                    {att.file_name}
+                                  </a>
+                                  {(isHr || att.uploaded_by === user?.id) &&
+                                    !LOCKED_CLEARANCE_STATUSES.includes(clearance.status) && (
+                                      <button
+                                        type="button"
+                                        className="text-red-500"
+                                        onClick={() =>
+                                          deleteAttachmentMutation.mutate({
+                                            itemId: item.id,
+                                            attachmentId: att.id,
+                                          })
+                                        }
+                                      >
+                                        <X size={10} />
+                                      </button>
+                                    )}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                          {remarksEditable && (
-                            <button
-                              type="button"
-                              disabled={actionPending}
-                              onClick={() => openRemarks(item)}
-                              className="btn-secondary text-[10px] py-1 inline-flex items-center gap-1"
-                              title="Add or edit remarks"
-                            >
-                              <MessageSquare size={12} /> Remarks
-                            </button>
-                          )}
-                          {!actionable && !remarksEditable && (
-                            <span className="text-slate-300 text-[10px]">—</span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {approveTarget && (
         <ActionModal
-          title="Approve Clearance Item"
+          title="Approve clearance"
           subtitle={approveTarget.title}
-          onClose={closeApproveModal}
-          isPending={approveMutation.isPending}
+          onClose={() => !actionPending && setApproveTarget(null)}
+          isPending={actionPending}
         >
-          <form
-            className="p-6 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setModalError('');
-              approveMutation.mutate({
-                itemId: approveTarget.id,
-                remarks: approveRemarks.trim() || undefined,
-              });
-            }}
-          >
-            <div>
-              <label className="text-xs font-medium text-slate-600">Remarks (optional)</label>
-              <textarea
-                rows={3}
-                value={approveRemarks}
-                onChange={(e) => setApproveRemarks(e.target.value)}
-                placeholder="Add approval notes…"
-                maxLength={2000}
-                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-              />
-            </div>
-            {modalError && <p className="text-sm text-red-600">{modalError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={closeApproveModal} disabled={approveMutation.isPending} className="btn-secondary text-xs">
+          <div className="p-5 space-y-3">
+            <textarea
+              className="input text-xs min-h-[80px]"
+              placeholder="Remarks (optional)"
+              value={approveRemarks}
+              onChange={(e) => setApproveRemarks(e.target.value)}
+            />
+            {modalError && <p className="text-xs text-red-600">{modalError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-xs" onClick={() => setApproveTarget(null)}>
                 Cancel
               </button>
-              <button type="submit" disabled={approveMutation.isPending} className="btn-primary text-xs">
-                {approveMutation.isPending ? 'Approving…' : 'Approve'}
+              <button
+                type="button"
+                className="btn-primary text-xs"
+                disabled={actionPending}
+                onClick={() =>
+                  approveMutation.mutate({
+                    itemId: approveTarget.id,
+                    remarks: approveRemarks.trim() || undefined,
+                  })
+                }
+              >
+                Approve
               </button>
             </div>
-          </form>
+          </div>
         </ActionModal>
       )}
 
       {rejectTarget && (
         <ActionModal
-          title="Reject Clearance Item"
+          title="Reject clearance"
           subtitle={rejectTarget.title}
-          onClose={closeRejectModal}
-          isPending={rejectMutation.isPending}
+          onClose={() => !actionPending && setRejectTarget(null)}
+          isPending={actionPending}
         >
-          <form
-            className="p-6 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setModalError('');
-              const trimmed = rejectRemarks.trim();
-              if (trimmed.length < 3) {
-                setModalError('Rejection remarks must be at least 3 characters');
-                return;
-              }
-              rejectMutation.mutate({ itemId: rejectTarget.id, remarks: trimmed });
-            }}
-          >
-            <div>
-              <label className="text-xs font-medium text-slate-600">Rejection remarks *</label>
-              <textarea
-                rows={3}
-                required
-                value={rejectRemarks}
-                onChange={(e) => setRejectRemarks(e.target.value)}
-                placeholder="Explain why this clearance item is rejected…"
-                maxLength={2000}
-                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">Minimum 3 characters</p>
-            </div>
-            {modalError && <p className="text-sm text-red-600">{modalError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={closeRejectModal} disabled={rejectMutation.isPending} className="btn-secondary text-xs">
+          <div className="p-5 space-y-3">
+            <textarea
+              className="input text-xs min-h-[80px]"
+              placeholder="Rejection reason (required)"
+              value={rejectRemarks}
+              onChange={(e) => setRejectRemarks(e.target.value)}
+            />
+            {modalError && <p className="text-xs text-red-600">{modalError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-xs" onClick={() => setRejectTarget(null)}>
                 Cancel
               </button>
               <button
-                type="submit"
-                disabled={rejectMutation.isPending}
-                className="btn-primary text-xs bg-red-600 hover:bg-red-700 border-red-600"
+                type="button"
+                className="btn-primary text-xs bg-red-600 border-red-600"
+                disabled={actionPending || rejectRemarks.trim().length < 3}
+                onClick={() =>
+                  rejectMutation.mutate({ itemId: rejectTarget.id, remarks: rejectRemarks.trim() })
+                }
               >
-                {rejectMutation.isPending ? 'Rejecting…' : 'Reject'}
+                Reject
               </button>
             </div>
-          </form>
+          </div>
         </ActionModal>
       )}
 
       {remarksTarget && (
         <ActionModal
-          title="Update Remarks"
+          title="Update remarks"
           subtitle={remarksTarget.title}
-          onClose={closeRemarksModal}
-          isPending={remarksMutation.isPending}
+          onClose={() => !actionPending && setRemarksTarget(null)}
+          isPending={actionPending}
         >
-          <form
-            className="p-6 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setModalError('');
-              const trimmed = remarksText.trim();
-              if (!trimmed) {
-                setModalError('Remarks cannot be empty');
-                return;
-              }
-              remarksMutation.mutate({ itemId: remarksTarget.id, remarks: trimmed });
-            }}
-          >
-            <div>
-              <label className="text-xs font-medium text-slate-600">Remarks *</label>
-              <textarea
-                rows={3}
-                required
-                value={remarksText}
-                onChange={(e) => setRemarksText(e.target.value)}
-                placeholder="Add notes for this clearance item…"
-                maxLength={2000}
-                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-              />
-            </div>
-            {modalError && <p className="text-sm text-red-600">{modalError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={closeRemarksModal} disabled={remarksMutation.isPending} className="btn-secondary text-xs">
+          <div className="p-5 space-y-3">
+            <textarea
+              className="input text-xs min-h-[80px]"
+              value={remarksText}
+              onChange={(e) => setRemarksText(e.target.value)}
+            />
+            {modalError && <p className="text-xs text-red-600">{modalError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-xs" onClick={() => setRemarksTarget(null)}>
                 Cancel
               </button>
-              <button type="submit" disabled={remarksMutation.isPending} className="btn-primary text-xs">
-                {remarksMutation.isPending ? 'Saving…' : 'Save Remarks'}
+              <button
+                type="button"
+                className="btn-primary text-xs"
+                disabled={actionPending || !remarksText.trim()}
+                onClick={() =>
+                  remarksMutation.mutate({ itemId: remarksTarget.id, remarks: remarksText.trim() })
+                }
+              >
+                Save
               </button>
             </div>
-          </form>
+          </div>
         </ActionModal>
+      )}
+
+      {assignTarget && (
+        <ActionModal
+          title="Assignee & due date"
+          subtitle={assignTarget.title}
+          onClose={() => !actionPending && setAssignTarget(null)}
+          isPending={actionPending}
+        >
+          <div className="p-5 space-y-3">
+            <div>
+              <label className="text-[10px] uppercase text-slate-400 font-semibold">Assignee</label>
+              <select
+                className="input text-xs mt-1"
+                value={assignForm.assigned_to}
+                onChange={(e) => setAssignForm((f) => ({ ...f, assigned_to: e.target.value }))}
+              >
+                <option value="">Unassigned</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.first_name} {e.last_name} ({e.emp_code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-slate-400 font-semibold">Due date</label>
+              <input
+                type="date"
+                className="input text-xs mt-1"
+                value={assignForm.due_date}
+                onChange={(e) => setAssignForm((f) => ({ ...f, due_date: e.target.value }))}
+              />
+            </div>
+            {modalError && <p className="text-xs text-red-600">{modalError}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-xs" onClick={() => setAssignTarget(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary text-xs"
+                disabled={actionPending}
+                onClick={() =>
+                  assignMutation.mutate({
+                    itemId: assignTarget.id,
+                    assigned_to: assignForm.assigned_to ? Number(assignForm.assigned_to) : null,
+                    due_date: assignForm.due_date || null,
+                  })
+                }
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </ActionModal>
+      )}
+
+      {historyTarget && (
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setHistoryTarget(null)}
+            aria-label="Close"
+          />
+          <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">Approval history</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{historyTarget.title}</p>
+              </div>
+              <button type="button" onClick={() => setHistoryTarget(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {historyLoading ? (
+                <p className="text-xs text-slate-400">Loading…</p>
+              ) : (historyData?.data?.history || historyTarget.approvalHistory || []).length === 0 ? (
+                <p className="text-xs text-slate-400">No history yet</p>
+              ) : (
+                <ul className="space-y-3">
+                  {(historyData?.data?.history || historyTarget.approvalHistory || []).map((h) => (
+                    <li key={h.id} className="text-xs border-l-2 border-slate-200 pl-3">
+                      <p className="font-semibold text-slate-800">
+                        {CLEARANCE_HISTORY_ACTION_LABELS[h.action] || h.action}
+                      </p>
+                      <p className="text-slate-500 mt-0.5">
+                        {formatPerson(h.actor)} · {formatDateTime(h.created_at)}
+                      </p>
+                      {(h.from_status || h.to_status) && (
+                        <p className="text-slate-400 mt-0.5">
+                          {h.from_status || '—'} → {h.to_status || '—'}
+                        </p>
+                      )}
+                      {h.remarks && <p className="text-slate-600 mt-1">{h.remarks}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

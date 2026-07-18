@@ -35,7 +35,9 @@ export function mapEmployeeToForm(employee, salary = null) {
     employment_type: employee.employment_type || 'full_time',
     reporting_to: employee.reporting_to ? String(employee.reporting_to) : '',
     attendance_policy_id: employee.attendance_policy_id ? String(employee.attendance_policy_id) : '',
-    work_from_home: Boolean(employee.work_from_home),
+    work_mode:
+      employee.work_mode ||
+      (employee.work_from_home ? 'remote' : 'office'),
     uan_number: employee.uan_number || '',
     bank_name: employee.bank_name || '',
     account_number: employee.account_number || '',
@@ -47,6 +49,13 @@ export function mapEmployeeToForm(employee, salary = null) {
     esic_number: employee.esic_number || '',
     notes: employee.notes || '',
     status: employee.status || 'probation',
+    has_probation: (() => {
+      const v = employee.has_probation;
+      if (v === true || v === 1 || v === '1' || v === 'true') return true;
+      if (v === false || v === 0 || v === '0' || v === 'false') return false;
+      return employee.status === 'probation';
+    })(),
+    probation_duration_months: employee.probation_duration_months || 6,
     emergency_contacts: contacts,
     salary_structure: salary
       ? mapSalaryRecordToStructure(salary)

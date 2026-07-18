@@ -732,18 +732,30 @@ export default function ShiftRosterPanel() {
                   {days.map((day) => {
                     const meta = dateMetaMap[day.date];
                     const col = getCalendarColumnClasses(meta?.day_type);
+                    const notEmployed = day.day_type === 'not_employed';
                     const cellSelected =
-                      selectedEmployees.includes(employee.id) && selectedDates.includes(day.date);
+                      !notEmployed &&
+                      selectedEmployees.includes(employee.id) &&
+                      selectedDates.includes(day.date);
                     return (
                       <td
                         key={day.date}
                         className={cn(
                           'px-0.5 py-1 text-center align-top',
                           col.cell,
-                          cellSelected && 'ring-2 ring-inset ring-indigo-300'
+                          cellSelected && 'ring-2 ring-inset ring-indigo-300',
+                          notEmployed && 'opacity-40'
                         )}
-                        title={columnTitle(meta)}
+                        title={
+                          notEmployed
+                            ? 'Not employed on this date'
+                            : columnTitle(meta)
+                        }
                       >
+                        {notEmployed ? (
+                          <div className="w-10 h-7 text-[9px] text-slate-400 flex items-center justify-center">—</div>
+                        ) : (
+                          <>
                         <select
                           className="w-10 h-7 text-[9px] border-0 bg-transparent text-center cursor-pointer appearance-none"
                           value={day.is_week_off ? 'off' : day.shift_id || ''}
@@ -759,6 +771,8 @@ export default function ShiftRosterPanel() {
                         <div className="flex justify-center">
                           <ShiftBadge shift={day.is_week_off ? { week_off: true } : day.shift} />
                         </div>
+                          </>
+                        )}
                       </td>
                     );
                   })}

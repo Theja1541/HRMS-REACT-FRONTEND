@@ -43,17 +43,24 @@ export function useEmployeeDraft(tenantId) {
     setDraftNotice(null);
   }, [key]);
 
+  const cancelAutoSave = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
   const scheduleAutoSave = useCallback(
     (form, step, documentMeta) => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      cancelAutoSave();
       timerRef.current = setTimeout(() => saveDraft(form, step, documentMeta, true), 800);
     },
-    [saveDraft]
+    [saveDraft, cancelAutoSave]
   );
 
   useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  }, []);
+    cancelAutoSave();
+  }, [cancelAutoSave]);
 
   useEffect(() => {
     if (!draftNotice) return undefined;
@@ -61,5 +68,5 @@ export function useEmployeeDraft(tenantId) {
     return () => clearTimeout(t);
   }, [draftNotice]);
 
-  return { loadDraft, saveDraft, clearDraft, scheduleAutoSave, draftNotice };
+  return { loadDraft, saveDraft, clearDraft, scheduleAutoSave, cancelAutoSave, draftNotice };
 }

@@ -6,6 +6,7 @@ import {
   GENDERS,
   SYSTEM_ROLES,
 } from '../../../constants/hr';
+import { WORK_MODE_LABELS } from './constants';
 import { computeSalaryTotals, formatSalaryINR } from './salaryStructure';
 
 function ReviewSection({ title, onEdit, readOnly, children }) {
@@ -90,10 +91,26 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
         <ReviewItem label="Joining Date" value={form.date_of_joining} />
         <ReviewItem label="Work Location" value={branch ? `${branch.name}${branch.city ? ` — ${branch.city}` : ''}` : null} />
         <ReviewItem label="Reporting Manager" value={manager ? `${manager.first_name} ${manager.last_name}` : null} />
-        <ReviewItem label="Work From Home" value={form.work_from_home ? 'Yes' : 'No'} />
+        <ReviewItem label="Work Mode" value={WORK_MODE_LABELS[form.work_mode] || 'Office (On-site)'} />
+        {typeof form.has_probation === 'boolean' && (
+          <ReviewItem label="Has Probation" value={form.has_probation ? 'Yes' : 'No'} />
+        )}
+        {form.has_probation === true && (
+          <ReviewItem
+            label="Probation Duration"
+            value={`${form.probation_duration_months || 6} months`}
+          />
+        )}
       </ReviewSection>
 
-      {probationPreview ? (
+      {form.has_probation === false ? (
+        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 flex items-center gap-1.5">
+          <CalendarClock size={13} className="text-slate-400" />
+          <p className="text-xs text-slate-400">
+            Has Probation: <span className="font-medium text-slate-500">No</span> — employee will be created as <span className="font-medium text-slate-500">active</span>.
+          </p>
+        </div>
+      ) : probationPreview ? (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 overflow-hidden">
           <div className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-50 border-b border-brand-100">
             <CalendarClock size={13} className="text-brand-600" />
@@ -101,20 +118,21 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
             <span className="ml-1 text-[10px] text-brand-400 font-medium">auto-resolved · read-only</span>
           </div>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+            <ReviewItem label="Has Probation" value="Yes" />
             <ReviewItem label="Policy" value={probationPreview.policy_name} />
             <ReviewItem label="Duration" value={`${probationPreview.duration_months} months`} />
             <ReviewItem label="Start Date" value={fmtDate(probationPreview.probation_start_date)} />
             <ReviewItem label="End Date" value={fmtDate(probationPreview.probation_end_date)} />
           </div>
         </div>
-      ) : (
+      ) : form.has_probation === true ? (
         <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 flex items-center gap-1.5">
           <CalendarClock size={13} className="text-slate-400" />
           <p className="text-xs text-slate-400">
             No probation policy matched — employee will be set to <span className="font-medium text-slate-500">active</span> on creation.
           </p>
         </div>
-      )}
+      ) : null}
 
       <ReviewSection title="Salary Structure" onEdit={() => onGoToStep(3)} readOnly={readOnly}>
         {form.salary_structure?.skip_salary ? (

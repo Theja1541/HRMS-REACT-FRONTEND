@@ -20,6 +20,7 @@ function LogoUploadCard({
   onRemove,
   uploading,
   error,
+  uploadLabel = 'logo',
 }) {
   const inputRef = useRef(null);
   const preview = logoUrl ? resolveAssetUrl(logoUrl) : '';
@@ -39,16 +40,14 @@ function LogoUploadCard({
           )}
         >
           {preview ? (
-            <img src={preview} alt={`${name} logo`} className="w-full h-full object-contain p-2" />
+            <img src={preview} alt={`${name || title}`} className="w-full h-full object-contain p-2" />
           ) : (
             <Building2 size={32} className="text-slate-300" />
           )}
         </div>
 
         <div className="flex-1 space-y-4 min-w-0">
-          {name && (
-            <p className="text-sm font-medium text-slate-800">{name}</p>
-          )}
+          {name && <p className="text-sm font-medium text-slate-800">{name}</p>}
 
           <div className="flex flex-wrap gap-2">
             <button
@@ -58,7 +57,7 @@ function LogoUploadCard({
               className="btn-primary text-xs inline-flex items-center gap-1.5"
             >
               <ImagePlus size={14} />
-              {preview ? 'Replace logo' : 'Upload logo'}
+              {preview ? `Replace ${uploadLabel}` : `Upload ${uploadLabel}`}
             </button>
             {preview && (
               <button
@@ -182,6 +181,7 @@ export function CompanyBrandingTab() {
   const queryClient = useQueryClient();
   const { user, setUser } = useAuthStore();
   const [formError, setFormError] = useState('');
+  const [assetError, setAssetError] = useState({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['company-branding'],
@@ -190,24 +190,57 @@ export function CompanyBrandingTab() {
 
   const branding = data?.data?.branding || user?.tenant;
 
-  const uploadMutation = useMutation({
+  const refreshBranding = async () => {
+    queryClient.invalidateQueries({ queryKey: ['company-branding'] });
+    const me = await authApi.me();
+    if (me?.data?.user) setUser(me.data.user);
+  };
+
+  const logoUpload = useMutation({
     mutationFn: brandingApi.uploadCompanyLogo,
-    onSuccess: async (res) => {
-      setFormError('');
-      queryClient.invalidateQueries({ queryKey: ['company-branding'] });
-      const me = await authApi.me();
-      if (me?.data?.user) setUser(me.data.user);
+    onSuccess: async () => {
+      setAssetError((e) => ({ ...e, logo: '' }));
+      await refreshBranding();
     },
-    onError: (err) => setFormError(err.response?.data?.error?.message || 'Upload failed'),
+    onError: (err) =>
+      setAssetError((e) => ({
+        ...e,
+        logo: err.response?.data?.error?.message || 'Upload failed',
+      })),
+  });
+
+  const signatureUpload = useMutation({
+    mutationFn: brandingApi.uploadHrSignature,
+    onSuccess: async () => {
+      setAssetError((e) => ({ ...e, signature: '' }));
+      await refreshBranding();
+    },
+    onError: (err) =>
+      setAssetError((e) => ({
+        ...e,
+        signature: err.response?.data?.error?.message || 'Upload failed',
+      })),
+  });
+
+  const sealUpload = useMutation({
+    mutationFn: brandingApi.uploadCompanySeal,
+    onSuccess: async () => {
+      setAssetError((e) => ({ ...e, seal: '' }));
+      await refreshBranding();
+    },
+    onError: (err) =>
+      setAssetError((e) => ({
+        ...e,
+        seal: err.response?.data?.error?.message || 'Upload failed',
+      })),
   });
 
   const updateMutation = useMutation({
     mutationFn: (payload) => brandingApi.updateCompanyBranding(payload),
     onSuccess: async () => {
       setFormError('');
-      queryClient.invalidateQueries({ queryKey: ['company-branding'] });
-      const me = await authApi.me();
-      if (me?.data?.user) setUser(me.data.user);
+      setAssetError({});
+      await refreshBranding();
     },
     onError: (err) => setFormError(err.response?.data?.error?.message || 'Update failed'),
   });
@@ -219,19 +252,51 @@ export function CompanyBrandingTab() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-900">
-        This logo appears in the <strong>sidebar</strong> for all users in{' '}
-        <strong>{branding?.name}</strong> after they sign in. The login page always shows the platform logo.
+        Company logo appears in the <strong>sidebar</strong>. Logo, HR signature, and company seal
+        are also available in document templates as{' '}
+        <code className="bg-white/70 px-1 rounded">{'{{company_logo}}'}</code>,{' '}
+        <code className="bg-white/70 px-1 rounded">{'{{hr_signature}}'}</code>, and{' '}
+        <code className="bg-white/70 px-1 rounded">{'{{company_seal}}'}</code>.
       </div>
+
+      {formError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{formError}</p>
+      )}
 
       <LogoUploadCard
         title="Company logo"
-        description="Displayed in the sidebar for your employees, managers, and admins."
+        description="Sidebar branding and {{company_logo}} in letters."
         logoUrl={branding?.logo_url}
         name={branding?.name}
-        uploading={uploadMutation.isPending}
-        error={formError}
-        onUpload={(file) => uploadMutation.mutate(file)}
+        uploading={logoUpload.isPending}
+        error={assetError.logo}
+        uploadLabel="logo"
+        onUpload={(file) => logoUpload.mutate(file)}
         onRemove={() => updateMutation.mutate({ logo_url: null })}
+      />
+
+      <LogoUploadCard
+        title="HR signature"
+        description="Authorized signatory image for {{hr_signature}} in offer / experience letters."
+        logoUrl={branding?.hr_signature_url}
+        name="HR / Authorized Signatory"
+        uploading={signatureUpload.isPending}
+        error={assetError.signature}
+        uploadLabel="signature"
+        onUpload={(file) => signatureUpload.mutate(file)}
+        onRemove={() => updateMutation.mutate({ hr_signature_url: null })}
+      />
+
+      <LogoUploadCard
+        title="Company seal"
+        description="Official seal / stamp for {{company_seal}} on generated documents."
+        logoUrl={branding?.company_seal_url}
+        name="Company seal"
+        uploading={sealUpload.isPending}
+        error={assetError.seal}
+        uploadLabel="seal"
+        onUpload={(file) => sealUpload.mutate(file)}
+        onRemove={() => updateMutation.mutate({ company_seal_url: null })}
       />
     </div>
   );
