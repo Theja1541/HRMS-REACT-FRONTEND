@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Send, Clock, Trash2, Upload, FileText, Download, ExternalLink, Plus, Tag, ChevronRight } from 'lucide-react';
+import { X, Send, Clock, Trash2, Upload, FileText, Download, ExternalLink, Plus, Tag, ChevronRight, Pencil } from 'lucide-react';
 import { hrApi, employeeApi } from '../../api';
 import LabelBadge from './LabelBadge';
 import { TASK_STATUS, PRIORITY_BADGE, TASK_TYPES } from '../../constants/hr';
@@ -14,6 +14,8 @@ const ATTACHMENT_ACCEPT = '.jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,image/jpeg,imag
 const TASK_TABS = ['details', 'dependencies', 'comments', 'attachments', 'activity'];
 
 const LABEL_COLOR_PRESETS = ['#2563eb', '#7c3aed', '#dc2626', '#059669', '#d97706', '#64748b'];
+const MENTION_TOKEN_RE = /(@[A-Za-z0-9_-]+)/g;
+const MENTION_QUERY_RE = /(?:^|[\s([{])@([A-Za-z0-9_-]*)$/;
 
 function formatFileSize(bytes) {
   if (bytes == null) return '—';
@@ -22,13 +24,50 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function renderCommentWithMentions(body) {
+  if (!body) return null;
+  const parts = String(body).split(MENTION_TOKEN_RE);
+  return parts.map((part, index) => {
+    if (part.startsWith('@') && part.length > 1) {
+      return (
+        <span
+          key={`${part}-${index}`}
+          className="inline-flex items-center px-1 py-0.5 rounded bg-brand-50 text-brand-700 font-medium"
+        >
+          {part}
+        </span>
+      );
+    }
+    return <span key={`${index}-${part.slice(0, 8)}`}>{part}</span>;
+  });
+}
+
+function getActiveMentionQuery(text) {
+  const match = String(text || '').match(MENTION_QUERY_RE);
+  return match ? match[1] : null;
+}
+
+function insertMention(text, empCode) {
+  const value = String(text || '');
+  const match = value.match(MENTION_QUERY_RE);
+  if (!match) {
+    const needsSpace = value.length > 0 && !/\s$/.test(value);
+    return `${value}${needsSpace ? ' ' : ''}@${empCode} `;
+  }
+  const atIndex = match.index + match[0].lastIndexOf('@');
+  return `${value.slice(0, atIndex)}@${empCode} `;
+}
+
 const ACTIVITY_LABELS = {
   created: 'Task created',
   status_change: 'Status changed',
   assigned: 'Assignee changed',
   edited: 'Field edited',
   commented: 'Comment added',
+  comment_edited: 'Comment edited',
+  comment_deleted: 'Comment deleted',
   attachment_added: 'Attachment added',
+  attachment_deleted: 'Attachment deleted',
 };
 
 export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated, onNavigateTask }) {
@@ -36,8 +75,12 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
   const { user } = useAuthStore();
   const canManage = ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
   const [comment, setComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentBody, setEditCommentBody] = useState('');
+  const [commentActionError, setCommentActionError] = useState('');
   const [tab, setTab] = useState('details');
   const [depTaskId, setDepTaskId] = useState('');
+  const [depRelation, setDepRelation] = useState('blocked_by');
   const [depError, setDepError] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -49,7 +92,9 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
   const [showSubtaskForm, setShowSubtaskForm] = useState(false);
   const [subtaskForm, setSubtaskForm] = useState({ title: '', estimate_points: '' });
   const [subtaskError, setSubtaskError] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   const fileInputRef = useRef(null);
+  const commentInputRef = useRef(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['task', taskId],
@@ -66,7 +111,13 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
   const { data: empData } = useQuery({
     queryKey: ['employees-task-detail'],
     queryFn: () => employeeApi.list({ limit: 200, status: 'active' }),
-    enabled: canManage,
+    enabled: !!taskId,
+  });
+
+  const { data: membersData } = useQuery({
+    queryKey: ['project-members', projectId],
+    queryFn: () => hrApi.listProjectMembers(projectId),
+    enabled: !!projectId,
   });
 
   const {
@@ -94,9 +145,58 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
   });
 
   const task = data?.data?.task;
-  const pickerTasks = (projectTasksData?.data?.tasks || []).filter((t) => t.id !== taskId);
+  const linkedDepIds = new Set(
+    (task?.dependencies || []).map((d) => d.other_task_id || d.depends_on_task_id).filter(Boolean)
+  );
+  const pickerTasks = (projectTasksData?.data?.tasks || []).filter(
+    (t) => t.id !== taskId && !linkedDepIds.has(t.id)
+  );
+  const blockedByDeps = (task?.dependencies || []).filter((d) => d.direction === 'blocked_by');
+  const blocksDeps = (task?.dependencies || []).filter((d) => d.direction === 'blocks');
   const employees = empData?.data?.employees || [];
+  const projectMembers = (membersData?.data?.members || [])
+    .map((m) => m.employee)
+    .filter(Boolean);
+
+  const mentionPeople = useMemo(() => {
+    const byId = new Map();
+    [...projectMembers, ...employees].forEach((emp) => {
+      if (emp?.id) byId.set(emp.id, emp);
+    });
+    if (task?.assignee?.id) byId.set(task.assignee.id, task.assignee);
+    if (task?.reporter?.id) byId.set(task.reporter.id, task.reporter);
+    return Array.from(byId.values()).sort((a, b) =>
+      String(a.emp_code || a.first_name).localeCompare(String(b.emp_code || b.first_name))
+    );
+  }, [projectMembers, employees, task?.assignee, task?.reporter]);
+
+  const assigneeOptions = useMemo(() => {
+    const byId = new Map();
+    mentionPeople.forEach((emp) => byId.set(emp.id, emp));
+    if (task?.assignee?.id && !byId.has(task.assignee.id)) {
+      byId.set(task.assignee.id, task.assignee);
+    }
+    return Array.from(byId.values()).sort((a, b) =>
+      `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    );
+  }, [mentionPeople, task?.assignee]);
+
+  const activeMentionQuery = getActiveMentionQuery(editingCommentId ? editCommentBody : comment);
+  const mentionSuggestions = useMemo(() => {
+    if (activeMentionQuery == null) return [];
+    const q = activeMentionQuery.toLowerCase();
+    return mentionPeople
+      .filter((emp) => emp.emp_code)
+      .filter((emp) => {
+        const code = String(emp.emp_code || '').toLowerCase();
+        const name = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase();
+        return !q || code.includes(q) || name.includes(q);
+      })
+      .slice(0, 8);
+  }, [activeMentionQuery, mentionPeople]);
+
   const attachments = attachmentsData?.data?.attachments || [];
+  const attachmentCount = attachments.length || task?.attachments?.length || 0;
   const projectLabels = labelsData?.data?.labels || [];
   const assignedLabelIds = new Set((task?.labels || []).map((l) => l.id));
   const availableLabels = projectLabels.filter((l) => !assignedLabelIds.has(l.id));
@@ -109,6 +209,8 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
     if (projectId) {
       queryClient.invalidateQueries({ queryKey: ['project-sprints', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-dependencies', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-tasks-picker', projectId] });
     }
     onUpdated?.();
   };
@@ -153,13 +255,97 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
     mutationFn: (body) => hrApi.addTaskComment(taskId, { body }),
     onSuccess: () => {
       setComment('');
+      setCommentActionError('');
       invalidate();
+    },
+    onError: (err) => {
+      setCommentActionError(err.response?.data?.error?.message || 'Failed to add comment');
     },
   });
 
+  const updateCommentMutation = useMutation({
+    mutationFn: ({ commentId, body }) => hrApi.updateTaskComment(taskId, commentId, { body }),
+    onSuccess: () => {
+      setEditingCommentId(null);
+      setEditCommentBody('');
+      setCommentActionError('');
+      invalidate();
+    },
+    onError: (err) => {
+      setCommentActionError(err.response?.data?.error?.message || 'Failed to update comment');
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId) => hrApi.deleteTaskComment(taskId, commentId),
+    onSuccess: () => {
+      if (editingCommentId) {
+        setEditingCommentId(null);
+        setEditCommentBody('');
+      }
+      setCommentActionError('');
+      invalidate();
+    },
+    onError: (err) => {
+      setCommentActionError(err.response?.data?.error?.message || 'Failed to delete comment');
+    },
+  });
+
+  const canManageComment = (c) => {
+    if (!user?.id || !c) return false;
+    if (c.commenter_id === user.id) return true;
+    return canManage;
+  };
+
+  const startEditComment = (c) => {
+    setCommentActionError('');
+    setEditingCommentId(c.id);
+    setEditCommentBody(c.body || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditCommentBody('');
+    setCommentActionError('');
+  };
+
+  const handleDeleteComment = (c) => {
+    const preview = (c.body || '').slice(0, 60);
+    if (!window.confirm(`Delete this comment?\n\n"${preview}${c.body?.length > 60 ? '…' : ''}"`)) return;
+    deleteCommentMutation.mutate(c.id);
+  };
+
+  const applyMention = (emp, target = 'new') => {
+    const code = emp.emp_code;
+    if (!code) return;
+    if (target === 'edit') {
+      setEditCommentBody((prev) => insertMention(prev, code));
+    } else {
+      setComment((prev) => insertMention(prev, code));
+    }
+    setMentionIndex(0);
+    requestAnimationFrame(() => commentInputRef.current?.focus());
+  };
+
+  const handleCommentKeyDown = (e, target = 'new') => {
+    if (!mentionSuggestions.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMentionIndex((i) => (i + 1) % mentionSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMentionIndex((i) => (i - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      applyMention(mentionSuggestions[mentionIndex], target);
+    } else if (e.key === 'Escape') {
+      setMentionIndex(0);
+    }
+  };
+
   const addDepMutation = useMutation({
     mutationFn: (depends_on_task_id) =>
-      hrApi.addTaskDependency(taskId, { depends_on_task_id, relation_type: 'blocked_by' }),
+      hrApi.addTaskDependency(taskId, { depends_on_task_id, relation_type: depRelation }),
     onSuccess: () => {
       setDepTaskId('');
       setDepError('');
@@ -172,7 +358,13 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
 
   const removeDepMutation = useMutation({
     mutationFn: (depId) => hrApi.deleteTaskDependency(taskId, depId),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setDepError('');
+      invalidate();
+    },
+    onError: (err) => {
+      setDepError(err.response?.data?.error?.message || 'Failed to remove dependency');
+    },
   });
 
   const assignLabelMutation = useMutation({
@@ -243,6 +435,35 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
     },
   });
 
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachmentId) => hrApi.deleteTaskAttachment(taskId, attachmentId),
+    onSuccess: () => {
+      setUploadError('');
+      setUploadSuccess('Attachment deleted');
+      queryClient.invalidateQueries({ queryKey: ['task-attachments', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+    onError: (err) => {
+      setUploadSuccess('');
+      setUploadError(err.response?.data?.error?.message || 'Failed to delete attachment');
+    },
+  });
+
+  const canManageAttachment = (att) => {
+    if (!user?.id || !att) return false;
+    if (att.uploaded_by === user.id) return true;
+    return canManage;
+  };
+
+  const handleDeleteAttachment = (att) => {
+    if (!window.confirm(`Delete attachment "${att.file_name}"?\n\nThe file will be removed permanently.`)) {
+      return;
+    }
+    setUploadError('');
+    setUploadSuccess('');
+    deleteAttachmentMutation.mutate(att.id);
+  };
+
   const handleUploadFile = (file) => {
     if (!file || uploadMutation.isPending) return;
     setUploadError('');
@@ -267,8 +488,8 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Close" />
-      <div className="relative w-full max-w-xl bg-white shadow-xl h-full overflow-y-auto flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-3 z-10">
+      <div className="relative w-full max-w-xl bg-white shadow-xl h-full max-h-[100dvh] flex flex-col overflow-hidden">
+        <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-3 z-20">
           <div className="min-w-0">
             {task?.task_key && (
               <p className="text-xs font-mono text-brand-600 mb-1">{task.task_key}</p>
@@ -283,7 +504,7 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
         </div>
 
         {deleteError && (
-          <div className="mx-5 mt-3 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg border border-red-100">
+          <div className="shrink-0 mx-5 mt-3 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg border border-red-100">
             {deleteError}
           </div>
         )}
@@ -294,32 +515,35 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
           <p className="p-8 text-center text-red-500">Failed to load task</p>
         ) : (
           <>
-            <div className="flex gap-1 border-b border-slate-200 px-4 sm:px-5 scroll-tabs">
+            <div className="shrink-0 flex gap-1 border-b border-slate-200 px-4 sm:px-5 scroll-tabs bg-white z-10">
               {TASK_TABS.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTab(t)}
                   className={cn(
-                    'px-3 py-2 text-xs font-medium border-b-2 -mb-px capitalize',
-                    tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500'
+                    'px-3 py-2.5 text-xs font-medium border-b-2 -mb-px capitalize',
+                    tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700'
                   )}
                 >
                   {t}
                   {t === 'comments' && task.comments?.length > 0 && (
                     <span className="ml-1 text-[9px] bg-slate-100 px-1.5 rounded-full">{task.comments.length}</span>
                   )}
-                  {t === 'dependencies' && task.dependencies?.length > 0 && (
-                    <span className="ml-1 text-[9px] bg-slate-100 px-1.5 rounded-full">{task.dependencies.length}</span>
+                  {t === 'dependencies' && (task.dependencies?.length > 0 || task.dependency_summary) && (
+                    <span className="ml-1 text-[9px] bg-slate-100 px-1.5 rounded-full">
+                      {task.dependencies?.length
+                        || ((task.dependency_summary?.blocked_by || 0) + (task.dependency_summary?.blocks || 0))}
+                    </span>
                   )}
-                  {t === 'attachments' && attachments.length > 0 && (
-                    <span className="ml-1 text-[9px] bg-slate-100 px-1.5 rounded-full">{attachments.length}</span>
+                  {t === 'attachments' && attachmentCount > 0 && (
+                    <span className="ml-1 text-[9px] bg-slate-100 px-1.5 rounded-full">{attachmentCount}</span>
                   )}
                 </button>
               ))}
             </div>
 
-            <div className="flex-1 p-5 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-5">
               {tab === 'details' && (
                 <>
                   {task.parentTask && (
@@ -439,9 +663,10 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
                           className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
                         >
                           <option value="">Unassigned</option>
-                          {employees.map((emp) => (
+                          {assigneeOptions.map((emp) => (
                             <option key={emp.id} value={emp.id}>
                               {emp.first_name} {emp.last_name}
+                              {emp.emp_code ? ` (${emp.emp_code})` : ''}
                             </option>
                           ))}
                         </select>
@@ -738,38 +963,104 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
               )}
 
               {tab === 'dependencies' && (
-                <div className="space-y-4">
-                  {(task.dependencies || []).length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-4">No dependencies</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {task.dependencies.map((dep) => (
-                        <li key={dep.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-lg text-sm">
-                          <div>
-                            <span className="text-[10px] uppercase font-semibold text-amber-700">Blocked by</span>
-                            <p className="font-mono text-xs text-brand-600 mt-0.5">
-                              {dep.dependsOnTask?.task_key || `#${dep.depends_on_task_id}`}
-                            </p>
-                            <p className="text-slate-600">{dep.dependsOnTask?.title || '—'}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeDepMutation.mutate(dep.id)}
-                            disabled={removeDepMutation.isPending || !canManage}
-                            className={cn(
-                              'text-xs shrink-0',
-                              canManage ? 'text-red-600 hover:underline' : 'text-slate-300 cursor-not-allowed'
-                            )}
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="border-t border-slate-100 pt-4">
-                    <label className="text-xs font-medium text-slate-600">Add dependency (this task is blocked by…)</label>
-                    <div className="flex gap-2 mt-2">
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-2">
+                      Blocked by ({blockedByDeps.length})
+                    </h4>
+                    {blockedByDeps.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-3 bg-slate-50 rounded-lg">
+                        Not waiting on any task
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {blockedByDeps.map((dep) => {
+                          const other = dep.other_task || dep.dependsOnTask;
+                          return (
+                            <li key={dep.id} className="flex items-center justify-between gap-2 p-3 bg-amber-50/60 border border-amber-100 rounded-lg text-sm">
+                              <button
+                                type="button"
+                                className="text-left min-w-0"
+                                onClick={() => other?.id && onNavigateTask?.(other.id)}
+                              >
+                                <p className="font-mono text-xs text-brand-600">
+                                  {other?.task_key || `#${dep.other_task_id || dep.depends_on_task_id}`}
+                                </p>
+                                <p className="text-slate-700 truncate">{other?.title || '—'}</p>
+                                <p className="text-[10px] text-slate-400 capitalize mt-0.5">{other?.status || ''}</p>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeDepMutation.mutate(dep.id)}
+                                disabled={removeDepMutation.isPending || !canManage}
+                                className={cn(
+                                  'text-xs shrink-0',
+                                  canManage ? 'text-red-600 hover:underline' : 'text-slate-300 cursor-not-allowed'
+                                )}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-red-600 mb-2">
+                      Blocks ({blocksDeps.length})
+                    </h4>
+                    {blocksDeps.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-3 bg-slate-50 rounded-lg">
+                        Not blocking any task
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {blocksDeps.map((dep) => {
+                          const other = dep.other_task || dep.dependsOnTask;
+                          return (
+                            <li key={dep.id} className="flex items-center justify-between gap-2 p-3 bg-red-50/50 border border-red-100 rounded-lg text-sm">
+                              <button
+                                type="button"
+                                className="text-left min-w-0"
+                                onClick={() => other?.id && onNavigateTask?.(other.id)}
+                              >
+                                <p className="font-mono text-xs text-brand-600">
+                                  {other?.task_key || `#${dep.other_task_id}`}
+                                </p>
+                                <p className="text-slate-700 truncate">{other?.title || '—'}</p>
+                                <p className="text-[10px] text-slate-400 capitalize mt-0.5">{other?.status || ''}</p>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeDepMutation.mutate(dep.id)}
+                                disabled={removeDepMutation.isPending || !canManage}
+                                className={cn(
+                                  'text-xs shrink-0',
+                                  canManage ? 'text-red-600 hover:underline' : 'text-slate-300 cursor-not-allowed'
+                                )}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-4 space-y-2">
+                    <label className="text-xs font-medium text-slate-600">Add dependency</label>
+                    <select
+                      value={depRelation}
+                      onChange={(e) => setDepRelation(e.target.value)}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5"
+                    >
+                      <option value="blocked_by">This task is blocked by…</option>
+                      <option value="blocks">This task blocks…</option>
+                    </select>
+                    <div className="flex gap-2">
                       <select
                         value={depTaskId}
                         onChange={(e) => setDepTaskId(e.target.value)}
@@ -788,10 +1079,13 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
                         onClick={() => addDepMutation.mutate(parseInt(depTaskId, 10))}
                         className="btn-primary text-xs"
                       >
-                        Add
+                        {addDepMutation.isPending ? 'Adding…' : 'Add'}
                       </button>
                     </div>
-                    {depError && <p className="text-xs text-red-600 mt-2">{depError}</p>}
+                    {pickerTasks.length === 0 && (
+                      <p className="text-[11px] text-slate-400">No other tasks available to link.</p>
+                    )}
+                    {depError && <p className="text-xs text-red-600">{depError}</p>}
                   </div>
                 </div>
               )}
@@ -802,35 +1096,179 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
                     {(task.comments || []).length === 0 ? (
                       <p className="text-sm text-slate-400 text-center py-6">No comments yet</p>
                     ) : (
-                      task.comments.map((c) => (
-                        <div key={c.id} className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-slate-700">
-                            {c.commenter?.first_name} {c.commenter?.last_name}
-                            <span className="text-slate-400 font-normal ml-2">
-                              {c.created_at ? format(parseISO(c.created_at), 'dd MMM h:mm a') : ''}
-                            </span>
-                          </p>
-                          <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{c.body}</p>
-                        </div>
-                      ))
+                      task.comments.map((c) => {
+                        const isEditing = editingCommentId === c.id;
+                        const allowManage = canManageComment(c);
+                        const isBusy =
+                          updateCommentMutation.isPending || deleteCommentMutation.isPending;
+                        return (
+                          <div key={c.id} className="bg-slate-50 rounded-lg p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs font-medium text-slate-700">
+                                {c.commenter?.first_name} {c.commenter?.last_name}
+                                <span className="text-slate-400 font-normal ml-2">
+                                  {c.created_at ? format(parseISO(c.created_at), 'dd MMM h:mm a') : ''}
+                                </span>
+                                {c.updated_at && c.updated_at !== c.created_at && (
+                                  <span className="text-slate-400 font-normal ml-1">(edited)</span>
+                                )}
+                              </p>
+                              {allowManage && !isEditing && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditComment(c)}
+                                    disabled={isBusy}
+                                    className="p-1 text-slate-400 hover:text-brand-600 disabled:opacity-50"
+                                    title="Edit comment"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(c)}
+                                    disabled={isBusy}
+                                    className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-50"
+                                    title="Delete comment"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {isEditing ? (
+                              <div className="mt-2 space-y-2 relative">
+                                <textarea
+                                  value={editCommentBody}
+                                  onChange={(e) => {
+                                    setEditCommentBody(e.target.value);
+                                    setMentionIndex(0);
+                                  }}
+                                  onKeyDown={(e) => handleCommentKeyDown(e, 'edit')}
+                                  rows={3}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"
+                                />
+                                {activeMentionQuery != null && editingCommentId === c.id && (
+                                  <div className="absolute left-0 right-0 top-full z-20 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                    {mentionSuggestions.length === 0 ? (
+                                      <p className="px-3 py-2 text-xs text-slate-400">No matching people</p>
+                                    ) : (
+                                      mentionSuggestions.map((emp, idx) => (
+                                        <button
+                                          key={emp.id}
+                                          type="button"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            applyMention(emp, 'edit');
+                                          }}
+                                          className={cn(
+                                            'w-full text-left px-3 py-2 text-sm hover:bg-slate-50',
+                                            idx === mentionIndex && 'bg-brand-50'
+                                          )}
+                                        >
+                                          <span className="font-mono text-brand-700 text-xs">@{emp.emp_code}</span>
+                                          <span className="text-slate-600 ml-2">
+                                            {emp.first_name} {emp.last_name}
+                                          </span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditComment}
+                                    disabled={updateCommentMutation.isPending}
+                                    className="btn-secondary text-xs"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      !editCommentBody.trim()
+                                      || editCommentBody.trim() === (c.body || '')
+                                      || updateCommentMutation.isPending
+                                    }
+                                    onClick={() =>
+                                      updateCommentMutation.mutate({
+                                        commentId: c.id,
+                                        body: editCommentBody.trim(),
+                                      })
+                                    }
+                                    className="btn-primary text-xs"
+                                  >
+                                    {updateCommentMutation.isPending ? 'Saving…' : 'Save'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">
+                                {renderCommentWithMentions(c.body)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Write a comment… Use @emp_code to mention"
-                      rows={2}
-                      className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2"
-                    />
-                    <button
-                      type="button"
-                      disabled={!comment.trim() || commentMutation.isPending}
-                      onClick={() => commentMutation.mutate(comment.trim())}
-                      className="btn-primary self-end px-3"
-                    >
-                      <Send size={14} />
-                    </button>
+                  {commentActionError && (
+                    <p className="text-xs text-red-600">{commentActionError}</p>
+                  )}
+                  <div className="relative">
+                    <div className="flex gap-2">
+                      <textarea
+                        ref={commentInputRef}
+                        value={comment}
+                        onChange={(e) => {
+                          setComment(e.target.value);
+                          setMentionIndex(0);
+                        }}
+                        onKeyDown={(e) => handleCommentKeyDown(e, 'new')}
+                        placeholder="Write a comment… Type @ to mention someone"
+                        rows={2}
+                        className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2"
+                      />
+                      <button
+                        type="button"
+                        disabled={!comment.trim() || commentMutation.isPending}
+                        onClick={() => commentMutation.mutate(comment.trim())}
+                        className="btn-primary self-end px-3"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                    {activeMentionQuery != null && !editingCommentId && (
+                      <div className="absolute left-0 right-12 bottom-full z-20 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {mentionSuggestions.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-slate-400">No matching people</p>
+                        ) : (
+                          mentionSuggestions.map((emp, idx) => (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                applyMention(emp, 'new');
+                              }}
+                              className={cn(
+                                'w-full text-left px-3 py-2 text-sm hover:bg-slate-50',
+                                idx === mentionIndex && 'bg-brand-50'
+                              )}
+                            >
+                              <span className="font-mono text-brand-700 text-xs">@{emp.emp_code || emp.id}</span>
+                              <span className="text-slate-600 ml-2">
+                                {emp.first_name} {emp.last_name}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-1.5">
+                      Mentions use employee codes (e.g. @EMP003). Arrow keys + Enter to select.
+                    </p>
                   </div>
                 </div>
               )}
@@ -956,6 +1394,18 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
                               >
                                 <Download size={14} />
                               </a>
+                              {canManageAttachment(att) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(att)}
+                                  disabled={deleteAttachmentMutation.isPending}
+                                  className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-50"
+                                  title="Delete attachment"
+                                  aria-label={`Delete ${att.file_name}`}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </li>
                         );
@@ -983,6 +1433,12 @@ export default function TaskDetailModal({ taskId, projectId, onClose, onUpdated,
                             </span>
                             {log.old_value && log.new_value && (
                               <span className="text-slate-500"> · {log.old_value} → {log.new_value}</span>
+                            )}
+                            {log.old_value && !log.new_value && (log.action_type === 'comment_deleted' || log.action_type === 'attachment_deleted') && (
+                              <span className="text-slate-500"> · “{log.old_value}”</span>
+                            )}
+                            {!log.old_value && log.new_value && (log.action_type === 'commented' || log.action_type === 'attachment_added') && (
+                              <span className="text-slate-500"> · “{log.new_value}”</span>
                             )}
                           </p>
                           {log.created_at && (

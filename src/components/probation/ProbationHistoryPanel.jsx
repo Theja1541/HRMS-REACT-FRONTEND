@@ -6,7 +6,7 @@ const ACTION_LABELS = {
   started: 'Started',
   extended: 'Extended',
   confirmed: 'Confirmed',
-  unsuccessful: 'Unsuccessful',
+  unsuccessful: 'Separated',
 };
 
 const ACTION_STYLES = {

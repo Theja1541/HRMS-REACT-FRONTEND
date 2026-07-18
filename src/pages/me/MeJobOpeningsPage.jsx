@@ -9,11 +9,13 @@ import {
   UserPlus,
   Users,
   Upload,
+  Download,
+  Paperclip,
 } from 'lucide-react';
 import { portalApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import InternationalPhoneInput from '../../components/shared/InternationalPhoneInput';
-import { cn, formatINR } from '../../utils/helpers';
+import { cn, formatINR, resolveAssetUrl } from '../../utils/helpers';
 import { JOB_STATUSES, APPLICATION_STATUSES } from '../../constants/hr';
 import {
   POSTING_TYPE_LABELS,
@@ -177,7 +179,22 @@ function OpeningCard({ opening, action }) {
         {opening.max_ctc ? <span className="font-mono">Up to {formatINR(opening.max_ctc)}</span> : null}
       </div>
 
-      {opening.description && <p className="mt-3 text-xs text-slate-500 line-clamp-3">{opening.description}</p>}
+      {opening.description && (
+        <p className="mt-3 text-xs text-slate-600 whitespace-pre-wrap">{opening.description}</p>
+      )}
+      {opening.attachment_url && (
+        <a
+          href={resolveAssetUrl(opening.attachment_url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          download={opening.attachment_name || undefined}
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
+        >
+          <Paperclip size={13} />
+          {opening.attachment_name || 'Download job description'}
+          <Download size={12} className="opacity-70" />
+        </a>
+      )}
 
       <div className="mt-auto pt-4">{action}</div>
     </div>

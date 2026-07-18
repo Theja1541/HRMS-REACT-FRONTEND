@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Play, CheckCircle, X } from 'lucide-react';
+import { Plus, Play, CheckCircle, X, Pencil, RotateCcw } from 'lucide-react';
 import { hrApi } from '../../api';
 import { cn, formatStoryPoints } from '../../utils/helpers';
 import { format, parseISO } from 'date-fns';
@@ -10,6 +10,8 @@ const SPRINT_STATUS = {
   active: 'bg-emerald-50 text-emerald-700',
   completed: 'bg-blue-50 text-blue-700',
 };
+
+const EMPTY_FORM = { name: '', start_date: '', end_date: '', goal: '', description: '' };
 
 function SprintPointsBar({ done = 0, total = 0 }) {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
@@ -26,12 +28,88 @@ function SprintPointsBar({ done = 0, total = 0 }) {
   );
 }
 
+function SprintFormModal({ title, form, setForm, onClose, onSubmit, isPending, submitLabel }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(form);
+        }}
+        className="bg-white rounded-xl p-6 w-full max-w-md space-y-3"
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">{title}</h3>
+          <button type="button" onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+        <input
+          required
+          placeholder="Sprint name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full border rounded-lg px-3 py-2 text-sm"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase font-medium">Start date</label>
+            <input
+              required
+              type="date"
+              value={form.start_date}
+              onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase font-medium">End date</label>
+            <input
+              required
+              type="date"
+              value={form.end_date}
+              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-slate-500 uppercase font-medium">Goal</label>
+          <textarea
+            placeholder="Sprint goal (optional)"
+            value={form.goal}
+            onChange={(e) => setForm({ ...form, goal: e.target.value })}
+            className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5"
+            rows={2}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-slate-500 uppercase font-medium">Description</label>
+          <textarea
+            placeholder="Additional details (optional)"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5"
+            rows={3}
+          />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onClose} className="btn-secondary text-xs">Cancel</button>
+          <button type="submit" disabled={isPending} className="btn-primary text-xs">
+            {isPending ? 'Saving…' : submitLabel}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function ProjectSprintsPanel({ projectId, canManage }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [editSprint, setEditSprint] = useState(null);
   const [completeSprintId, setCompleteSprintId] = useState(null);
   const [moveToSprintId, setMoveToSprintId] = useState('');
-  const [form, setForm] = useState({ name: '', start_date: '', end_date: '', goal: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
 
   const { data, isLoading } = useQuery({
     queryKey: ['project-sprints', projectId],
@@ -53,8 +131,22 @@ export default function ProjectSprintsPanel({ projectId, canManage }) {
     onSuccess: () => {
       invalidate();
       setShowForm(false);
-      setForm({ name: '', start_date: '', end_date: '', goal: '' });
+      setForm(EMPTY_FORM);
     },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ sprintId, payload }) => hrApi.updateSprint(sprintId, payload),
+    onSuccess: () => {
+      invalidate();
+      setEditSprint(null);
+      setEditForm(EMPTY_FORM);
+    },
+  });
+
+  const reopenMutation = useMutation({
+    mutationFn: (sprintId) => hrApi.reopenSprint(sprintId),
+    onSuccess: invalidate,
   });
 
   const startMutation = useMutation({
@@ -71,6 +163,17 @@ export default function ProjectSprintsPanel({ projectId, canManage }) {
       setMoveToSprintId('');
     },
   });
+
+  const openEdit = (sprint) => {
+    setEditSprint(sprint);
+    setEditForm({
+      name: sprint.name || '',
+      start_date: sprint.start_date?.slice(0, 10) || '',
+      end_date: sprint.end_date?.slice(0, 10) || '',
+      goal: sprint.goal || '',
+      description: sprint.description || '',
+    });
+  };
 
   if (isLoading) {
     return <div className="card p-12 text-center text-slate-400">Loading sprints…</div>;
@@ -133,6 +236,7 @@ export default function ProjectSprintsPanel({ projectId, canManage }) {
                   <td className="px-4 py-3">
                     <p className="font-medium">{s.name}</p>
                     {s.goal && <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{s.goal}</p>}
+                    {s.description && <p className="text-xs text-slate-400 mt-0.5 line-clamp-1 italic">{s.description}</p>}
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">
                     {format(parseISO(s.start_date), 'dd MMM')} – {format(parseISO(s.end_date), 'dd MMM yyyy')}
@@ -157,7 +261,30 @@ export default function ProjectSprintsPanel({ projectId, canManage }) {
                   </td>
                   {canManage && (
                     <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-end">
+                      <div className="flex gap-1 justify-end flex-wrap">
+                        {s.status === 'completed' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Reopen this sprint? It will return to planned status and can be edited again.')) {
+                                reopenMutation.mutate(s.id);
+                              }
+                            }}
+                            disabled={reopenMutation.isPending}
+                            className="btn-secondary text-[10px] px-2 py-1 inline-flex items-center gap-1"
+                            title="Reopen to allow editing"
+                          >
+                            <RotateCcw size={10} /> Reopen
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            className="btn-secondary text-[10px] px-2 py-1 inline-flex items-center gap-1"
+                          >
+                            <Pencil size={10} /> Edit
+                          </button>
+                        )}
                         {s.status === 'planned' && (
                           <button
                             type="button"
@@ -188,30 +315,30 @@ export default function ProjectSprintsPanel({ projectId, canManage }) {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate(form);
-            }}
-            className="bg-white rounded-xl p-6 w-full max-w-md space-y-3"
-          >
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold">New Sprint</h3>
-              <button type="button" onClick={() => setShowForm(false)}><X size={18} className="text-slate-400" /></button>
-            </div>
-            <input required placeholder="Sprint name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            <div className="grid grid-cols-2 gap-2">
-              <input required type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-              <input required type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <textarea placeholder="Sprint goal (optional)" value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary text-xs">Cancel</button>
-              <button type="submit" disabled={createMutation.isPending} className="btn-primary text-xs">Create</button>
-            </div>
-          </form>
-        </div>
+        <SprintFormModal
+          title="New Sprint"
+          form={form}
+          setForm={setForm}
+          onClose={() => setShowForm(false)}
+          onSubmit={(payload) => createMutation.mutate(payload)}
+          isPending={createMutation.isPending}
+          submitLabel="Create"
+        />
+      )}
+
+      {editSprint && (
+        <SprintFormModal
+          title={`Edit Sprint — ${editSprint.name}`}
+          form={editForm}
+          setForm={setEditForm}
+          onClose={() => {
+            setEditSprint(null);
+            setEditForm(EMPTY_FORM);
+          }}
+          onSubmit={(payload) => updateMutation.mutate({ sprintId: editSprint.id, payload })}
+          isPending={updateMutation.isPending}
+          submitLabel="Save Changes"
+        />
       )}
 
       {completeSprintId && (

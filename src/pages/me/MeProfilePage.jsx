@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, Clock, AlertCircle } from 'lucide-react';
 import { employeeApi } from '../../api';
@@ -152,6 +152,17 @@ export default function MeProfilePage() {
   const emp = data?.data?.employee;
   const editRequests = requestsData?.data?.requests || [];
   const pendingFields = editRequests.filter((r) => r.status === 'pending').map((r) => r.field_name);
+  const hasProbation = emp?.has_probation === true;
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => t.id !== 'probation' || hasProbation),
+    [hasProbation]
+  );
+
+  useEffect(() => {
+    if (emp && tab === 'probation' && !hasProbation) {
+      setTab('personal');
+    }
+  }, [emp, tab, hasProbation]);
 
   if (isLoading) return <div className="p-12 text-center text-slate-400">Loading profile…</div>;
   if (!emp) return <div className="p-12 text-center text-red-500">Profile not found</div>;
@@ -227,7 +238,7 @@ export default function MeProfilePage() {
         </div>
 
         <div className="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -315,7 +326,7 @@ export default function MeProfilePage() {
           </div>
         )}
 
-        {tab === 'probation' && (
+        {tab === 'probation' && hasProbation && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
               <div>

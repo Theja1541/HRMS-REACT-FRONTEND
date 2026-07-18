@@ -169,6 +169,7 @@ function attendanceDayLabel(day) {
   }
   if (day.day_type === 'holiday') return 'Holiday';
   if (day.day_type === 'weekend') return 'Weekend';
+  if (day.day_type === 'not_employed') return 'Not employed';
   return 'Unmarked';
 }
 

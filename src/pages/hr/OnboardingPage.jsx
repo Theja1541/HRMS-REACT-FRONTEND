@@ -20,6 +20,8 @@ import {
   categoryLabel,
 } from '../../modules/Onboarding/onboarding.constants';
 import { cn } from '../../utils/helpers';
+import { useAuthStore } from '../../store/auth.store';
+import { resolvePortalRole } from '../../utils/portalContext';
 
 const TABS = [
   { id: 'template', label: 'Step 1 — Checklist Template', icon: ClipboardList },
@@ -28,7 +30,10 @@ const TABS = [
 
 export default function OnboardingPage() {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState('template');
+  const { user, workspace, roles, selectedRole, accessToken } = useAuthStore();
+  const role = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
+  const isHrAdmin = ['super_admin', 'owner', 'hr', 'admin'].includes(role);
+  const [tab, setTab] = useState(isHrAdmin ? 'template' : 'active');
   const [showInit, setShowInit] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
@@ -45,6 +50,7 @@ export default function OnboardingPage() {
     queryKey: ['onboarding-templates'],
     queryFn: () => hrApi.listOnboardingTemplates(),
     staleTime: 30_000,
+    enabled: isHrAdmin,
   });
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery({
@@ -183,9 +189,13 @@ export default function OnboardingPage() {
     <div className="space-y-6">
       <PageHeader
         title="Employee Onboarding"
-        subtitle="Template-first checklist for new joiners — define once, assign per employee"
+        subtitle={
+          isHrAdmin
+            ? 'Template-first checklist for new joiners — define once, assign per employee'
+            : 'Complete onboarding checklist tasks for your team'
+        }
         actions={
-          tab === 'template' ? (
+          isHrAdmin && tab === 'template' ? (
             <div className="flex flex-wrap gap-2">
               {templates.length === 0 && (
                 <button
@@ -202,7 +212,7 @@ export default function OnboardingPage() {
                 <Plus size={14} /> Add template task
               </button>
             </div>
-          ) : (
+          ) : isHrAdmin ? (
             <button
               type="button"
               onClick={openStartOnboarding}
@@ -212,7 +222,7 @@ export default function OnboardingPage() {
             >
               <Plus size={14} /> Start onboarding
             </button>
-          )
+          ) : null
         }
       />
 
@@ -229,13 +239,15 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      <OnboardingWorkflowBanner
-        templatesReady={templatesReady}
-        hasActiveOnboarding={hasActiveOnboarding}
-      />
+      {isHrAdmin && (
+        <OnboardingWorkflowBanner
+          templatesReady={templatesReady}
+          hasActiveOnboarding={hasActiveOnboarding}
+        />
+      )}
 
       <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
-        {TABS.map((t) => {
+        {(isHrAdmin ? TABS : TABS.filter((t) => t.id === 'active')).map((t) => {
           const Icon = t.icon;
           return (
             <button

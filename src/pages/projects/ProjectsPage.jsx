@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, ArrowLeft, Kanban, UserPlus, LayoutGrid, List, FolderKanban, Search, CheckCircle2 } from 'lucide-react';
 import { hrApi, employeeApi } from '../../api';
@@ -19,6 +20,7 @@ import ProjectDependenciesPanel from '../../components/tasks/ProjectDependencies
 import ProjectSettingsPanel from '../../components/tasks/ProjectSettingsPanel';
 import ProjectMembersPanel from '../../components/tasks/ProjectMembersPanel';
 import ProjectBoardColumnsPanel from '../../components/tasks/ProjectBoardColumnsPanel';
+import ArchivedProjectsPanel from '../../components/tasks/ArchivedProjectsPanel';
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
 import { PROJECT_STATUS, PRIORITY_BADGE } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
@@ -43,14 +45,58 @@ const PROJECT_TABS = [
   { id: 'settings', label: 'Settings' },
 ];
 
+// URL slug <-> internal tab id (e.g. the "members" tab deep-links as /team).
+const TAB_ID_TO_SLUG = {
+  board: 'board',
+  dashboard: 'dashboard',
+  sprints: 'sprints',
+  dependencies: 'dependencies',
+  columns: 'columns',
+  members: 'team',
+  settings: 'settings',
+};
+const TAB_SLUG_TO_ID = {
+  board: 'board',
+  dashboard: 'dashboard',
+  sprints: 'sprints',
+  dependencies: 'dependencies',
+  columns: 'columns',
+  team: 'members',
+  settings: 'settings',
+};
+
 export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const canManage = ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
-  const [selectedId, setSelectedId] = useState(null);
-  const [projectTab, setProjectTab] = useState('board');
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const navigate = useNavigate();
+  const { projectId: projectIdParam, tab: tabParam } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Selection and active tab are derived from the URL so deep links, refresh,
+  // and browser back/forward all work without extra state.
+  const selectedId = projectIdParam ? parseInt(projectIdParam, 10) : null;
+  const projectTab = TAB_SLUG_TO_ID[tabParam] || 'board';
+  const taskParam = searchParams.get('task');
+  const selectedTaskId = taskParam ? parseInt(taskParam, 10) : null;
   const [boardViewMode, setBoardViewMode] = useState('board');
+
+  const setSelectedId = (id) => {
+    if (id == null) navigate('/projects');
+    else navigate(`/projects/${id}/${TAB_ID_TO_SLUG.board}`);
+  };
+  const setProjectTab = (tabId) => {
+    if (!selectedId) return;
+    navigate(`/projects/${selectedId}/${TAB_ID_TO_SLUG[tabId] || 'board'}`);
+  };
+  const setSelectedTaskId = (taskId) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (taskId) next.set('task', String(taskId));
+      else next.delete('task');
+      return next;
+    });
+  };
   const [taskFilters, setTaskFilters] = useState(EMPTY_TASK_FILTERS);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
@@ -71,7 +117,7 @@ export default function ProjectsPage() {
     queryFn: () => hrApi.listProjects(),
   });
 
-  const { data: projectData } = useQuery({
+  const { data: projectData, isLoading: projectLoading } = useQuery({
     queryKey: ['project', selectedId],
     queryFn: () => hrApi.getProject(selectedId),
     enabled: !!selectedId,
@@ -225,6 +271,36 @@ export default function ProjectsPage() {
     });
   };
 
+  if (selectedId && !project) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Project"
+          subtitle="Projects & Tasks"
+          actions={
+            <button type="button" onClick={() => setSelectedId(null)} className="btn-secondary text-xs">
+              <ArrowLeft size={14} /> All Projects
+            </button>
+          }
+        />
+        {projectLoading ? (
+          <div className="card p-12 text-center text-slate-400">Loading project…</div>
+        ) : (
+          <div className="card p-16 text-center">
+            <Kanban size={48} className="mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-600 font-medium">Project not found</p>
+            <p className="text-sm text-slate-400 mt-1">
+              It may have been archived or you don’t have access to it.
+            </p>
+            <button type="button" onClick={() => setSelectedId(null)} className="btn-primary mt-4">
+              Back to projects
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (selectedId && project) {
     const totalTasks = board?.columns?.reduce((sum, c) => sum + (c.tasks?.length || 0), 0) || 0;
     const doneTasks = board?.columns?.find((c) => c.is_done_column)?.tasks?.length
@@ -241,10 +317,9 @@ export default function ProjectsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedId(null);
-                  setSelectedTaskId(null);
                   setBulkMode(false);
                   setSelectedTaskIds(new Set());
+                  setSelectedId(null);
                 }}
                 className="btn-secondary text-xs"
               >
@@ -399,7 +474,9 @@ export default function ProjectsPage() {
           </>
         )}
 
-        {projectTab === 'dashboard' && <ProjectDashboardPanel projectId={selectedId} />}
+        {projectTab === 'dashboard' && (
+          <ProjectDashboardPanel projectId={selectedId} onTaskClick={setSelectedTaskId} />
+        )}
 
         {projectTab === 'sprints' && (
           <ProjectSprintsPanel projectId={selectedId} canManage={canManage} />
@@ -408,7 +485,6 @@ export default function ProjectsPage() {
         {projectTab === 'dependencies' && (
           <ProjectDependenciesPanel
             projectId={selectedId}
-            tasks={allBoardTasks}
             onTaskClick={setSelectedTaskId}
           />
         )}
@@ -418,6 +494,7 @@ export default function ProjectsPage() {
             projectId={selectedId}
             project={project}
             canManage={canManage}
+            onArchived={() => setSelectedId(null)}
           />
         )}
 
@@ -697,6 +774,12 @@ export default function ProjectsPage() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {canManage && (
+        <div className="pt-2 border-t border-slate-200">
+          <ArchivedProjectsPanel enabled={!selectedId} />
         </div>
       )}
 

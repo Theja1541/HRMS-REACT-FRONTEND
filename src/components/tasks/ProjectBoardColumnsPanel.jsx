@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ChevronUp, ChevronDown, Columns3, X } from 'lucide-react';
+import { Plus, ChevronUp, ChevronDown, Columns3, X, Trash2 } from 'lucide-react';
 import { hrApi } from '../../api';
 import { TASK_STATUS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
@@ -19,6 +19,8 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [moveToColumnId, setMoveToColumnId] = useState('');
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['project-board', projectId],
@@ -72,7 +74,23 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: ({ columnId, move_to_column_id }) =>
+      hrApi.deleteBoardColumn(columnId, move_to_column_id ? { move_to_column_id } : {}),
+    onSuccess: () => {
+      setActionError('');
+      setDeleteTarget(null);
+      setMoveToColumnId('');
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
+    },
+    onError: (err) => {
+      setActionError(err.response?.data?.error?.message || 'Failed to delete column');
+    },
+  });
+
   const isReordering = reorderMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
 
   const handleRename = (column, newName) => {
     const trimmed = newName.trim();
@@ -87,6 +105,33 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
     const nextOrder = columns.map((col) => col.id);
     [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
     reorderMutation.mutate({ boardId: board.id, columnIds: nextOrder });
+  };
+
+  const otherColumns = (column) => columns.filter((c) => c.id !== column.id);
+
+  const handleDeleteClick = (column) => {
+    setActionError('');
+    const taskCount = column.tasks?.length || 0;
+    if (taskCount > 0) {
+      const alternatives = otherColumns(column);
+      if (alternatives.length === 0) {
+        setActionError('Cannot delete the only column while it still has tasks.');
+        return;
+      }
+      setDeleteTarget(column);
+      setMoveToColumnId(String(alternatives[0].id));
+      return;
+    }
+    if (!window.confirm(`Delete column "${column.name}"?`)) return;
+    deleteMutation.mutate({ columnId: column.id });
+  };
+
+  const handleConfirmDeleteWithMove = () => {
+    if (!deleteTarget || !moveToColumnId) return;
+    deleteMutation.mutate({
+      columnId: deleteTarget.id,
+      move_to_column_id: parseInt(moveToColumnId, 10),
+    });
   };
 
   if (!canManage) {
@@ -158,7 +203,7 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
                 <th className="px-4 py-3">Status mapping</th>
                 <th className="px-4 py-3">Tasks</th>
                 <th className="px-4 py-3">Done column</th>
-                <th className="px-4 py-3 w-24" />
+                <th className="px-4 py-3 w-28" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -193,7 +238,7 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
                       <button
                         type="button"
                         onClick={() => handleMove(index, 'up')}
-                        disabled={index === 0 || isReordering}
+                        disabled={index === 0 || isReordering || isDeleting}
                         className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30"
                         title="Move up"
                         aria-label="Move column up"
@@ -203,12 +248,22 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
                       <button
                         type="button"
                         onClick={() => handleMove(index, 'down')}
-                        disabled={index === columns.length - 1 || isReordering}
+                        disabled={index === columns.length - 1 || isReordering || isDeleting}
                         className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30"
                         title="Move down"
                         aria-label="Move column down"
                       >
                         <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(col)}
+                        disabled={isDeleting || isReordering}
+                        className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30"
+                        title="Delete column"
+                        aria-label={`Delete column ${col.name}`}
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
@@ -216,6 +271,70 @@ export default function ProjectBoardColumnsPanel({ projectId, canManage }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">Delete column</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  “{deleteTarget.name}” has {deleteTarget.tasks?.length || 0} task
+                  {(deleteTarget.tasks?.length || 0) === 1 ? '' : 's'}. Move them to another column first.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setMoveToColumnId('');
+                }}
+                className="text-slate-400 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-600">Move tasks to</label>
+              <select
+                value={moveToColumnId}
+                onChange={(e) => setMoveToColumnId(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              >
+                {otherColumns(deleteTarget).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({TASK_STATUS[c.status_mapping]?.label || c.status_mapping})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setMoveToColumnId('');
+                }}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!moveToColumnId || isDeleting}
+                onClick={handleConfirmDeleteWithMove}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-2 disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                {isDeleting ? 'Deleting…' : 'Move tasks & delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

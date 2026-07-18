@@ -152,6 +152,14 @@ export default function LeaveRequestDetailDrawer({ requestId, onClose }) {
                   <h3 className="text-sm font-semibold text-slate-800">Policy at time of apply</h3>
                 </div>
                 <p className="text-xs text-slate-600">{request.policy_snapshot.policy_name}</p>
+                {request.policy_snapshot.approval_levels && (
+                  <ApprovalChainProgress
+                    levels={request.policy_snapshot.approval_levels}
+                    status={request.status}
+                    history={history}
+                    approvalStep={request.policy_snapshot.approval_step}
+                  />
+                )}
                 {dayCalc && (
                   <div className="rounded-lg border border-slate-200 overflow-hidden">
                     <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex justify-between text-xs">
@@ -234,6 +242,82 @@ export default function LeaveRequestDetailDrawer({ requestId, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ApprovalChainProgress({ levels, status, history, approvalStep }) {
+  const managerApproved = history.some((h) => h.action === 'approved');
+  const fullyApproved = status === 'approved';
+  const rejected = status === 'rejected';
+
+  let steps = [];
+  if (levels === 'manager_hr') {
+    steps = [
+      { key: 'apply', label: 'Applied', done: true },
+      {
+        key: 'manager',
+        label: 'Manager',
+        done: managerApproved || fullyApproved,
+        current: status === 'pending' && !managerApproved && approvalStep !== 'hr',
+      },
+      {
+        key: 'hr',
+        label: 'HR/Admin',
+        done: fullyApproved,
+        current: status === 'pending' && (managerApproved || approvalStep === 'hr'),
+      },
+    ];
+  } else if (levels === 'single') {
+    steps = [
+      { key: 'apply', label: 'Applied', done: true },
+      {
+        key: 'hr',
+        label: 'HR/Admin',
+        done: fullyApproved,
+        current: status === 'pending',
+      },
+    ];
+  } else {
+    steps = [
+      { key: 'apply', label: 'Applied', done: true },
+      {
+        key: 'manager',
+        label: 'Manager',
+        done: fullyApproved,
+        current: status === 'pending',
+      },
+    ];
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+      <p className="text-[10px] uppercase font-semibold text-slate-500 mb-2">Approval chain</p>
+      <ol className="flex flex-wrap items-center gap-2">
+        {steps.map((step, index) => (
+          <li key={step.key} className="flex items-center gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border',
+                rejected && step.current
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : step.done
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : step.current
+                      ? 'bg-brand-50 text-brand-700 border-brand-200'
+                      : 'bg-white text-slate-400 border-slate-200'
+              )}
+            >
+              <span className="w-4 h-4 rounded-full bg-current/10 text-[9px] inline-flex items-center justify-center">
+                {index + 1}
+              </span>
+              {step.label}
+              {step.current && status === 'pending' ? ' · awaiting' : ''}
+            </span>
+            {index < steps.length - 1 && <span className="text-slate-300">→</span>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

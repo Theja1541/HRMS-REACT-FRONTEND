@@ -15,6 +15,13 @@ export default function PayrollPreviewPage() {
   const [processSuccess, setProcessSuccess] = useState(false);
   const [processError, setProcessError] = useState('');
 
+  const isFuturePeriod = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    return year > currentYear || (year === currentYear && month > currentMonth);
+  }, [month, year]);
+
   const { data: precheckData, isLoading: precheckLoading, error: precheckError, refetch: runPrecheck, isFetching: isPrechecking } = useQuery({
     queryKey: ['payroll-precheck', month, year],
     queryFn: () => payrollApi.precheckRun({ month, year }),
@@ -43,12 +50,20 @@ export default function PayrollPreviewPage() {
     setProcessError('');
     setShowIncompleteWarning(false);
     setAcknowledgeIncomplete(false);
+    if (isFuturePeriod) {
+      setProcessError('Cannot run payroll for a future month. Select the current month or an earlier period.');
+      return;
+    }
     runPrecheck();
   };
 
   const handleProcess = () => {
     setProcessSuccess(false);
     setProcessError('');
+    if (isFuturePeriod) {
+      setProcessError('Cannot run payroll for a future month. Select the current month or an earlier period.');
+      return;
+    }
     processMutation.mutate({ month, year, acknowledge_incomplete_attendance: acknowledgeIncomplete });
   };
 
@@ -70,11 +85,18 @@ export default function PayrollPreviewPage() {
               onChange={(e) => setMonth(parseInt(e.target.value, 10))}
               className="mt-1 w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm"
             >
-              {Array.from({ length: 12 }).map((_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
-                </option>
-              ))}
+              {Array.from({ length: 12 }).map((_, i) => {
+                const optionMonth = i + 1;
+                const disabledFuture =
+                  year > d.getFullYear() ||
+                  (year === d.getFullYear() && optionMonth > d.getMonth() + 1);
+                return (
+                  <option key={i + 1} value={optionMonth} disabled={disabledFuture}>
+                    {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+                    {disabledFuture ? ' (future)' : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -85,18 +107,25 @@ export default function PayrollPreviewPage() {
               onChange={(e) => setYear(parseInt(e.target.value, 10))}
               className="mt-1 w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm"
               min={2000}
-              max={2100}
+              max={d.getFullYear()}
             />
           </div>
           <button
             type="button"
             onClick={handlePrecheck}
-            disabled={isPrechecking}
+            disabled={isPrechecking || isFuturePeriod}
+            title={isFuturePeriod ? 'Cannot precheck a future month' : undefined}
             className="btn-secondary whitespace-nowrap"
           >
             {isPrechecking ? 'Analyzing...' : 'Run Precheck'}
           </button>
         </div>
+
+        {isFuturePeriod && (
+          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-3">
+            Future month selected — payroll cannot be run for this period. Choose the current month or an earlier one.
+          </div>
+        )}
 
         {precheckError && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">
@@ -106,6 +135,21 @@ export default function PayrollPreviewPage() {
 
         {precheck && !isPrechecking && (
           <div className="space-y-6 mt-6 border-t border-slate-100 pt-6">
+            {!precheck.attendance_finalized && (
+              <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <div>
+                  <span className="font-semibold block mb-1">Attendance not finalized</span>
+                  Finalize attendance for this month on Attendance → Monthly Register before generating payroll.
+                </div>
+              </div>
+            )}
+            {precheck.attendance_finalized && (
+              <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 shrink-0" />
+                <span>Attendance is finalized for this period.</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
                 <p className="text-[10px] uppercase font-semibold tracking-wide text-slate-500">Employees Total</p>
@@ -190,7 +234,20 @@ export default function PayrollPreviewPage() {
             <div className="flex justify-end pt-4">
               <button
                 type="button"
-                disabled={processMutation.isPending || (precheck.incomplete?.length > 0 && !acknowledgeIncomplete) || processSuccess}
+                disabled={
+                  processMutation.isPending ||
+                  isFuturePeriod ||
+                  !precheck.attendance_finalized ||
+                  (precheck.incomplete?.length > 0 && !acknowledgeIncomplete) ||
+                  processSuccess
+                }
+                title={
+                  isFuturePeriod
+                    ? 'Cannot run payroll for a future month'
+                    : !precheck.attendance_finalized
+                      ? 'Finalize attendance before processing payroll'
+                      : undefined
+                }
                 onClick={handleProcess}
                 className="btn-primary"
               >

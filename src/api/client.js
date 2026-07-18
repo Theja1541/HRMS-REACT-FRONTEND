@@ -26,17 +26,30 @@ function isAuthNoRefreshUrl(url) {
 
 api.interceptors.request.use((config) => {
   const isPublicAuth = isAuthNoRefreshUrl(config.url) && !config.url?.includes('/auth/refresh');
+  const authState = useAuthStore.getState();
   if (!isPublicAuth) {
-    const token = useAuthStore.getState().accessToken;
+    const token = authState.accessToken;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
   } else {
     delete config.headers.Authorization;
   }
-  const tenantId = useAuthStore.getState().selectedTenantId;
-  const token = useAuthStore.getState().accessToken;
-  const workspace = useAuthStore.getState().workspace;
+
+  // Align API RBAC with the portal role the user selected (manager / employee / hr / …)
+  const portalRole =
+    authState.selectedRole && authState.roles?.includes(authState.selectedRole)
+      ? authState.selectedRole
+      : authState.defaultRole || authState.user?.role || null;
+  if (portalRole && portalRole !== 'super_admin') {
+    config.headers['X-Active-Role'] = portalRole;
+  } else {
+    delete config.headers['X-Active-Role'];
+  }
+
+  const tenantId = authState.selectedTenantId;
+  const token = authState.accessToken;
+  const workspace = authState.workspace;
   const isGlobalSmtpScope = config.params?.scope === 'global';
   const isPlatformRequest =
     isPlatformPortal(token, workspace) || workspaceIdFromAnyToken(token) === 'platform';
@@ -104,7 +117,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
-        const onAuthPage = ['/login', '/select-workspace'].includes(window.location.pathname);
+        const onAuthPage = ['/login', '/select-workspace', '/mfa-verify'].includes(window.location.pathname);
         if (!onAuthPage) {
           window.location.href = '/login';
         }

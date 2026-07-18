@@ -111,6 +111,9 @@ export default function EmployeesPage() {
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Link to="/employees/archive" className="btn-secondary text-xs">
+              Archive
+            </Link>
             <ExportExcelButton
               onExport={() =>
                 exportEmployeesFromApi({

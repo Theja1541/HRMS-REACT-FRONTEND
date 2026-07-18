@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Briefcase, Building2, MapPin, Upload, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Building2, MapPin, Upload, CheckCircle2, Download, Paperclip } from 'lucide-react';
 import { careersApi } from '../../api';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, resolveAssetUrl } from '../../utils/helpers';
 import { EMPLOYMENT_TYPE_LABELS } from '../../constants/recruitment';
 import InternationalPhoneInput from '../../components/shared/InternationalPhoneInput';
 import { formatPhoneForStorage, isValidEmail, isValidInternationalPhone } from '../../utils/validation';
@@ -74,7 +74,20 @@ export default function CareersPage() {
                 )}
                 {o.max_ctc ? <span className="font-mono">Up to {formatINR(o.max_ctc)}</span> : null}
               </div>
-              {o.description && <p className="mt-3 text-sm text-slate-600 line-clamp-4">{o.description}</p>}
+              {o.description && <p className="mt-3 text-sm text-slate-600 whitespace-pre-wrap">{o.description}</p>}
+              {o.attachment_url && (
+                <a
+                  href={resolveAssetUrl(o.attachment_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={o.attachment_name || undefined}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  <Paperclip size={13} />
+                  {o.attachment_name || 'Download job description'}
+                  <Download size={12} className="opacity-70" />
+                </a>
+              )}
               <div className="mt-auto pt-4">
                 <button type="button" onClick={() => { setSubmitted(false); setSelectedOpening(o); }} className="btn-primary text-xs">
                   Apply now
@@ -133,6 +146,22 @@ function CareersApplyModal({ tenantSlug, opening, onClose, onSuccess }) {
       <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Close" />
       <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5 max-h-[90vh] overflow-y-auto">
         <h3 className="text-sm font-semibold">Apply — {opening.title}</h3>
+        {opening.description && (
+          <p className="mt-2 text-xs text-slate-600 whitespace-pre-wrap">{opening.description}</p>
+        )}
+        {opening.attachment_url && (
+          <a
+            href={resolveAssetUrl(opening.attachment_url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={opening.attachment_name || undefined}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
+          >
+            <Paperclip size={13} />
+            {opening.attachment_name || 'Download job description'}
+            <Download size={12} className="opacity-70" />
+          </a>
+        )}
         <form
           className="mt-4 space-y-3"
           onSubmit={(e) => {

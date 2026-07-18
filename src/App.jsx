@@ -11,6 +11,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import EmployeesPage from './pages/employees/EmployeesPage';
 import EmployeeDetailPage from './pages/employees/EmployeeDetailPage';
+import EmployeeArchivePage from './pages/employees/EmployeeArchivePage';
 import OrgStructurePage from './pages/people/OrgStructurePage';
 import TenantsPage from './pages/admin/TenantsPage';
 import BillingPage from './pages/admin/BillingPage';
@@ -42,10 +43,16 @@ import ViewQuotationPage from './pages/finance/ViewQuotationPage';
 import RecruitmentPage from './pages/hr/RecruitmentPage';
 import OnboardingPage from './pages/hr/OnboardingPage';
 import SeparationPage from './pages/hr/SeparationPage';
+import ExitDashboardPage from './pages/hr/ExitDashboardPage';
+import ExitReportsPage from './pages/hr/ExitReportsPage';
 import ResignationPage from './pages/hr/ResignationPage';
 import NoticePeriodPolicyPage from './pages/hr/NoticePeriodPolicyPage';
 import ClearanceTemplatePage from './pages/hr/ClearanceTemplatePage';
+import DocumentTemplatesPage from './pages/hr/DocumentTemplatesPage';
+import DocumentGenerationHistoryPage from './pages/hr/DocumentGenerationHistoryPage';
 import ClearanceDashboardPage from './pages/hr/ClearanceDashboardPage';
+import KnowledgeTransferPage from './pages/hr/KnowledgeTransferPage';
+import ExitInterviewsPage from './pages/hr/ExitInterviewsPage';
 import FnfSettlementsPage from './pages/hr/FnfSettlementsPage';
 import ProbationPolicyPage from './pages/hr/ProbationPolicyPage';
 import ProbationTrackerPage from './pages/hr/ProbationTrackerPage';
@@ -77,6 +84,8 @@ import MeLeavesPage from './pages/me/MeLeavesPage';
 import MeResignationPage from './pages/me/MeResignationPage';
 import MeExitPage from './pages/me/MeExitPage';
 import MeFnfPage from './pages/me/MeFnfPage';
+import MeKtPage from './pages/me/MeKtPage';
+import MeExitInterviewPage from './pages/me/MeExitInterviewPage';
 import TaxDeclarationPage from './pages/me/TaxDeclarationPage';
 import MeReimbursementsListPage from './pages/me/reimbursements/MeReimbursementsListPage';
 import MeReimbursementFormPage from './pages/me/reimbursements/MeReimbursementFormPage';
@@ -132,6 +141,7 @@ function SubscriptionBlockedRedirect({ children }) {
 }
 
 function PublicRoute({ children }) {
+  const location = useLocation();
   const token = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const entitlements = useAuthStore((s) => s.entitlements);
@@ -139,7 +149,11 @@ function PublicRoute({ children }) {
   const defaultRole = useAuthStore((s) => s.defaultRole);
   const selectedRole = useAuthStore((s) => s.selectedRole);
   const mustChangePassword = user?.must_change_password;
-  if (token && isPersonSessionToken(token)) {
+  const hasPendingMfaToken = !!sessionStorage.getItem('mfa_temp_token');
+  const allowMfaVerificationRoute =
+    location.pathname === '/mfa-verify' && hasPendingMfaToken;
+
+  if (token && isPersonSessionToken(token) && !allowMfaVerificationRoute) {
     return <Navigate to="/select-workspace" replace />;
   }
   if (token && user && !isPersonSessionToken(token)) {
@@ -235,6 +249,7 @@ export default function App() {
               <Route index element={<HomeRedirect />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="employees" element={<ModuleAccessGuard module="employees"><EmployeesPage /></ModuleAccessGuard>} />
+              <Route path="employees/archive" element={<ModuleAccessGuard module="employees"><EmployeeArchivePage /></ModuleAccessGuard>} />
               <Route path="employees/:id" element={<ModuleAccessGuard module="employees"><EmployeeDetailPage /></ModuleAccessGuard>} />
               <Route path="people/org-structure" element={<OrgStructurePage />} />
               <Route path="people/policy-documents" element={<MePoliciesPage />} />
@@ -257,6 +272,8 @@ export default function App() {
               <Route path="me/leaves" element={<ModuleAccessGuard module="leaves"><MeLeavesPage /></ModuleAccessGuard>} />
               <Route path="me/resignation" element={<ModuleAccessGuard module="separation"><MeResignationPage /></ModuleAccessGuard>} />
               <Route path="me/exit-status" element={<ModuleAccessGuard module="separation"><MeExitPage /></ModuleAccessGuard>} />
+              <Route path="me/kt" element={<ModuleAccessGuard module="separation"><MeKtPage /></ModuleAccessGuard>} />
+              <Route path="me/exit-interview" element={<ModuleAccessGuard module="separation"><MeExitInterviewPage /></ModuleAccessGuard>} />
               <Route path="me/fnf" element={<ModuleAccessGuard module="separation"><MeFnfPage /></ModuleAccessGuard>} />
               <Route path="me/profile" element={<MeProfilePage />} />
               <Route path="me/change-password" element={<ChangePasswordPage />} />
@@ -294,9 +311,15 @@ export default function App() {
               <Route path="recruitment" element={<ModuleAccessGuard module="recruitment"><RecruitmentPage /></ModuleAccessGuard>} />
               <Route path="onboarding" element={<OnboardingPage />} />
               <Route path="resignations" element={<ModuleAccessGuard module="separation"><ResignationPage /></ModuleAccessGuard>} />
+              <Route path="exit-dashboard" element={<ModuleAccessGuard module="separation"><ExitDashboardPage /></ModuleAccessGuard>} />
+              <Route path="exit-reports" element={<ModuleAccessGuard module="separation"><ExitReportsPage /></ModuleAccessGuard>} />
               <Route path="notice-period-policies" element={<ModuleAccessGuard module="separation"><NoticePeriodPolicyPage /></ModuleAccessGuard>} />
               <Route path="clearance-templates" element={<ModuleAccessGuard module="separation"><ClearanceTemplatePage /></ModuleAccessGuard>} />
+              <Route path="document-templates" element={<ModuleAccessGuard module="employees"><DocumentTemplatesPage /></ModuleAccessGuard>} />
+              <Route path="generated-documents" element={<ModuleAccessGuard module="employees"><DocumentGenerationHistoryPage /></ModuleAccessGuard>} />
               <Route path="clearance-dashboard" element={<ModuleAccessGuard module="separation"><ClearanceDashboardPage /></ModuleAccessGuard>} />
+              <Route path="knowledge-transfer" element={<ModuleAccessGuard module="separation"><KnowledgeTransferPage /></ModuleAccessGuard>} />
+              <Route path="exit-interviews" element={<ModuleAccessGuard module="separation"><ExitInterviewsPage /></ModuleAccessGuard>} />
               <Route path="fnf-settlements" element={<ModuleAccessGuard module="separation"><FnfSettlementsPage /></ModuleAccessGuard>} />
               <Route path="probation-policies" element={<ModuleAccessGuard module="probation"><ProbationPolicyPage /></ModuleAccessGuard>} />
               <Route path="probation-tracker" element={<ModuleAccessGuard module="probation"><ProbationTrackerPage /></ModuleAccessGuard>} />
@@ -308,6 +331,8 @@ export default function App() {
               <Route path="assets/returns" element={<ModuleAccessGuard module="assets"><AssetReturnRequestsPage /></ModuleAccessGuard>} />
               <Route path="assets" element={<ModuleAccessGuard module="assets"><AssetsPage /></ModuleAccessGuard>} />
               <Route path="projects" element={<ModuleAccessGuard module="projects"><ProjectsPage /></ModuleAccessGuard>} />
+              <Route path="projects/:projectId" element={<ModuleAccessGuard module="projects"><ProjectsPage /></ModuleAccessGuard>} />
+              <Route path="projects/:projectId/:tab" element={<ModuleAccessGuard module="projects"><ProjectsPage /></ModuleAccessGuard>} />
               <Route path="helpdesk" element={<HelpdeskPage />} />
               <Route path="helpdesk/categories" element={<HelpdeskCategoriesPage />} />
               <Route path="announcements" element={<AnnouncementsPage />} />

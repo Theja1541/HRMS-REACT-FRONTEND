@@ -54,14 +54,48 @@ export const employeeApi = {
   get: (id) => api.get(`/employees/${id}`).then((r) => r.data),
   getSelf: () => api.get('/employees/me').then((r) => r.data),
   getMyFnfSettlement: () => api.get('/employees/me/fnf-settlement').then((r) => r.data),
+  listMyKtPlans: () => api.get('/employees/me/kt-plans').then((r) => r.data),
+  listMyExitInterviews: () => api.get('/employees/me/exit-interviews').then((r) => r.data),
   updateSelf: (payload) => api.put('/employees/me', payload).then((r) => r.data),
   create: (payload) => api.post('/employees', payload).then((r) => r.data),
   update: (id, payload) => api.put(`/employees/${id}`, payload).then((r) => r.data),
   deactivate: (id) => api.patch(`/employees/${id}/deactivate`).then((r) => r.data),
   reactivate: (id) => api.patch(`/employees/${id}/reactivate`).then((r) => r.data),
   delete: (id) => api.delete(`/employees/${id}`).then((r) => r.data),
+  listArchived: (params) => api.get('/employees/archive', { params }).then((r) => r.data),
+  getArchiveStats: () => api.get('/employees/archive/stats').then((r) => r.data),
+  getArchived: (id) => api.get(`/employees/archive/${id}`).then((r) => r.data),
+  archive: (id, payload) => api.post(`/employees/${id}/archive`, payload || {}).then((r) => r.data),
+  rehire: (id, payload) => api.post(`/employees/${id}/rehire`, payload).then((r) => r.data),
+  restore: (id, payload) => api.post(`/employees/${id}/restore`, payload).then((r) => r.data),
+  updateArchiveEligibility: (id, payload) =>
+    api.patch(`/employees/archive/${id}/eligibility`, payload).then((r) => r.data),
   resendWelcome: (id) => api.post(`/employees/${id}/resend-welcome`).then((r) => r.data),
   listDocuments: (id) => api.get(`/employees/${id}/documents`).then((r) => r.data),
+  previewOfferLetter: (id, params) =>
+    api
+      .get(`/employees/${id}/offer-letter/preview`, { params, responseType: 'blob' })
+      .then((r) => r.data),
+  listOfferLetterTemplates: (id) =>
+    api.get(`/employees/${id}/offer-letter/templates`).then((r) => r.data),
+  previewOfferLetterHtml: (id, params) =>
+    api.get(`/employees/${id}/offer-letter/preview-html`, { params }).then((r) => r.data),
+  downloadOfferLetter: (id, params) =>
+    api
+      .get(`/employees/${id}/offer-letter/download`, { params, responseType: 'blob' })
+      .then((r) => r.data),
+  previewExperienceLetter: (id, params) =>
+    api
+      .get(`/employees/${id}/experience-letter/preview`, { params, responseType: 'blob' })
+      .then((r) => r.data),
+  listExperienceLetterTemplates: (id) =>
+    api.get(`/employees/${id}/experience-letter/templates`).then((r) => r.data),
+  previewExperienceLetterHtml: (id, params) =>
+    api.get(`/employees/${id}/experience-letter/preview-html`, { params }).then((r) => r.data),
+  downloadExperienceLetter: (id, params) =>
+    api
+      .get(`/employees/${id}/experience-letter/download`, { params, responseType: 'blob' })
+      .then((r) => r.data),
   uploadDocument: (id, file, documentType) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -112,6 +146,9 @@ export const attendanceApi = {
   bulkMark: (payload) => api.post('/attendance/bulk', payload).then((r) => r.data),
   checkIn: () => api.post('/attendance/check-in').then((r) => r.data),
   checkOut: () => api.post('/attendance/check-out').then((r) => r.data),
+  getFinalization: (params) => api.get('/attendance/finalization', { params }).then((r) => r.data),
+  finalize: (payload) => api.post('/attendance/finalize', payload).then((r) => r.data),
+  unfinalize: (payload) => api.post('/attendance/unfinalize', payload).then((r) => r.data),
 };
 
 export const attendancePolicyApi = {
@@ -198,6 +235,7 @@ export const resignationApi = {
   previewLwd: (params) => api.get('/resignations/lwd-preview', { params }).then((r) => r.data),
   getResignationClearance: (id) => api.get(`/resignations/${id}/clearance`).then((r) => r.data),
   getResignationFnf: (id) => api.get(`/resignations/${id}/fnf`).then((r) => r.data),
+  getResignationKt: (id) => api.get(`/resignations/${id}/kt`).then((r) => r.data),
   getMyRelievingLetter: (id) => api.get(`/resignations/${id}/relieving-letter`).then((r) => r.data),
   downloadMyRelievingLetter: (id) =>
     api.get(`/resignations/${id}/relieving-letter/download`, { responseType: 'blob' }),
@@ -267,7 +305,18 @@ export const portalApi = {
   submitReimbursement: (formData) =>
     api.post('/reimbursements', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
   listMyAssets: () => api.get('/assets/my').then((r) => r.data),
-  requestAssetReturn: (id, payload) => api.post(`/assets/${id}/return-request`, payload).then((r) => r.data),
+  requestAssetReturn: (id, formData) =>
+    api
+      .post(`/assets/${id}/return-request`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
+  uploadMyAssetReturnPhotos: (id, formData) =>
+    api
+      .post(`/assets/return-requests/${id}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
   listJobOpenings: () => api.get('/job-openings').then((r) => r.data),
   listReferralOpenings: () => api.get('/job-openings/referral-eligible').then((r) => r.data),
   applyToJobOpening: (id, payload) => api.post(`/job-openings/${id}/apply`, payload).then((r) => r.data),
@@ -402,8 +451,10 @@ export const financeApi = {
 
 export const hrApi = {
   listOpenings: (params) => api.get('/hr/recruitment/openings', { params }).then((r) => r.data),
-  createOpening: (payload) => api.post('/hr/recruitment/openings', payload).then((r) => r.data),
-  updateOpening: (id, payload) => api.put(`/hr/recruitment/openings/${id}`, payload).then((r) => r.data),
+  createOpening: (formData) =>
+    api.post('/hr/recruitment/openings', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
+  updateOpening: (id, formData) =>
+    api.put(`/hr/recruitment/openings/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
   listApplications: (params) => api.get('/hr/recruitment/applications', { params }).then((r) => r.data),
   getApplication: (id) => api.get(`/hr/recruitment/applications/${id}`).then((r) => r.data),
   createApplication: (payload) => api.post('/hr/recruitment/applications', payload).then((r) => r.data),
@@ -415,8 +466,19 @@ export const hrApi = {
   initOnboarding: (payload) => api.post('/hr/onboarding/init', payload).then((r) => r.data),
   updateOnboardingTask: (id, payload) => api.patch(`/hr/onboarding/tasks/${id}`, payload).then((r) => r.data),
   listSeparations: (params) => api.get('/hr/separation', { params }).then((r) => r.data),
+  listSeparationEligibleEmployees: (params) =>
+    api.get('/hr/separation/eligible-employees', { params }).then((r) => r.data),
+  getExitDashboard: (params) =>
+    api.get('/hr/separation/dashboard', { params }).then((r) => r.data),
+  listExitReportTypes: () => api.get('/hr/exit-reports').then((r) => r.data),
+  getExitReport: (type, params) =>
+    api.get(`/hr/exit-reports/${type}`, { params }).then((r) => r.data),
+  exportExitReport: (type, params) =>
+    api.get(`/hr/exit-reports/${type}/export`, { params, responseType: 'blob' }),
   createSeparation: (payload) => api.post('/hr/separation', payload).then((r) => r.data),
   updateSeparation: (id, payload) => api.patch(`/hr/separation/${id}`, payload).then((r) => r.data),
+  listSeparationHiringEligibilityEvents: (id, params) =>
+    api.get(`/hr/separation/${id}/hiring-eligibility-events`, { params }).then((r) => r.data),
   listSeparationClearanceTemplates: (params) =>
     api.get('/hr/separation-clearance-templates', { params }).then((r) => r.data),
   getSeparationClearanceTemplate: (id) =>
@@ -427,10 +489,68 @@ export const hrApi = {
     api.put(`/hr/separation-clearance-templates/${id}`, payload).then((r) => r.data),
   deleteSeparationClearanceTemplate: (id) =>
     api.delete(`/hr/separation-clearance-templates/${id}`).then((r) => r.data),
+  listDocumentTemplates: (params) =>
+    api.get('/hr/document-templates', { params }).then((r) => r.data),
+  listDocumentTemplateVariables: () =>
+    api.get('/hr/document-templates/variables').then((r) => r.data),
+  getDocumentTemplate: (id) =>
+    api.get(`/hr/document-templates/${id}`).then((r) => r.data),
+  listDocumentTemplateVersions: (id) =>
+    api.get(`/hr/document-templates/${id}/versions`).then((r) => r.data),
+  getDocumentTemplateVersion: (id, version) =>
+    api.get(`/hr/document-templates/${id}/versions/${version}`).then((r) => r.data),
+  previewDocumentTemplateHtml: (id, params) =>
+    api.get(`/hr/document-templates/${id}/preview-html`, { params }).then((r) => r.data),
+  previewDocumentTemplatePdf: (id, params) =>
+    api
+      .get(`/hr/document-templates/${id}/preview-pdf`, { params, responseType: 'blob' })
+      .then((r) => r.data),
+  downloadDocumentTemplatePdf: (id, params) =>
+    api
+      .get(`/hr/document-templates/${id}/download-pdf`, { params, responseType: 'blob' })
+      .then((r) => r.data),
+  createDocumentTemplate: (payload) =>
+    api.post('/hr/document-templates', payload).then((r) => r.data),
+  parseDocumentTemplateFile: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/hr/document-templates/parse-file', formData).then((r) => r.data);
+  },
+  createDocumentTemplateFromFile: (file, payload) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      formData.append(key, typeof value === 'boolean' ? String(value) : value);
+    });
+    return api.post('/hr/document-templates/from-file', formData).then((r) => r.data);
+  },
+  updateDocumentTemplate: (id, payload) =>
+    api.put(`/hr/document-templates/${id}`, payload).then((r) => r.data),
+  deleteDocumentTemplate: (id) =>
+    api.delete(`/hr/document-templates/${id}`).then((r) => r.data),
+  listGeneratedDocuments: (params) =>
+    api.get('/hr/generated-documents', { params }).then((r) => r.data),
+  getGeneratedDocument: (id, params) =>
+    api.get(`/hr/generated-documents/${id}`, { params }).then((r) => r.data),
+  previewGeneratedDocument: (id) =>
+    api
+      .get(`/hr/generated-documents/${id}/preview`, { responseType: 'blob' })
+      .then((r) => r.data),
+  downloadGeneratedDocument: (id) =>
+    api
+      .get(`/hr/generated-documents/${id}/download`, { responseType: 'blob' })
+      .then((r) => r.data),
   listSeparationClearances: (params) =>
     api.get('/hr/separation-clearances', { params }).then((r) => r.data),
   getSeparationClearance: (id) =>
     api.get(`/hr/separation-clearances/${id}`).then((r) => r.data),
+  getClearanceDepartmentDashboard: (params) =>
+    api.get('/hr/separation-clearances/department-dashboard', { params }).then((r) => r.data),
+  listClearanceDepartmentOwners: () =>
+    api.get('/hr/separation-clearances/department-owners').then((r) => r.data),
+  upsertClearanceDepartmentOwner: (payload) =>
+    api.put('/hr/separation-clearances/department-owners', payload).then((r) => r.data),
   listSeparationClearanceItems: (id, params) =>
     api.get(`/hr/separation-clearances/${id}/items`, { params }).then((r) => r.data),
   getSeparationClearanceProgress: (id) =>
@@ -441,23 +561,128 @@ export const hrApi = {
     api.post(`/hr/separation-clearances/${clearanceId}/items/${itemId}/reject`, payload).then((r) => r.data),
   updateSeparationClearanceItemRemarks: (clearanceId, itemId, payload) =>
     api.patch(`/hr/separation-clearances/${clearanceId}/items/${itemId}/remarks`, payload).then((r) => r.data),
+  updateSeparationClearanceItemAssignment: (clearanceId, itemId, payload) =>
+    api.patch(`/hr/separation-clearances/${clearanceId}/items/${itemId}/assignment`, payload).then((r) => r.data),
+  reattemptSeparationClearanceItem: (clearanceId, itemId, payload) =>
+    api.post(`/hr/separation-clearances/${clearanceId}/items/${itemId}/reattempt`, payload || {}).then((r) => r.data),
+  uploadSeparationClearanceAttachment: (clearanceId, itemId, formData) =>
+    api
+      .post(`/hr/separation-clearances/${clearanceId}/items/${itemId}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
+  deleteSeparationClearanceAttachment: (clearanceId, itemId, attachmentId) =>
+    api
+      .delete(`/hr/separation-clearances/${clearanceId}/items/${itemId}/attachments/${attachmentId}`)
+      .then((r) => r.data),
+  getSeparationClearanceItemHistory: (clearanceId, itemId) =>
+    api.get(`/hr/separation-clearances/${clearanceId}/items/${itemId}/history`).then((r) => r.data),
+  listExitInterviews: (params) => api.get('/hr/exit-interviews', { params }).then((r) => r.data),
+  getExitInterview: (id) => api.get(`/hr/exit-interviews/${id}`).then((r) => r.data),
+  getExitInterviewBySeparation: (separationId) =>
+    api.get(`/hr/exit-interviews/by-separation/${separationId}`).then((r) => r.data),
+  createExitInterview: (payload) => api.post('/hr/exit-interviews', payload).then((r) => r.data),
+  submitExitInterviewEmployee: (id, payload) =>
+    api.post(`/hr/exit-interviews/${id}/employee-submit`, payload).then((r) => r.data),
+  submitExitInterviewManager: (id, payload) =>
+    api.post(`/hr/exit-interviews/${id}/manager-submit`, payload).then((r) => r.data),
+  submitExitInterviewHr: (id, payload) =>
+    api.post(`/hr/exit-interviews/${id}/hr-submit`, payload).then((r) => r.data),
+  waiveExitInterview: (id, payload) =>
+    api.post(`/hr/exit-interviews/${id}/waive`, payload).then((r) => r.data),
+  getExitInterviewAnalytics: (params) =>
+    api.get('/hr/exit-interviews/analytics', { params }).then((r) => r.data),
+  listExitInterviewQuestionnaires: (params) =>
+    api.get('/hr/exit-interviews/questionnaires', { params }).then((r) => r.data),
+  createExitInterviewQuestionnaire: (payload) =>
+    api.post('/hr/exit-interviews/questionnaires', payload).then((r) => r.data),
+  updateExitInterviewQuestionnaire: (id, payload) =>
+    api.put(`/hr/exit-interviews/questionnaires/${id}`, payload).then((r) => r.data),
+  deactivateExitInterviewQuestionnaire: (id) =>
+    api.delete(`/hr/exit-interviews/questionnaires/${id}`).then((r) => r.data),
   listFnfSettlements: (params) => api.get('/hr/fnf-settlements', { params }).then((r) => r.data),
   getFnfSettlement: (id) => api.get(`/hr/fnf-settlements/${id}`).then((r) => r.data),
   getFnfStatement: (id) => api.get(`/hr/fnf-settlements/${id}/statement`).then((r) => r.data),
   recalculateFnfSettlement: (id) =>
     api.post(`/hr/fnf-settlements/${id}/recalculate`).then((r) => r.data),
+  submitFnfSettlementApproval: (id, payload) =>
+    api.post(`/hr/fnf-settlements/${id}/submit-approval`, payload || {}).then((r) => r.data),
   approveFnfSettlement: (id, payload) =>
     api.post(`/hr/fnf-settlements/${id}/approve`, payload).then((r) => r.data),
   listFnfSettlementPayments: (id) =>
     api.get(`/hr/fnf-settlements/${id}/payments`).then((r) => r.data),
   recordFnfPayment: (id, payload) =>
     api.post(`/hr/fnf-settlements/${id}/payments`, payload).then((r) => r.data),
+  approveFnfPayment: (id, paymentId, payload) =>
+    api.post(`/hr/fnf-settlements/${id}/payments/${paymentId}/approve`, payload || {}).then((r) => r.data),
+  rejectFnfPayment: (id, paymentId, payload) =>
+    api.post(`/hr/fnf-settlements/${id}/payments/${paymentId}/reject`, payload).then((r) => r.data),
+  reconcileFnfPayment: (id, paymentId, payload) =>
+    api.post(`/hr/fnf-settlements/${id}/payments/${paymentId}/reconcile`, payload).then((r) => r.data),
+  getFnfFinanceReconciliation: (params) =>
+    api.get('/hr/fnf-settlements/finance-reconciliation', { params }).then((r) => r.data),
   addFnfComponent: (id, payload) =>
     api.post(`/hr/fnf-settlements/${id}/components`, payload).then((r) => r.data),
   updateFnfComponent: (id, componentId, payload) =>
     api.patch(`/hr/fnf-settlements/${id}/components/${componentId}`, payload).then((r) => r.data),
   deleteFnfComponent: (id, componentId) =>
     api.delete(`/hr/fnf-settlements/${id}/components/${componentId}`).then((r) => r.data),
+  listKtPlans: (params) => api.get('/hr/kt-plans', { params }).then((r) => r.data),
+  getKtAnalytics: (params) => api.get('/hr/kt-plans/analytics', { params }).then((r) => r.data),
+  getKtPlan: (id) => api.get(`/hr/kt-plans/${id}`).then((r) => r.data),
+  getKtPlanBySeparation: (separationId) =>
+    api.get(`/hr/kt-plans/by-separation/${separationId}`).then((r) => r.data),
+  createKtPlan: (payload) => api.post('/hr/kt-plans', payload).then((r) => r.data),
+  updateKtPlan: (id, payload) => api.patch(`/hr/kt-plans/${id}`, payload).then((r) => r.data),
+  getKtProgress: (id) => api.get(`/hr/kt-plans/${id}/progress`).then((r) => r.data),
+  submitKtPlan: (id) => api.post(`/hr/kt-plans/${id}/submit`).then((r) => r.data),
+  approveKtPlan: (id) => api.post(`/hr/kt-plans/${id}/approve`).then((r) => r.data),
+  rejectKtPlan: (id, payload) => api.post(`/hr/kt-plans/${id}/reject`, payload).then((r) => r.data),
+  cancelKtPlan: (id, payload) => api.post(`/hr/kt-plans/${id}/cancel`, payload).then((r) => r.data),
+  acceptKtSuccessor: (id, payload) =>
+    api.post(`/hr/kt-plans/${id}/accept-successor`, payload).then((r) => r.data),
+  submitKtManagerReview: (id, payload) =>
+    api.post(`/hr/kt-plans/${id}/manager-review`, payload).then((r) => r.data),
+  addKtTask: (id, payload) => api.post(`/hr/kt-plans/${id}/tasks`, payload).then((r) => r.data),
+  updateKtTask: (id, taskId, payload) =>
+    api.patch(`/hr/kt-plans/${id}/tasks/${taskId}`, payload).then((r) => r.data),
+  deleteKtTask: (id, taskId) => api.delete(`/hr/kt-plans/${id}/tasks/${taskId}`).then((r) => r.data),
+  listKtComments: (id) => api.get(`/hr/kt-plans/${id}/comments`).then((r) => r.data),
+  addKtComment: (id, payload) => api.post(`/hr/kt-plans/${id}/comments`, payload).then((r) => r.data),
+  deleteKtComment: (id, commentId) =>
+    api.delete(`/hr/kt-plans/${id}/comments/${commentId}`).then((r) => r.data),
+  listKtDocuments: (id) => api.get(`/hr/kt-plans/${id}/documents`).then((r) => r.data),
+  uploadKtDocument: (id, formData) =>
+    api
+      .post(`/hr/kt-plans/${id}/documents`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
+  acknowledgeKtDocument: (id, documentId) =>
+    api.post(`/hr/kt-plans/${id}/documents/${documentId}/acknowledge`).then((r) => r.data),
+  deleteKtDocument: (id, documentId) =>
+    api.delete(`/hr/kt-plans/${id}/documents/${documentId}`).then((r) => r.data),
+  listKtSessions: (id) => api.get(`/hr/kt-plans/${id}/sessions`).then((r) => r.data),
+  addKtSession: (id, payload) => api.post(`/hr/kt-plans/${id}/sessions`, payload).then((r) => r.data),
+  updateKtSession: (id, sessionId, payload) =>
+    api.patch(`/hr/kt-plans/${id}/sessions/${sessionId}`, payload).then((r) => r.data),
+  deleteKtSession: (id, sessionId) =>
+    api.delete(`/hr/kt-plans/${id}/sessions/${sessionId}`).then((r) => r.data),
+  listKtRepositories: (id) => api.get(`/hr/kt-plans/${id}/repositories`).then((r) => r.data),
+  addKtRepository: (id, payload) =>
+    api.post(`/hr/kt-plans/${id}/repositories`, payload).then((r) => r.data),
+  updateKtRepository: (id, repoId, payload) =>
+    api.patch(`/hr/kt-plans/${id}/repositories/${repoId}`, payload).then((r) => r.data),
+  deleteKtRepository: (id, repoId) =>
+    api.delete(`/hr/kt-plans/${id}/repositories/${repoId}`).then((r) => r.data),
+  listKtCredentials: (id) => api.get(`/hr/kt-plans/${id}/credentials`).then((r) => r.data),
+  addKtCredential: (id, payload) =>
+    api.post(`/hr/kt-plans/${id}/credentials`, payload).then((r) => r.data),
+  updateKtCredential: (id, credentialId, payload) =>
+    api.patch(`/hr/kt-plans/${id}/credentials/${credentialId}`, payload).then((r) => r.data),
+  deleteKtCredential: (id, credentialId) =>
+    api.delete(`/hr/kt-plans/${id}/credentials/${credentialId}`).then((r) => r.data),
+  listKtHistory: (id) => api.get(`/hr/kt-plans/${id}/history`).then((r) => r.data),
   getRelievingLetterStatus: (separationId) =>
     api.get(`/hr/separation/${separationId}/relieving-letter`).then((r) => r.data),
   generateRelievingLetter: (separationId) =>
@@ -474,6 +699,9 @@ export const hrApi = {
     api.get(`/hr/separation/${separationId}/experience-letter/download`, { responseType: 'blob' }),
   listPerformanceCycles: () => api.get('/hr/performance/cycles').then((r) => r.data),
   createPerformanceCycle: (payload) => api.post('/hr/performance/cycles', payload).then((r) => r.data),
+  updatePerformanceCycle: (id, payload) => api.put(`/hr/performance/cycles/${id}`, payload).then((r) => r.data),
+  updatePerformanceCycleStatus: (id, payload) =>
+    api.patch(`/hr/performance/cycles/${id}/status`, payload).then((r) => r.data),
   launchPerformanceCycle: (id) => api.post(`/hr/performance/cycles/${id}/launch`).then((r) => r.data),
   listPerformanceReviews: (params) => api.get('/hr/performance/reviews', { params }).then((r) => r.data),
   updatePerformanceReview: (id, payload) => api.patch(`/hr/performance/reviews/${id}`, payload).then((r) => r.data),
@@ -489,21 +717,51 @@ export const hrApi = {
   retireAsset: (id) => api.delete(`/hr/assets/${id}`).then((r) => r.data),
   assignAsset: (id, payload) => api.post(`/hr/assets/${id}/assign`, payload).then((r) => r.data),
   returnAsset: (id, payload) => api.post(`/hr/assets/${id}/return`, payload).then((r) => r.data),
-  listAssetReturnRequests: () => api.get('/admin/assets/return-requests').then((r) => r.data),
-  approveAssetReturnRequest: (id) => api.put(`/admin/assets/return-requests/${id}/approve`).then((r) => r.data),
+  listAssetReturnRequests: (params) =>
+    api.get('/admin/assets/return-requests', { params }).then((r) => r.data),
+  getAssetReturnRequest: (id) =>
+    api.get(`/admin/assets/return-requests/${id}`).then((r) => r.data),
+  softApproveAssetReturnRequest: (id, payload) =>
+    api.put(`/admin/assets/return-requests/${id}/approve`, payload).then((r) => r.data),
+  completeAssetReturnRequest: (id, formData) =>
+    api
+      .put(`/admin/assets/return-requests/${id}/complete`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
+  /** @deprecated use completeAssetReturnRequest */
+  approveAssetReturnRequest: (id, formData) =>
+    api
+      .put(`/admin/assets/return-requests/${id}/complete`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
   rejectAssetReturnRequest: (id, payload) =>
     api.put(`/admin/assets/return-requests/${id}/reject`, payload).then((r) => r.data),
+  uploadAssetReturnPhotos: (id, formData) =>
+    api
+      .post(`/admin/assets/return-requests/${id}/photos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data),
+  getAssetHistory: (id, params) =>
+    api.get(`/hr/assets/${id}/history`, { params }).then((r) => r.data),
   listPendingReimbursements: () => api.get('/admin/reimbursements').then((r) => r.data),
   approveReimbursement: (id, payload) => api.put(`/admin/reimbursements/${id}/approve`, payload).then((r) => r.data),
   rejectReimbursement: (id, payload) => api.put(`/admin/reimbursements/${id}/reject`, payload).then((r) => r.data),
   createPolicyDocument: (formData) => api.post('/admin/policy-documents', formData).then((r) => r.data),
   listProjects: (params) => api.get('/hr/projects', { params }).then((r) => r.data),
+  listArchivedProjects: () => api.get('/hr/projects/archived').then((r) => r.data),
   getProject: (id) => api.get(`/hr/projects/${id}`).then((r) => r.data),
   createProject: (payload) => api.post('/hr/projects', payload).then((r) => r.data),
   updateProject: (id, payload) => api.put(`/hr/projects/${id}`, payload).then((r) => r.data),
+  archiveProject: (id) => api.delete(`/hr/projects/${id}`).then((r) => r.data),
+  restoreProject: (id) => api.post(`/hr/projects/${id}/restore`).then((r) => r.data),
   listMyTasks: (params) => api.get('/hr/projects/my-tasks', { params }).then((r) => r.data),
   getProjectBoard: (projectId) => api.get(`/hr/projects/${projectId}/board`).then((r) => r.data),
   updateBoardColumn: (columnId, payload) => api.put(`/hr/board-columns/${columnId}`, payload).then((r) => r.data),
+  deleteBoardColumn: (columnId, payload) =>
+    api.delete(`/hr/board-columns/${columnId}`, { data: payload || {} }).then((r) => r.data),
   createBoardColumn: (boardId, payload) => api.post(`/hr/boards/${boardId}/columns`, payload).then((r) => r.data),
   reorderBoardColumns: (boardId, payload) =>
     api.put(`/hr/boards/${boardId}/columns/reorder`, payload).then((r) => r.data),
@@ -515,13 +773,20 @@ export const hrApi = {
   assignTask: (taskId, payload) => api.put(`/hr/tasks/${taskId}/assign`, payload).then((r) => r.data),
   deleteTask: (taskId) => api.delete(`/hr/tasks/${taskId}`).then((r) => r.data),
   addTaskComment: (taskId, payload) => api.post(`/hr/tasks/${taskId}/comments`, payload).then((r) => r.data),
+  updateTaskComment: (taskId, commentId, payload) =>
+    api.put(`/hr/tasks/${taskId}/comments/${commentId}`, payload).then((r) => r.data),
+  deleteTaskComment: (taskId, commentId) =>
+    api.delete(`/hr/tasks/${taskId}/comments/${commentId}`).then((r) => r.data),
   listTaskAttachments: (taskId) => api.get(`/hr/tasks/${taskId}/attachments`).then((r) => r.data),
   addTaskAttachment: (taskId, file) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post(`/hr/tasks/${taskId}/attachments`, formData).then((r) => r.data);
   },
+  deleteTaskAttachment: (taskId, attachmentId) =>
+    api.delete(`/hr/tasks/${taskId}/attachments/${attachmentId}`).then((r) => r.data),
   listTaskDependencies: (taskId) => api.get(`/hr/tasks/${taskId}/dependencies`).then((r) => r.data),
+  listProjectDependencies: (projectId) => api.get(`/hr/projects/${projectId}/dependencies`).then((r) => r.data),
   addTaskDependency: (taskId, payload) => api.post(`/hr/tasks/${taskId}/dependencies`, payload).then((r) => r.data),
   deleteTaskDependency: (taskId, depId) => api.delete(`/hr/tasks/${taskId}/dependencies/${depId}`).then((r) => r.data),
   bulkAssignTasks: (payload) => api.post('/hr/tasks/bulk-assign', payload).then((r) => r.data),
@@ -534,6 +799,8 @@ export const hrApi = {
   getProjectDashboard: (projectId) => api.get(`/hr/projects/${projectId}/dashboard`).then((r) => r.data),
   listSprints: (projectId) => api.get(`/hr/projects/${projectId}/sprints`).then((r) => r.data),
   createSprint: (projectId, payload) => api.post(`/hr/projects/${projectId}/sprints`, payload).then((r) => r.data),
+  updateSprint: (sprintId, payload) => api.put(`/hr/sprints/${sprintId}`, payload).then((r) => r.data),
+  reopenSprint: (sprintId) => api.put(`/hr/sprints/${sprintId}/reopen`).then((r) => r.data),
   startSprint: (sprintId) => api.put(`/hr/sprints/${sprintId}/start`).then((r) => r.data),
   completeSprint: (sprintId, payload) => api.put(`/hr/sprints/${sprintId}/complete`, payload).then((r) => r.data),
   listProjectLabels: (projectId) => api.get(`/hr/projects/${projectId}/labels`).then((r) => r.data),
@@ -677,6 +944,16 @@ export const brandingApi = {
     const formData = new FormData();
     formData.append('logo', file);
     return api.post('/settings/company/branding/logo', formData).then((r) => r.data);
+  },
+  uploadHrSignature: (file) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    return api.post('/settings/company/branding/hr-signature', formData).then((r) => r.data);
+  },
+  uploadCompanySeal: (file) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    return api.post('/settings/company/branding/company-seal', formData).then((r) => r.data);
   },
 };
 

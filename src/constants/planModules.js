@@ -26,6 +26,7 @@ export const PLAN_MODULES = [
     description: 'Manage employee records, profiles, and lifecycle.',
     pages: [
       { key: 'directory', label: 'Employee Directory' },
+      { key: 'archive', label: 'Employee Archive' },
       { key: 'add', label: 'Add Employee' },
       { key: 'documents', label: 'Documents' },
     ],
@@ -70,6 +71,8 @@ export const PLAN_MODULES = [
     pages: [
       { key: 'requests', label: 'Exit Requests' },
       { key: 'clearance', label: 'Clearance' },
+      { key: 'kt', label: 'Knowledge Transfer' },
+      { key: 'exit_interview', label: 'Exit Interviews' },
     ],
   },
   {

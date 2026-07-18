@@ -1437,38 +1437,49 @@ export default function HelpdeskPage() {
           setForm({ category_id: '', tag_ids: [], subject: '', description: '', priority: 'medium' });
         }}
       >
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-6 mx-auto">
-            <h3 className="font-semibold mb-4">New Support Ticket</h3>
-            <div className="space-y-3">
-              <select
-                value={form.category_id}
-                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                required
-                disabled={activeCategories.length === 0}
-              >
-                {activeCategories.length === 0 ? (
-                  <option value="">No active categories</option>
-                ) : (
-                  activeCategories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))
-                )}
-              </select>
-              <select
-                multiple
-                value={(form.tag_ids || []).map((id) => String(id))}
-                onChange={(e) => {
-                  const ids = Array.from(e.target.selectedOptions).map((opt) => parseInt(opt.value, 10));
-                  setForm({ ...form, tag_ids: ids });
-                }}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm min-h-[84px]"
-              >
-                {allTags.map((tag) => (
-                  <option key={tag.id} value={tag.id}>{tag.name}</option>
-                ))}
-              </select>
-              <input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Subject" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl p-6 mx-auto max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-semibold text-slate-900">New Support Ticket</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
+              Fields marked with <span className="text-red-500">*</span> are required.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Category <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <select
+                  value={form.category_id}
+                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  required
+                  disabled={activeCategories.length === 0}
+                >
+                  {activeCategories.length === 0 ? (
+                    <option value="">No active categories</option>
+                  ) : (
+                    <>
+                      <option value="">Select category</option>
+                      {activeCategories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Subject <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <input
+                  value={form.subject}
+                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                  placeholder="Brief summary of the issue"
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  required
+                />
+              </div>
+
               {(form.subject?.trim().length >= 3) && (
                 <div className="rounded-lg border border-brand-100 bg-brand-50/40 p-3">
                   <p className="text-xs font-medium text-slate-700 mb-2">Suggested knowledge base articles</p>
@@ -1486,7 +1497,56 @@ export default function HelpdeskPage() {
                   )}
                 </div>
               )}
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe your issue…" rows={4} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Description <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Describe your issue in detail…"
+                  rows={4}
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">Priority</label>
+                <select
+                  value={form.priority}
+                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                >
+                  {Object.keys(TICKET_PRIORITIES).map((p) => (
+                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600">Tags</label>
+                <p className="text-[10px] text-slate-400 mt-0.5 mb-1">Optional. Hold Ctrl/Cmd to select multiple.</p>
+                <select
+                  multiple
+                  value={(form.tag_ids || []).map((id) => String(id))}
+                  onChange={(e) => {
+                    const ids = Array.from(e.target.selectedOptions).map((opt) => parseInt(opt.value, 10));
+                    setForm({ ...form, tag_ids: ids });
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm min-h-[84px]"
+                >
+                  {allTags.length === 0 ? (
+                    <option disabled value="">No tags available</option>
+                  ) : (
+                    allTags.map((tag) => (
+                      <option key={tag.id} value={tag.id}>{tag.name}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-medium text-slate-700 mb-2">Search Knowledge Base before creating ticket</p>
                 <input
@@ -1510,9 +1570,7 @@ export default function HelpdeskPage() {
                   </div>
                 )}
               </div>
-              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-                {Object.keys(TICKET_PRIORITIES).map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+
               <DocumentDropzone
                 label="Attachments (optional)"
                 accept={HELPDESK_ATTACHMENT_ACCEPT}
@@ -1541,7 +1599,7 @@ export default function HelpdeskPage() {
               )}
               <p className="text-[10px] text-slate-400">{HELPDESK_ATTACHMENT_HINT}</p>
             </div>
-            <div className="flex gap-2 justify-end mt-4">
+            <div className="flex gap-2 justify-end mt-5">
               <button
                 type="button"
                 onClick={() => {
@@ -1556,7 +1614,7 @@ export default function HelpdeskPage() {
               </button>
               <button
                 type="button"
-                disabled={!form.subject || !form.description || !form.category_id || createMutation.isPending}
+                disabled={!form.subject?.trim() || !form.description?.trim() || !form.category_id || createMutation.isPending}
                 onClick={() => createMutation.mutate({
                   form: {
                     ...form,
@@ -1566,7 +1624,7 @@ export default function HelpdeskPage() {
                 })}
                 className="btn-primary"
               >
-                {createMutation.isPending ? 'Submitting…' : 'Submit'}
+                {createMutation.isPending ? 'Submitting…' : 'Submit Ticket'}
               </button>
             </div>
           </div>

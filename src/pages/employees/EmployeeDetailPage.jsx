@@ -23,6 +23,8 @@ import LeaveBalanceBreakdownDrawer from '../../components/leave/LeaveBalanceBrea
 import { formatLeaveDays, leaveBalanceSubtitle } from '../../utils/leaveFormat';
 import InternationalPhoneInput from '../../components/shared/InternationalPhoneInput';
 import ProbationHistoryPanel from '../../components/probation/ProbationHistoryPanel';
+import GenerateOfferLetterAction from '../../components/employees/GenerateOfferLetterAction';
+import GenerateExperienceLetterAction from '../../components/employees/GenerateExperienceLetterAction';
 import { ROLE_LABELS } from '../../constants/routes';
 import { isValidInternationalPhone } from '../../utils/validation';
 import { useTenantCompanySlug } from '../../hooks/useTenantCompanySlug';
@@ -212,6 +214,11 @@ export default function EmployeeDetailPage() {
     confirmMutation.isPending || extendMutation.isPending || unsuccessfulMutation.isPending;
 
   const emp = data?.data?.employee;
+  const hasProbation = emp?.has_probation === true;
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => t.id !== 'probation' || hasProbation),
+    [hasProbation]
+  );
 
   useEffect(() => {
     if (!emp) return;
@@ -231,6 +238,15 @@ export default function EmployeeDetailPage() {
       setTab(urlTab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (emp && tab === 'probation' && !hasProbation) {
+      setTab('personal');
+      const params = {};
+      if (editing) params.edit = '1';
+      setSearchParams(params);
+    }
+  }, [emp, tab, hasProbation, editing, setSearchParams]);
 
   const departmentOptions = useMemo(() => {
     const list = [...(deptData?.data?.departments || [])];
@@ -350,6 +366,11 @@ export default function EmployeeDetailPage() {
         <StatusBadge status={emp.status} />
         {!editing ? (
           <>
+            {emp.status === 'separated' || emp.exit_date ? (
+              <GenerateExperienceLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
+            ) : (
+              <GenerateOfferLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
+            )}
             <button
               type="button"
               onClick={() => resendWelcomeMutation.mutate()}
@@ -397,7 +418,7 @@ export default function EmployeeDetailPage() {
 
       <div className="card">
         <div className="flex border-b border-slate-200 px-4 overflow-x-auto">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -506,7 +527,18 @@ export default function EmployeeDetailPage() {
               <Field label="Employment Type" value={emp.employment_type?.replace(/_/g, ' ')} />
               <Field label="System Role" value={ROLE_LABELS[emp.system_role] || emp.system_role} />
               <Field label="Branch" value={emp.branch?.name} />
-              <Field label="Work From Home" value={emp.work_from_home ? 'Yes' : 'No'} />
+              <Field
+                label="Work Mode"
+                value={
+                  emp.work_mode === 'hybrid'
+                    ? 'Hybrid'
+                    : emp.work_mode === 'remote'
+                      ? 'Remote'
+                      : emp.work_from_home
+                        ? 'Remote'
+                        : 'Office (On-site)'
+                }
+              />
             </div>
           )}
           {tab === 'employment' && isEditReady && (
@@ -574,11 +606,20 @@ export default function EmployeeDetailPage() {
             </div>
           )}
 
-          {tab === 'probation' && (
+          {tab === 'probation' && hasProbation && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <Field label="Policy" value={emp.probationPolicy?.policy_name} />
-                <Field label="Duration" value={emp.probationPolicy ? `${emp.probationPolicy.default_duration_months} months` : null} />
+                <Field
+                  label="Duration"
+                  value={
+                    emp.probation_duration_months
+                      ? `${emp.probation_duration_months} months`
+                      : emp.probationPolicy
+                        ? `${emp.probationPolicy.default_duration_months} months`
+                        : null
+                  }
+                />
                 <Field label="Probation Start" value={formatDate(emp.probation_start_date)} />
                 <Field label="Probation End" value={formatDate(emp.probation_end_date)} />
                 <Field label="Confirmation Date" value={formatDate(emp.confirmation_date)} />
@@ -590,7 +631,7 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
 
-              {emp.probationPolicy && emp.status === 'probation' && (
+              {emp.status === 'probation' && (
                 <>
                   <div className="border-t border-slate-100" />
                   <div>
@@ -615,7 +656,7 @@ export default function EmployeeDetailPage() {
                         onClick={() => { setProbationModal('unsuccessful'); setProbationError(''); setProbationForm({ extension_months: 1, remarks: '' }); }}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
                       >
-                        <XCircle size={14} /> Mark Unsuccessful
+                        <XCircle size={14} /> Separate
                       </button>
                     </div>
                   </div>
@@ -904,19 +945,19 @@ export default function EmployeeDetailPage() {
         </div>
       </div>
 
-      {probationModal && (
+      {probationModal && hasProbation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" className="absolute inset-0 bg-slate-900/50" onClick={closeProbationModal} aria-label="Close" />
           <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl p-6">
             <h3 className="font-semibold text-slate-900">
               {probationModal === 'confirm' && 'Confirm Probation'}
               {probationModal === 'extend' && 'Extend Probation'}
-              {probationModal === 'unsuccessful' && 'Mark Probation Unsuccessful'}
+              {probationModal === 'unsuccessful' && 'Separate Employee'}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               {probationModal === 'confirm' && `${emp.first_name} ${emp.last_name} will be set to active and probation will be closed.`}
               {probationModal === 'extend' && `Current end date: ${formatDate(emp.probation_end_date) || '—'}. The new end date will be recalculated from the current end date.`}
-              {probationModal === 'unsuccessful' && `${emp.first_name} ${emp.last_name} will be marked as separated. This action cannot be undone.`}
+              {probationModal === 'unsuccessful' && `${emp.first_name} ${emp.last_name} will be marked as separated (probation unsuccessful). This action cannot be undone.`}
             </p>
             <form className="mt-4 space-y-4" onSubmit={handleProbationSubmit}>
               {probationModal === 'extend' && (
@@ -968,7 +1009,7 @@ export default function EmployeeDetailPage() {
                     ? 'Confirm'
                     : probationModal === 'extend'
                     ? 'Extend'
-                    : 'Mark Unsuccessful'}
+                    : 'Separate'}
                 </button>
               </div>
             </form>

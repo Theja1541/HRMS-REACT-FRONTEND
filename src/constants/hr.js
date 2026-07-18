@@ -81,9 +81,44 @@ export const ASSET_STATUSES = {
 
 export const ASSET_RETURN_STATUS = {
   pending: 'bg-amber-50 text-amber-700',
+  approved: 'bg-blue-50 text-blue-700',
   completed: 'bg-emerald-50 text-emerald-700',
-  approved: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-700',
+};
+
+export const ASSET_RETURN_STATUS_LABELS = {
+  pending: 'Pending',
+  approved: 'Approved',
+  completed: 'Completed',
+  rejected: 'Rejected',
+};
+
+export const ASSET_RETURN_CONDITIONS = {
+  good: 'bg-emerald-50 text-emerald-700',
+  damaged: 'bg-amber-50 text-amber-700',
+  lost: 'bg-red-50 text-red-700',
+};
+
+export const ASSET_RETURN_CONDITION_LABELS = {
+  good: 'Good',
+  damaged: 'Damaged',
+  lost: 'Lost',
+};
+
+export const ASSET_ACCESSORY_CONDITION_LABELS = {
+  good: 'Good',
+  damaged: 'Damaged',
+  lost: 'Lost',
+  missing: 'Missing',
+  not_applicable: 'N/A',
+};
+
+export const ASSET_DAMAGE_SEVERITY_LABELS = {
+  none: 'None',
+  minor: 'Minor',
+  moderate: 'Moderate',
+  major: 'Major',
+  total: 'Total loss',
 };
 
 export const REVIEW_STATUSES = {
@@ -103,6 +138,31 @@ export const CLEARANCE_CATEGORY_LABELS = {
   compliance: 'Compliance',
   admin: 'Admin',
   assets: 'Assets',
+};
+
+export const CLEARANCE_DEPARTMENT_LABELS = {
+  hr: 'HR',
+  it: 'IT',
+  finance: 'Finance',
+  admin: 'Admin',
+  manager: 'Manager',
+};
+
+export const CLEARANCE_DEPARTMENTS = ['hr', 'it', 'finance', 'admin', 'manager'];
+
+export const CLEARANCE_HISTORY_ACTION_LABELS = {
+  created: 'Created',
+  assigned: 'Assigned',
+  due_date_updated: 'Due date updated',
+  remarks_updated: 'Remarks updated',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  reattempt: 'Re-opened',
+  attachment_added: 'Attachment added',
+  attachment_removed: 'Attachment removed',
+  escalated: 'Escalated',
+  reminder_sent: 'Reminder sent',
+  sla_breached: 'SLA breached',
 };
 
 export const CLEARANCE_STATUSES = {
@@ -127,6 +187,133 @@ export const CLEARANCE_ITEM_STATUS_LABELS = {
   waived: 'Rejected',
   not_applicable: 'N/A',
 };
+
+export const KT_PLAN_STATUSES = {
+  draft: 'bg-slate-100 text-slate-600',
+  in_progress: 'bg-blue-50 text-blue-700',
+  pending_manager: 'bg-amber-50 text-amber-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+  cancelled: 'bg-slate-200 text-slate-600',
+};
+
+export const KT_PLAN_STATUS_LABELS = {
+  draft: 'Draft',
+  in_progress: 'In Progress',
+  pending_manager: 'Pending Manager',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  cancelled: 'Cancelled',
+};
+
+export const KT_TASK_CATEGORIES = {
+  process: 'Process',
+  systems: 'Systems',
+  contacts: 'Contacts',
+  documents: 'Documents',
+  projects: 'Projects',
+  other: 'Other',
+};
+
+export const KT_TASK_STATUSES = {
+  pending: 'bg-slate-100 text-slate-600',
+  in_progress: 'bg-blue-50 text-blue-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+  waived: 'bg-amber-50 text-amber-700',
+  not_applicable: 'bg-slate-200 text-slate-500',
+};
+
+export const KT_TASK_STATUS_LABELS = {
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  waived: 'Waived',
+  not_applicable: 'N/A',
+};
+
+export const KT_DOC_TYPES = {
+  sop: 'SOP',
+  runbook: 'Runbook',
+  project: 'Project',
+  policy: 'Policy',
+  handover: 'Handover',
+  other: 'Other',
+};
+
+export const KT_SESSION_STATUSES = {
+  scheduled: 'bg-blue-50 text-blue-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+  cancelled: 'bg-slate-200 text-slate-600',
+  no_show: 'bg-amber-50 text-amber-700',
+};
+
+export const KT_SESSION_STATUS_LABELS = {
+  scheduled: 'Scheduled',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No Show',
+};
+
+export const KT_REPO_TYPES = {
+  git: 'Git',
+  wiki: 'Wiki',
+  drive: 'Drive',
+  confluence: 'Confluence',
+  notion: 'Notion',
+  dashboard: 'Dashboard',
+  other: 'Other',
+};
+
+export const KT_CREDENTIAL_STATUSES = {
+  pending: 'bg-slate-100 text-slate-600',
+  shared: 'bg-blue-50 text-blue-700',
+  transferred: 'bg-emerald-50 text-emerald-700',
+  revoked: 'bg-red-50 text-red-700',
+  not_applicable: 'bg-slate-200 text-slate-500',
+};
+
+export const KT_CREDENTIAL_STATUS_LABELS = {
+  pending: 'Pending',
+  shared: 'Shared',
+  transferred: 'Transferred',
+  revoked: 'Revoked',
+  not_applicable: 'N/A',
+};
+
+export const EXIT_INTERVIEW_STATUSES = {
+  pending: 'bg-slate-100 text-slate-600',
+  employee_submitted: 'bg-blue-50 text-blue-700',
+  manager_submitted: 'bg-amber-50 text-amber-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+  waived: 'bg-slate-200 text-slate-600',
+  cancelled: 'bg-slate-200 text-slate-500',
+};
+
+export const EXIT_INTERVIEW_STATUS_LABELS = {
+  pending: 'Pending Employee',
+  employee_submitted: 'Employee Submitted',
+  manager_submitted: 'Manager Feedback',
+  completed: 'Completed',
+  waived: 'Waived',
+  cancelled: 'Cancelled',
+};
+
+export const EXIT_RESIGNATION_REASON_LABELS = {
+  career_growth: 'Career growth',
+  compensation: 'Compensation',
+  management: 'Management',
+  work_life_balance: 'Work-life balance',
+  relocation: 'Relocation',
+  health: 'Health',
+  retirement: 'Retirement',
+  better_opportunity: 'Better opportunity',
+  culture: 'Culture / environment',
+  workload: 'Workload',
+  personal: 'Personal reasons',
+  other: 'Other',
+};
+
+export const EXIT_RESIGNATION_REASONS = Object.keys(EXIT_RESIGNATION_REASON_LABELS);
 
 export const FNF_SETTLEMENT_STATUSES = {
   draft: 'bg-slate-100 text-slate-600',
@@ -158,6 +345,28 @@ export const FNF_PAYMENT_MODE_LABELS = {
   upi: 'UPI',
   cheque: 'Cheque',
   cash: 'Cash',
+};
+
+export const FNF_PAYMENT_STATUS_LABELS = {
+  pending: 'Awaiting approval',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Rejected',
+  reversed: 'Reversed',
+};
+
+export const FNF_PAYMENT_STATUS_CLASSES = {
+  pending: 'bg-amber-50 text-amber-700',
+  processing: 'bg-blue-50 text-blue-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+  failed: 'bg-red-50 text-red-700',
+  reversed: 'bg-slate-100 text-slate-600',
+};
+
+export const FNF_RECON_STATUS_LABELS = {
+  unreconciled: 'Unreconciled',
+  matched: 'Matched',
+  discrepancy: 'Discrepancy',
 };
 
 export const ASSET_STATUS_OPTIONS = ['available', 'assigned', 'maintenance', 'retired'];
@@ -292,6 +501,26 @@ export const EMPLOYEE_DOCUMENTS = [
   { key: 'address_proof', label: 'Address Proof', accept: 'image/*,.pdf' },
   { key: 'education_certificate', label: 'Education Certificate', accept: 'image/*,.pdf' },
   { key: 'experience_certificate', label: 'Experience Certificate', accept: 'image/*,.pdf' },
+];
+
+export const DOCUMENT_TEMPLATE_TYPES = [
+  { value: 'offer_letter', label: 'Offer Letter' },
+  { value: 'appointment_letter', label: 'Appointment Letter' },
+  { value: 'confirmation_letter', label: 'Confirmation Letter' },
+  { value: 'increment_letter', label: 'Increment Letter' },
+  { value: 'relieving_letter', label: 'Relieving Letter' },
+  { value: 'experience_letter', label: 'Experience Letter' },
+  { value: 'salary_certificate', label: 'Salary Certificate' },
+  { value: 'other', label: 'Other' },
+];
+
+export const DOCUMENT_TEMPLATE_TYPE_LABELS = Object.fromEntries(
+  DOCUMENT_TEMPLATE_TYPES.map((t) => [t.value, t.label])
+);
+
+export const DOCUMENT_TEMPLATE_STATUSES = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
 ];
 
 export const WIZARD_STEPS = [
