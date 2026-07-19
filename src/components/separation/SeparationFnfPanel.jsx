@@ -499,10 +499,15 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
     setAdjustmentError('');
   };
 
+  const pendingTotal = (settlement?.payments || [])
+    .filter((p) => ['pending', 'processing'].includes(p.status))
+    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+  const availableBalance = Math.max(0, Math.abs(settlement?.balance_due || 0) - pendingTotal);
+
   const openPayment = () => {
     setPaymentForm({
       payment_date: new Date().toISOString().slice(0, 10),
-      amount: settlement?.balance_due != null ? String(settlement.balance_due) : '',
+      amount: availableBalance > 0 ? String(availableBalance) : '',
       payment_mode: 'neft',
       reference_number: '',
       remarks: '',
@@ -717,7 +722,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
                 onClick={openPayment}
                 className="btn-primary text-[10px] py-1 inline-flex items-center gap-1"
               >
-                <IndianRupee size={12} /> Record Payment
+                <IndianRupee size={12} /> {settlement.net_payable < 0 ? 'Record Recovery' : 'Record Payment'}
               </button>
             )}
             </>
@@ -737,12 +742,12 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
         </div>
         <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
           <p className="text-[10px] uppercase text-brand-700/80 font-medium">Net Settlement</p>
-          <p className="text-lg font-bold text-brand-800 mt-1">{formatInr(settlement.net_payable)}</p>
+          <p className="text-lg font-bold text-brand-800 mt-1">{formatInr(Math.abs(settlement.net_payable))}</p>
         </div>
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <p className="text-[10px] uppercase text-slate-500 font-medium">Balance Due</p>
-          <p className="text-lg font-bold text-slate-800 mt-1">{formatInr(settlement.balance_due)}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Paid: {formatInr(settlement.amount_paid)}</p>
+          <p className="text-[10px] uppercase text-slate-500 font-medium">{settlement.net_payable < 0 ? 'Recovery Due' : 'Balance Due'}</p>
+          <p className="text-lg font-bold text-slate-800 mt-1">{formatInr(Math.abs(settlement.balance_due))}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{settlement.net_payable < 0 ? 'Recovered' : 'Paid'}: {formatInr(Math.abs(settlement.amount_paid))}</p>
         </div>
       </div>
 
@@ -961,7 +966,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
       {showApprove && (
         <ActionModal
           title="Approve F&F Settlement"
-          subtitle={`Net payable: ${formatInr(settlement.net_payable)}`}
+          subtitle={`${settlement.net_payable < 0 ? 'Net recovery' : 'Net payable'}: ${formatInr(Math.abs(settlement.net_payable))}`}
           onClose={closeApprove}
           isPending={approveMutation.isPending}
         >
@@ -998,8 +1003,8 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
 
       {showPayment && (
         <ActionModal
-          title="Record F&F Payment"
-          subtitle={`Balance due: ${formatInr(settlement.balance_due)} · Requires finance approval before payout`}
+          title={settlement.net_payable < 0 ? "Record F&F Recovery" : "Record F&F Payment"}
+          subtitle={`${settlement.net_payable < 0 ? 'Recovery' : 'Balance'} available to record: ${formatInr(availableBalance)}${pendingTotal > 0 ? ` (Pending approvals: ${formatInr(pendingTotal)})` : ''}`}
           onClose={closePayment}
           isPending={paymentMutation.isPending}
         >
@@ -1011,6 +1016,10 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
               const amount = parseFloat(paymentForm.amount, 10);
               if (!paymentForm.payment_date) { setModalError('Payment date is required'); return; }
               if (!Number.isFinite(amount) || amount <= 0) { setModalError('Enter a valid payment amount'); return; }
+              if (amount > availableBalance) {
+                setModalError(`Amount cannot exceed available balance of ${formatInr(availableBalance)}`);
+                return;
+              }
               paymentMutation.mutate();
             }}
           >
@@ -1075,7 +1084,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
                 Cancel
               </button>
               <button type="submit" disabled={paymentMutation.isPending} className="btn-primary text-xs">
-                {paymentMutation.isPending ? 'Recording…' : 'Record Payment'}
+                {paymentMutation.isPending ? 'Recording…' : (settlement.net_payable < 0 ? 'Record Recovery' : 'Record Payment')}
               </button>
             </div>
           </form>

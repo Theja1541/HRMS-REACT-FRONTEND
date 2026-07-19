@@ -52,10 +52,24 @@ export default function GenerateTemplateDocumentModal({ open, template, onClose 
   const [rendering, setRendering] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  const getEligibleStatuses = (type) => {
+    switch (type) {
+      case 'relieving_letter':
+      case 'experience_letter':
+        return 'separated';
+      case 'appointment_letter':
+        return 'active,probation';
+      default:
+        return 'active,probation,on_notice,on_leave';
+    }
+  };
+
+  const statusFilter = useMemo(() => getEligibleStatuses(template?.document_type), [template?.document_type]);
+
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
-    queryKey: ['employees-for-document-generate'],
-    queryFn: () => employeeApi.list({ limit: 500, status: 'active' }),
-    enabled: open,
+    queryKey: ['employees-for-document-generate', statusFilter],
+    queryFn: () => employeeApi.list({ limit: 500, status: statusFilter }),
+    enabled: open && !!statusFilter,
   });
 
   const employees = employeesData?.data?.employees || employeesData?.data || [];
