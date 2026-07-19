@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTablePagination, normalizePagination } from '../../hooks/useTablePagination';
 import TablePagination from '../../components/shared/TablePagination';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, UserPlus, Eye, Pencil, UserX, UserCheck } from 'lucide-react';
 import { employeeApi, departmentApi, designationApi } from '../../api';
@@ -13,9 +13,24 @@ import { useAuthStore } from '../../store/auth.store';
 import { ROLE_LABELS } from '../../constants/routes';
 import AddEmployeeWizard from './AddEmployeeWizard';
 
+const EMPLOYMENT_STATUSES = [
+  { value: 'active', label: 'Active' },
+  { value: 'probation', label: 'Probation' },
+  { value: 'on_notice', label: 'On Notice' },
+  { value: 'on_leave', label: 'On Leave' },
+  { value: 'separated', label: 'Separated' },
+];
+
+const STATUS_SELECT_CLASS = {
+  active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  probation: 'border-amber-200 bg-amber-50 text-amber-700',
+  on_notice: 'border-sky-200 bg-sky-50 text-sky-700',
+  on_leave: 'border-blue-200 bg-blue-50 text-blue-700',
+  separated: 'border-red-200 bg-red-50 text-red-700',
+};
+
 export default function EmployeesPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { selectedTenantId, user } = useAuthStore();
   const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
   const canManageEmployees = ['super_admin', 'owner', 'hr'].includes(user?.role);
@@ -23,13 +38,26 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [designationFilter, setDesignationFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editEmployeeId, setEditEmployeeId] = useState(null);
   const [viewEmployeeId, setViewEmployeeId] = useState(null);
   const [createNotice, setCreateNotice] = useState(null);
   const { page, limit, setPage, setLimit, queryParams } = useTablePagination({
-    resetDeps: [search, departmentFilter, designationFilter, selectedTenantId],
+    resetDeps: [search, departmentFilter, designationFilter, statusFilter, selectedTenantId],
   });
+
+  const listFilters = {
+    search: search || undefined,
+    tenant_id: selectedTenantId,
+    department_id: departmentFilter || undefined,
+    designation_id: designationFilter || undefined,
+    ...(statusFilter === 'portal_deactivated'
+      ? { is_portal_active: false }
+      : statusFilter
+        ? { status: statusFilter }
+        : {}),
+  };
 
   const { data: deptData } = useQuery({
     queryKey: ['departments', selectedTenantId],
@@ -43,13 +71,10 @@ export default function EmployeesPage() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['employees', selectedTenantId, search, departmentFilter, designationFilter, queryParams],
+    queryKey: ['employees', selectedTenantId, search, departmentFilter, designationFilter, statusFilter, queryParams],
     queryFn: () =>
       employeeApi.list({
-        search,
-        tenant_id: selectedTenantId,
-        department_id: departmentFilter || undefined,
-        designation_id: designationFilter || undefined,
+        ...listFilters,
         ...queryParams,
       }),
     enabled: !tenantRequired,
@@ -65,10 +90,29 @@ export default function EmployeesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }) => employeeApi.update(id, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees'] }),
+    onError: (err) => {
+      window.alert(err.response?.data?.error?.message || err.message || 'Failed to update status');
+    },
+  });
+
   const employees = data?.data?.employees || [];
   const pagination = normalizePagination(data?.pagination, limit);
   const departments = deptData?.data?.departments || [];
   const designations = desigData?.data?.designations || [];
+
+  const handleStatusChange = (emp, nextStatus) => {
+    if (!nextStatus || nextStatus === emp.status) return;
+    if (nextStatus === 'separated') {
+      const confirmed = window.confirm(
+        `Mark ${emp.first_name} ${emp.last_name} as Separated? Prefer Archive for full exit workflow. Separated employees are excluded from payroll.`
+      );
+      if (!confirmed) return;
+    }
+    statusMutation.mutate({ id: emp.id, status: nextStatus });
+  };
 
   const handleDeactivate = (emp) => {
     if (!emp.is_portal_active) return;
@@ -77,7 +121,7 @@ export default function EmployeesPage() {
       return;
     }
     const confirmed = window.confirm(
-      `Deactivate portal access for ${emp.first_name} ${emp.last_name} (${emp.emp_code})? They will no longer be able to sign in.`
+      `Deactivate ${emp.first_name} ${emp.last_name} (${emp.emp_code})?\n\nThey will not be able to sign in, and they will be excluded from payroll runs.`
     );
     if (confirmed) deactivateMutation.mutate(emp.id);
   };
@@ -117,10 +161,7 @@ export default function EmployeesPage() {
             <ExportExcelButton
               onExport={() =>
                 exportEmployeesFromApi({
-                  search: search || undefined,
-                  tenant_id: selectedTenantId,
-                  department_id: departmentFilter || undefined,
-                  designation_id: designationFilter || undefined,
+                  ...listFilters,
                 })
               }
             />
@@ -196,6 +237,17 @@ export default function EmployeesPage() {
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 w-full sm:w-auto sm:min-w-[140px]"
+          >
+            <option value="">All statuses</option>
+            {EMPLOYMENT_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+            <option value="portal_deactivated">Portal deactivated</option>
+          </select>
         </div>
 
         {isLoading ? (
@@ -245,7 +297,9 @@ export default function EmployeesPage() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{emp.emp_code}</td>
                     <td className="px-4 py-3 text-slate-600">{emp.department?.name || '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{emp.designation?.name || '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={emp.status} /></td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={emp.status} />
+                    </td>
                     <td className="px-4 py-3 text-xs text-slate-500">{ROLE_LABELS[emp.system_role] || emp.system_role || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">

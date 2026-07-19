@@ -15,6 +15,7 @@ export default function StatusBadge({ status, className }) {
   const styles = {
     active: 'bg-emerald-50 text-emerald-700',
     probation: 'bg-amber-50 text-amber-700',
+    on_notice: 'bg-sky-50 text-sky-700',
     on_leave: 'bg-blue-50 text-blue-700',
     separated: 'bg-red-50 text-red-700',
     trial: 'bg-amber-50 text-amber-700',
