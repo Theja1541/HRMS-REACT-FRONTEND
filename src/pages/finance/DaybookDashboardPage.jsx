@@ -21,14 +21,7 @@ import { formatINR, cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
-function monthBounds(date = new Date()) {
-  const y = date.getFullYear();
-  const m = date.getMonth();
-  return {
-    from: new Date(y, m, 1).toISOString().slice(0, 10),
-    to: new Date(y, m + 1, 0).toISOString().slice(0, 10),
-  };
-}
+
 
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -48,17 +41,21 @@ export default function DaybookDashboardPage() {
   const { selectedTenantId, user } = useAuthStore();
   const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
 
-  const defaults = monthBounds();
-  const [from, setFrom] = useState(defaults.from);
-  const [to, setTo] = useState(defaults.to);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const { setPage, setLimit, paginateClient } = useTablePagination({ resetDeps: [from, to] });
 
-  const params = useMemo(() => ({ from, to }), [from, to]);
+  const params = useMemo(() => {
+    const p = {};
+    if (from) p.from = from;
+    if (to) p.to = to;
+    return p;
+  }, [from, to]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['daybook-dashboard', selectedTenantId, params],
     queryFn: () => financeApi.daybookDashboard(params),
-    enabled: !tenantRequired && Boolean(from && to),
+    enabled: !tenantRequired,
   });
 
   const dashboard = data?.data;

@@ -178,6 +178,7 @@ export const useAuthStore = create(
     {
       name: 'hrms-auth',
       partialize: (s) => ({
+        accessToken: s.accessToken,
         user: s.user,
         workspace: s.workspace,
         entitlements: s.entitlements,
