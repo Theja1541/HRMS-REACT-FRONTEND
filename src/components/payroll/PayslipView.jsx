@@ -40,6 +40,7 @@ function cell(extra = {}) {
     color: '#000000',
     background: '#ffffff',
     boxSizing: 'border-box',
+    fontFamily: 'Arial, Helvetica, sans-serif',
     ...extra,
   };
 }

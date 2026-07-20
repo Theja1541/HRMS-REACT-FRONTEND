@@ -46,6 +46,7 @@ export function fixTableColWidths(table, tableWidth) {
   }
 }
 
+
 /**
  * html2canvas 1.4.1 does not lay out CSS flexbox correctly: `display:flex`
  * containers collapse and `flex:1` / percentage-width children render at the
@@ -102,6 +103,11 @@ function prepareCloneForCapture(doc, cloneEl, width = PAYSLIP_EXPORT_WIDTH) {
       boxSizing: 'border-box',
       overflow: 'visible',
     });
+
+    target.querySelectorAll('table').forEach(table => {
+      table.style.borderCollapse = 'collapse';
+      table.style.tableLayout = 'fixed';
+    });
   }
 
   scope.querySelectorAll('img').forEach((img) => {
@@ -113,38 +119,16 @@ export async function capturePayslipCanvas(element, { width = PAYSLIP_EXPORT_WID
   if (!element) throw new Error('Document element not found');
 
   await document.fonts?.ready;
+  const previewRect = element.getBoundingClientRect();
+  const exportWidth = Math.round(previewRect.width || width);
+  const exportHeight = Math.round(previewRect.height || element.scrollHeight);
 
-  const wrapper = document.createElement('div');
-  Object.assign(wrapper.style, {
-    position: 'absolute',
-    top: '-99999px',
-    left: '0',
-    width: `${width}px`,
-    background: '#ffffff',
-    overflow: 'visible',
-  });
-
-  const clone = element.cloneNode(true);
-  Object.assign(clone.style, {
-    width: `${width}px`,
-    maxWidth: `${width}px`,
-    minWidth: `${width}px`,
-    margin: '0',
-    padding: '0',
-    background: '#ffffff',
-    color: '#000000',
-  });
-
-  clone.querySelectorAll('img').forEach((img) => {
+  element.querySelectorAll('img').forEach((img) => {
     img.crossOrigin = 'anonymous';
   });
 
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-
-  // Wait for cloned images to finish loading before capturing
   await Promise.all(
-    Array.from(clone.querySelectorAll('img')).map(
+    Array.from(element.querySelectorAll('img')).map(
       (img) =>
         new Promise((resolve) => {
           if (img.complete) { resolve(); return; }
@@ -154,25 +138,43 @@ export async function capturePayslipCanvas(element, { width = PAYSLIP_EXPORT_WID
     )
   );
 
-  try {
-    return await html2canvas(clone, {
-      scale: CAPTURE_SCALE,
-      backgroundColor: '#ffffff',
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width,
-      windowWidth: width,
-      onclone: (doc, cloneEl) => prepareCloneForCapture(doc, cloneEl, width),
-    });
-  } finally {
-    document.body.removeChild(wrapper);
-  }
+  return html2canvas(element, {
+    scale: CAPTURE_SCALE,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+    width: exportWidth,
+    height: exportHeight,
+    windowWidth: document.documentElement.scrollWidth,
+    windowHeight: document.documentElement.scrollHeight,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    onclone: (doc) => {
+      doc.querySelectorAll('img').forEach((img) => {
+        img.crossOrigin = 'anonymous';
+      });
+    },
+  });
 }
 
 function canvasToPdfBlob(canvas, format = 'PNG', { fitSinglePage = false } = {}) {
   const isPng = format === 'PNG';
   const imgData = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', isPng ? 1.0 : 0.94);
+
+  if (!fitSinglePage) {
+    const pageW = canvas.width / CAPTURE_SCALE;
+    const pageH = canvas.height / CAPTURE_SCALE;
+    const pdf = new jsPDF({
+      orientation: pageW > pageH ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [pageW, pageH],
+      compress: true,
+      hotfixes: ['px_scaling'],
+    });
+    pdf.addImage(imgData, format, 0, 0, pageW, pageH, undefined, isPng ? 'SLOW' : 'MEDIUM');
+    return pdf.output('blob');
+  }
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
   const margin = 8;
@@ -182,28 +184,11 @@ function canvasToPdfBlob(canvas, format = 'PNG', { fitSinglePage = false } = {})
   const imgW = pageW;
   const imgH = (canvas.height * imgW) / canvas.width;
 
-  if (fitSinglePage) {
-    const scale = imgH > pageH ? pageH / imgH : 1;
-    const finalW = imgW * scale;
-    const finalH = imgH * scale;
-    const offsetX = margin + (pageW - finalW) / 2;
-    pdf.addImage(imgData, format, offsetX, margin, finalW, finalH, undefined, isPng ? 'SLOW' : 'MEDIUM');
-    return pdf.output('blob');
-  }
-
-  let heightLeft = imgH;
-  let position = margin;
-
-  pdf.addImage(imgData, format, margin, position, imgW, imgH, undefined, isPng ? 'SLOW' : 'MEDIUM');
-  heightLeft -= pageH;
-
-  while (heightLeft > 0) {
-    position = margin - (imgH - heightLeft);
-    pdf.addPage();
-    pdf.addImage(imgData, format, margin, position, imgW, imgH, undefined, isPng ? 'SLOW' : 'MEDIUM');
-    heightLeft -= pageH;
-  }
-
+  const scale = imgH > pageH ? pageH / imgH : 1;
+  const finalW = imgW * scale;
+  const finalH = imgH * scale;
+  const offsetX = margin + (pageW - finalW) / 2;
+  pdf.addImage(imgData, format, offsetX, margin, finalW, finalH, undefined, isPng ? 'SLOW' : 'MEDIUM');
   return pdf.output('blob');
 }
 

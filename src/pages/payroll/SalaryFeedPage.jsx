@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Info, Calendar, Users, TrendingUp, TrendingDown, PenLine } from 'lucide-react';
+import { Plus, Trash2, Info, Calendar, Users, TrendingUp, TrendingDown, PenLine, CheckCircle2 } from 'lucide-react';
 import { payrollApi, employeeApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
@@ -360,15 +360,15 @@ export default function SalaryFeedPage() {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
               <h3 className="font-semibold text-slate-900">Add salary feed entry</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 This amount will be included in the <strong>{periodLabel}</strong> payroll run
               </p>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 overflow-y-auto">
               <div>
                 <label className="text-xs font-medium text-slate-600">Employee</label>
                 <select
@@ -387,7 +387,7 @@ export default function SalaryFeedPage() {
 
               <div>
                 <label className="text-xs font-medium text-slate-600">Entry type</label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Entry type">
                   {FEED_TYPES.map((t) => {
                     const meta = FEED_TYPE_META[t];
                     const selected = form.entry_type === t;
@@ -395,16 +395,25 @@ export default function SalaryFeedPage() {
                       <button
                         key={t}
                         type="button"
+                        role="radio"
+                        aria-checked={selected}
                         onClick={() => setForm({ ...form, entry_type: t })}
                         className={cn(
-                          'text-left px-3 py-2.5 rounded-lg border text-xs transition-colors',
+                          'relative flex flex-col text-left p-3.5 rounded-xl border transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1',
                           selected
-                            ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                            ? 'border-brand-500 bg-brand-50/80 shadow-sm ring-1 ring-brand-200'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 hover:-translate-y-0.5 hover:shadow-sm'
                         )}
                       >
-                        <span className="font-medium text-slate-800">{meta.label}</span>
-                        <span className="block text-slate-400 mt-0.5 leading-snug">{meta.description}</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={cn('font-semibold text-sm', selected ? 'text-brand-900' : 'text-slate-800')}>
+                            {meta.label}
+                          </span>
+                          {selected && <CheckCircle2 size={16} className="text-brand-600" />}
+                        </div>
+                        <span className={cn('block text-xs leading-relaxed', selected ? 'text-brand-700/80' : 'text-slate-500')}>
+                          {meta.description}
+                        </span>
                       </button>
                     );
                   })}
@@ -442,7 +451,7 @@ export default function SalaryFeedPage() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end bg-slate-50/50">
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end bg-slate-50/50 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
