@@ -8,6 +8,7 @@ import MainContentModal from '../../components/shared/MainContentModal';
 import TablePagination from '../../components/shared/TablePagination';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 const EMPTY_FORM = {
@@ -55,8 +56,9 @@ function assigneeLabel(category) {
 
 export default function HelpdeskCategoriesPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -179,6 +181,7 @@ export default function HelpdeskCategoriesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Platform · Helpdesk"
         title="Helpdesk Categories"
         subtitle="Manage ticket categories, default assignees, and availability"
         actions={(
@@ -197,18 +200,19 @@ export default function HelpdeskCategoriesPage() {
         <StatCard label="In Use" value={inUseCount} delta="Categories with tickets" deltaType="neutral" />
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+          <div className="relative flex-1 min-w-0 sm:max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name or code…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input pl-9 w-full"
             />
           </div>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2 whitespace-nowrap">
             <input
               type="checkbox"
               checked={showInactive}
@@ -217,6 +221,7 @@ export default function HelpdeskCategoriesPage() {
             />
             Show inactive
           </label>
+          </div>
         </div>
       </div>
 

@@ -60,6 +60,7 @@ export default function MeTasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Tasks"
         title="My Tasks"
         subtitle={`${open.length} open · ${overdue.length} overdue`}
         actions={
@@ -69,18 +70,15 @@ export default function MeTasksPage() {
         }
       />
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"
+            role="tab"
+            aria-selected={filter === f.id}
             onClick={() => setFilter(f.id)}
-            className={cn(
-              'text-xs font-medium px-3 py-1.5 rounded-full border transition-colors',
-              filter === f.id
-                ? 'bg-brand-600 text-white border-brand-600'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-            )}
+            className={cn(filter === f.id && 'ds-tab-active')}
           >
             {f.label}
             {f.id === 'overdue' && overdue.length > 0 && (

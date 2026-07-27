@@ -9,8 +9,8 @@ import TablePagination from '../../components/shared/TablePagination';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import StatusBadge, { Avatar } from '../../components/shared/StatusBadge';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn } from '../../utils/helpers';
-import { resolvePortalRole } from '../../utils/portalContext';
 
 const URGENCY_OPTIONS = [
   { value: '', label: 'All employees' },
@@ -60,11 +60,11 @@ function DaysRemainingBadge({ endDate }) {
 }
 
 export default function ProbationTrackerPage() {
-  const { selectedTenantId, user, workspace, roles, selectedRole, accessToken } = useAuthStore();
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
   const queryClient = useQueryClient();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const portalRole = resolvePortalRole({ accessToken, workspace, user, roles, selectedRole });
-  const canAct = ['super_admin', 'owner', 'hr', 'admin'].includes(portalRole);
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canAct = ['super_admin', 'owner', 'hr', 'admin'].includes(role);
 
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -249,6 +249,7 @@ export default function ProbationTrackerPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Probation"
         title="Probation Tracker"
         subtitle={
           filtered.length !== allEmployees.length
@@ -265,22 +266,23 @@ export default function ProbationTrackerPage() {
         }
       />
 
-      <div className="card">
-        <div className="px-4 py-3 border-b border-slate-200 toolbar-row">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 flex-1 min-w-0 sm:max-w-xs">
-            <Search size={14} className="text-slate-400 shrink-0" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, code, email…"
-              className="border-none bg-transparent text-xs outline-none w-full"
+              className="ds-input pl-9 w-full"
             />
           </div>
 
           <select
             value={departmentFilter}
             onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 w-full sm:w-auto sm:min-w-[140px]"
+            className="ds-select w-full sm:w-auto sm:min-w-[140px]"
           >
             <option value="">All departments</option>
             {departments.map((d) => (
@@ -293,7 +295,7 @@ export default function ProbationTrackerPage() {
           <select
             value={policyFilter}
             onChange={(e) => setPolicyFilter(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 w-full sm:w-auto sm:min-w-[160px]"
+            className="ds-select w-full sm:w-auto sm:min-w-[160px]"
           >
             <option value="">All policies</option>
             {policies
@@ -308,7 +310,7 @@ export default function ProbationTrackerPage() {
           <select
             value={urgencyFilter}
             onChange={(e) => setUrgencyFilter(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 w-full sm:w-auto sm:min-w-[160px]"
+            className="ds-select w-full sm:w-auto sm:min-w-[160px]"
           >
             {URGENCY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -316,6 +318,7 @@ export default function ProbationTrackerPage() {
               </option>
             ))}
           </select>
+          </div>
         </div>
 
         {isLoading ? (

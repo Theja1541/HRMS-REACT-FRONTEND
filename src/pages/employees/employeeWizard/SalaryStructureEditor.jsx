@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { payrollApi } from '../../../api';
 import { useAuthStore } from '../../../store/auth.store';
+import { usePortalRole } from '../../../hooks/usePortalRole';
 import SalaryStructureStep from './SalaryStructureStep';
 import {
   INITIAL_SALARY_STRUCTURE,
@@ -22,8 +23,9 @@ export default function SalaryStructureEditor({
   autoApplyDefault = false,
   employeeId = null,
 }) {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const { data, isLoading } = useQuery({
     queryKey: ['salary-structures', selectedTenantId],

@@ -24,7 +24,7 @@ import ArchivedProjectsPanel from '../../components/tasks/ArchivedProjectsPanel'
 import TaskDetailModal from '../../components/tasks/TaskDetailModal';
 import { PROJECT_STATUS, PRIORITY_BADGE } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const PROJECT_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -67,8 +67,8 @@ const TAB_SLUG_TO_ID = {
 
 export default function ProjectsPage() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const canManage = ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
+  const role = usePortalRole();
+  const canManage = ['super_admin', 'owner', 'hr', 'manager'].includes(role);
   const navigate = useNavigate();
   const { projectId: projectIdParam, tab: tabParam } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -275,6 +275,7 @@ export default function ProjectsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
+          badge="Projects · Tasks"
           title="Project"
           subtitle="Projects & Tasks"
           actions={
@@ -310,6 +311,7 @@ export default function ProjectsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
+          badge="Projects · Tasks"
           title={project.name}
           subtitle={`${project.code} · PM: ${project.manager ? `${project.manager.first_name} ${project.manager.last_name}` : 'Not assigned'}`}
           actions={
@@ -356,16 +358,15 @@ export default function ProjectsPage() {
           )}
         </div>
 
-        <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+        <div className="ds-tabs scroll-tabs" role="tablist">
           {PROJECT_TABS.filter((t) => !t.managerOnly || canManage).map((t) => (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={projectTab === t.id}
               onClick={() => setProjectTab(t.id)}
-              className={cn(
-                'px-4 py-2 text-xs font-medium border-b-2 -mb-px whitespace-nowrap',
-                projectTab === t.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500'
-              )}
+              className={cn(projectTab === t.id && 'ds-tab-active')}
             >
               {t.label}
             </button>
@@ -644,6 +645,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Projects · Tasks"
         title="Projects & Tasks"
         subtitle="Plan work, track sprints, and manage tasks on kanban boards"
         actions={canManage && (
@@ -688,26 +690,30 @@ export default function ProjectsPage() {
         />
       </div>
 
-      <div className="card p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+        <div className="relative flex-1 min-w-0">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, code, or manager…"
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+            className="ds-input pl-9 w-full"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm sm:w-44"
+          className="ds-select w-full sm:w-44"
         >
           {PROJECT_STATUS_OPTIONS.map((opt) => (
             <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+          </div>
+        </div>
       </div>
 
       {isLoading ? (

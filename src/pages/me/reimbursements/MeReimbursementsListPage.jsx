@@ -94,6 +94,7 @@ export default function MeReimbursementsListPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Reimbursements"
         title="My Reimbursements"
         subtitle="Submit and track expense reimbursement claims"
         actions={(
@@ -107,7 +108,7 @@ export default function MeReimbursementsListPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
+          className="ds-select text-xs"
         >
           <option value="">All statuses</option>
           <option value="draft">Draft</option>

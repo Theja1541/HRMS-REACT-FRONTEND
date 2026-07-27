@@ -5,6 +5,7 @@ import { Plus, Palmtree, RefreshCw, ArrowLeft } from 'lucide-react';
 import { leaveSettingsApi, departmentApi, designationApi, employeeApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn } from '../../utils/helpers';
 import LeaveTypesList from '../../modules/LeaveManagement/LeaveSettings/LeaveTypesList';
 import LeaveTypeForm from '../../modules/LeaveManagement/LeaveSettings/LeaveTypeForm';
@@ -21,9 +22,10 @@ const ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
 
 export default function LeaveSettingsPage() {
   const queryClient = useQueryClient();
-  const { user, selectedTenantId } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canAdmin = ADMIN_ROLES.includes(user?.role);
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canAdmin = ADMIN_ROLES.includes(role);
 
   const [tab, setTab] = useState('types');
   const [typeForm, setTypeForm] = useState({ open: false, item: null });
@@ -181,6 +183,7 @@ export default function LeaveSettingsPage() {
       )}
 
       <PageHeader
+        badge="People · Leave Settings"
         title="Leave Settings"
         subtitle="Configure leave types, accrual policies, and assignments"
         actions={
@@ -204,16 +207,15 @@ export default function LeaveSettingsPage() {
         }
       />
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px transition-colors',
-              tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-            )}
+            className={cn(tab === t.id && 'ds-tab-active')}
           >
             {t.label}
           </button>

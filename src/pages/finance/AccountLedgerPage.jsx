@@ -7,16 +7,9 @@ import VoucherDetailDrawer from '../../components/finance/VoucherDetailDrawer';
 import TablePagination from '../../components/shared/TablePagination';
 import { financeApi } from '../../api';
 import { ACCOUNT_TYPE_LABELS } from '../../constants/finance';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, monthBounds } from '../../utils/helpers';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
-function monthBounds(date = new Date()) {
-  const y = date.getFullYear();
-  const m = date.getMonth();
-  const from = new Date(y, m, 1).toISOString().slice(0, 10);
-  const to = new Date(y, m + 1, 0).toISOString().slice(0, 10);
-  return { from, to };
-}
 
 function formatBalance(value) {
   if (value === 0) return `${formatINR(0)} Dr`;
@@ -62,6 +55,7 @@ export default function AccountLedgerPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Ledger"
         title="Account Ledger"
         subtitle="Running balance for one account"
         actions={(
@@ -69,7 +63,7 @@ export default function AccountLedgerPage() {
             <select
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white min-w-[260px]"
+              className="ds-select min-w-[260px]"
             >
               <option value="">Select account</option>
               {Object.entries(groupedAccounts).map(([type, items]) => (
@@ -86,7 +80,7 @@ export default function AccountLedgerPage() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-input"
               aria-label="Ledger from date"
             />
             <span className="text-slate-400 text-sm">to</span>
@@ -94,7 +88,7 @@ export default function AccountLedgerPage() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-input"
               aria-label="Ledger to date"
             />
           </div>

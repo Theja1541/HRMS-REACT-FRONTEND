@@ -40,11 +40,118 @@ body {
     @apply inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium
       bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 transition-colors;
   }
+
+  /* Hero action buttons — keep existing page markup, restyle for gradient header */
+  .page-hero-actions .btn-primary {
+    @apply bg-white text-brand-700 border-white hover:bg-sky-50 hover:border-sky-50
+      shadow-sm disabled:hover:bg-white;
+  }
+  .page-hero-actions .btn-secondary {
+    @apply bg-white/15 text-white border-white/25 hover:bg-white/25 hover:text-white;
+  }
+  .page-hero-actions a.btn-primary {
+    @apply bg-white text-brand-700 border-white hover:bg-sky-50;
+  }
+  .page-hero-actions a.btn-secondary {
+    @apply bg-white/15 text-white border-white/25 hover:bg-white/25;
+  }
+
+  /* Form controls in hero must keep dark text (native <option> inherits color) */
+  .page-hero-actions select,
+  .page-hero-actions input:not([type='checkbox']):not([type='radio']),
+  .page-hero-actions textarea,
+  .page-hero-actions .ds-input,
+  .page-hero-actions .ds-select {
+    @apply bg-white text-slate-800 border-slate-200 shadow-sm;
+    color: #0f172a;
+  }
+  .page-hero-actions select option {
+    color: #0f172a;
+    background-color: #ffffff;
+  }
+
   .card {
     @apply bg-white border border-slate-200 rounded-xl shadow-sm;
   }
   .stat-card {
     @apply bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm;
+  }
+
+  /* Shared filter / form control look (Employees / Org Structure) */
+  .ds-input {
+    @apply w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-800
+      placeholder:text-slate-400 outline-none
+      focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-shadow;
+  }
+  .ds-select {
+    @apply text-sm border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800
+      outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-shadow;
+  }
+  .ds-select option {
+    color: #0f172a;
+    background-color: #ffffff;
+  }
+  .ds-textarea {
+    @apply w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-800
+      placeholder:text-slate-400 outline-none resize-y min-h-[5rem]
+      focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-shadow;
+  }
+  .ds-label {
+    @apply block text-xs font-medium text-slate-600 mb-1;
+  }
+  .ds-label-required::after {
+    content: ' *';
+    @apply text-rose-500;
+  }
+  .ds-field-error {
+    @apply text-[11px] text-red-500 mt-1;
+  }
+  .ds-field-hint {
+    @apply text-[10px] text-slate-400 mt-1;
+  }
+  .ds-checkbox-row {
+    @apply flex items-center gap-2.5 cursor-pointer rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5
+      hover:bg-slate-50 transition-colors;
+  }
+
+  /* App sidebar shell */
+  .sidebar-shell {
+    @apply bg-slate-950 text-slate-200;
+    background-image:
+      radial-gradient(ellipse 120% 80% at 0% 0%, rgba(37, 99, 235, 0.22), transparent 55%),
+      radial-gradient(ellipse 80% 50% at 100% 100%, rgba(14, 165, 233, 0.1), transparent 50%),
+      linear-gradient(180deg, #020617 0%, #0f172a 48%, #020617 100%);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+  }
+  .sidebar-nav-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+  }
+
+  /* Pill segment tabs — opt-in alongside .scroll-tabs */
+  .ds-tabs {
+    @apply inline-flex p-1 rounded-xl bg-slate-100/90 ring-1 ring-slate-200/80 max-w-full;
+  }
+  .ds-tabs > button,
+  .ds-tabs > a {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold
+      text-slate-500 hover:text-slate-700 transition-all shrink-0 whitespace-nowrap;
+  }
+  .ds-tabs > button.ds-tab-active,
+  .ds-tabs > a.ds-tab-active {
+    @apply bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80;
+  }
+
+  /* Card toolbar strip */
+  .ds-toolbar {
+    @apply px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-white;
   }
 
   /* Horizontal scroll for wide tables inside cards */

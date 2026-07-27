@@ -34,6 +34,7 @@ export default function MeExitInterviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Exit"
         title="My Exit Interview"
         subtitle="Share your feedback, ratings, and reasons for leaving"
       />

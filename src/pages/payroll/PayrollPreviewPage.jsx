@@ -72,18 +72,20 @@ export default function PayrollPreviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Generation"
         title="Payroll Generation"
         subtitle="Precheck and process monthly payroll"
       />
 
-      <div className="card p-5 space-y-4">
-        <div className="flex flex-wrap items-end gap-4">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row items-end">
           <div>
             <label className="text-xs font-medium text-slate-600">Month</label>
             <select
               value={month}
               onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-              className="mt-1 w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-select mt-1 w-full sm:w-32"
             >
               {Array.from({ length: 12 }).map((_, i) => {
                 const optionMonth = i + 1;
@@ -105,7 +107,7 @@ export default function PayrollPreviewPage() {
               type="number"
               value={year}
               onChange={(e) => setYear(parseInt(e.target.value, 10))}
-              className="mt-1 w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input mt-1 w-full sm:w-24"
               min={2000}
               max={d.getFullYear()}
             />
@@ -119,8 +121,10 @@ export default function PayrollPreviewPage() {
           >
             {isPrechecking ? 'Analyzing...' : 'Run Precheck'}
           </button>
+          </div>
         </div>
 
+        <div className="p-5 space-y-4">
         {isFuturePeriod && (
           <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-3">
             Future month selected — payroll cannot be run for this period. Choose the current month or an earlier one.
@@ -257,6 +261,7 @@ export default function PayrollPreviewPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

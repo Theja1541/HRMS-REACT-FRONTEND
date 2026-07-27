@@ -178,6 +178,7 @@ export default function TaxSlabSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Tax Settings"
         title="Tax Settings"
         subtitle="Configure income tax slabs, standard deduction, and deduction caps used for TDS and employee declarations"
       />
@@ -230,32 +231,29 @@ export default function TaxSlabSettingsPage() {
       </div>
 
       {isLoading ? (
-        <div className="card p-12 text-center text-slate-400 text-sm">Loading tax configurations…</div>
+        <div className="card py-16 text-center text-slate-400 text-sm">Loading tax configurations…</div>
       ) : isError ? (
-        <div className="card p-12 text-center text-red-600 text-sm">Unable to load tax settings.</div>
+        <div className="card py-16 text-center text-red-600 text-sm">Unable to load tax settings.</div>
       ) : !configs.length ? (
-        <div className="card p-12 text-center text-slate-500 text-sm">
+        <div className="card py-16 text-center text-slate-400 text-sm">
           No tax configurations found. Defaults are created automatically on first access.
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Financial year</span>
-            <div className="flex flex-wrap gap-2">
+            <div className="ds-tabs scroll-tabs flex-wrap" role="tablist">
               {financialYears.map((fy) => (
                 <button
                   key={fy}
                   type="button"
+                  role="tab"
+                  aria-selected={resolvedFy === fy}
                   onClick={() => {
                     setActiveFy(fy);
                     setEditForm(null);
                   }}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                    resolvedFy === fy
-                      ? 'bg-brand-600 text-white border-brand-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                  )}
+                  className={cn(resolvedFy === fy && 'ds-tab-active')}
                 >
                   FY {fy}
                 </button>
@@ -263,7 +261,7 @@ export default function TaxSlabSettingsPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="ds-tabs scroll-tabs" role="tablist">
             {['new', 'old'].map((regime) => {
               const cfg = configsForFy.find((c) => c.regime === regime);
               const meta = REGIME_META[regime];
@@ -271,17 +269,14 @@ export default function TaxSlabSettingsPage() {
                 <button
                   key={regime}
                   type="button"
+                  role="tab"
+                  aria-selected={activeConfig?.regime === regime}
                   disabled={!cfg}
                   onClick={() => {
                     setActiveRegime(regime);
                     setEditForm(null);
                   }}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-sm font-medium border transition-colors disabled:opacity-40',
-                    activeConfig?.regime === regime
-                      ? 'bg-white border-brand-300 ring-2 ring-brand-100 text-brand-800'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                  )}
+                  className={cn(activeConfig?.regime === regime && 'ds-tab-active', 'disabled:opacity-40')}
                 >
                   {meta.label}
                   {cfg && (

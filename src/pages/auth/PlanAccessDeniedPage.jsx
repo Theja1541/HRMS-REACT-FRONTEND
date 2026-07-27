@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { getDefaultHomeRoute } from '../../constants/routeAccess';
 
 export default function PlanAccessDeniedPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const role = usePortalRole();
   const tenantName = user?.tenant?.name || user?.Tenant?.name;
 
   const handleBackToDashboard = () => {
-    navigate(getDefaultHomeRoute(user?.role) || '/dashboard', { replace: true });
+    navigate(getDefaultHomeRoute(role) || '/dashboard', { replace: true });
   };
 
   return (

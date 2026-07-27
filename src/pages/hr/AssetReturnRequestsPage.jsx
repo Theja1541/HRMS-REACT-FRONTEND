@@ -17,6 +17,7 @@ import {
 } from '../../constants/hr';
 import { cn, formatINR } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function assetCategoryLabel(asset) {
@@ -390,8 +391,9 @@ function VerifyDrawer({ request, onClose, onSuccess }) {
 
 export default function AssetReturnRequestsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
@@ -453,6 +455,7 @@ export default function AssetReturnRequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Assets · Returns"
         title="Asset Return Requests"
         subtitle="Verify condition, accessories, photos, and apply damage recovery to F&F"
         actions={
@@ -472,18 +475,15 @@ export default function AssetReturnRequestsPage() {
         />
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="ds-tabs scroll-tabs flex-wrap" role="tablist">
         {['pending', 'approved', 'completed', 'rejected', 'all'].map((s) => (
           <button
             key={s}
             type="button"
+            role="tab"
+            aria-selected={statusFilter === s}
             onClick={() => setStatusFilter(s)}
-            className={cn(
-              'text-xs font-semibold px-3 py-1.5 rounded-lg border capitalize',
-              statusFilter === s
-                ? 'bg-brand-50 text-brand-700 border-brand-200'
-                : 'bg-white text-slate-600 border-slate-200'
-            )}
+            className={cn(statusFilter === s && 'ds-tab-active', 'capitalize')}
           >
             {ASSET_RETURN_STATUS_LABELS[s] || s}
           </button>
@@ -491,24 +491,24 @@ export default function AssetReturnRequestsPage() {
       </div>
 
       <div className="card overflow-x-auto overscroll-x-contain">
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <div className="ds-toolbar flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Return verification queue</h3>
           <span className="text-xs text-slate-500">{requests.length} request(s)</span>
         </div>
 
         {isLoading ? (
-          <p className="text-center py-12 text-slate-400">Loading return requests…</p>
+          <p className="text-center py-16 text-slate-400 text-sm">Loading return requests…</p>
         ) : error ? (
-          <div className="text-center py-12 space-y-3">
-            <p className="text-red-500">Failed to load return requests</p>
+          <div className="text-center py-16 space-y-3">
+            <p className="text-red-500 text-sm">Failed to load return requests</p>
             <button type="button" onClick={() => refetch()} className="btn-secondary text-xs">
               Retry
             </button>
           </div>
         ) : requests.length === 0 ? (
-          <div className="text-center py-12 space-y-2">
-            <RotateCcw size={28} className="mx-auto text-slate-300" />
-            <p className="text-sm font-medium text-slate-600">No return requests</p>
+          <div className="text-center py-16 space-y-2">
+            <RotateCcw size={28} className="mx-auto text-slate-200" />
+            <p className="text-slate-400 text-sm">No return requests</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               Employee return requests with checklist, condition, and photos appear here for verification.
             </p>

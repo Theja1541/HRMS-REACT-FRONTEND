@@ -6,11 +6,11 @@ import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
 import TablePagination from '../../components/shared/TablePagination';
 import { financeApi } from '../../api';
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS } from '../../constants/finance';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, localDateString } from '../../utils/helpers';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 export default function TrialBalancePage() {
-  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
+  const [asOfDate, setAsOfDate] = useState(localDateString());
   const { setPage, setLimit, paginateClient } = useTablePagination({ resetDeps: [asOfDate] });
 
   const { data, isLoading, isError, error } = useQuery({
@@ -33,6 +33,7 @@ export default function TrialBalancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Trial Balance"
         title="Trial Balance"
         subtitle="All accounts — check that debit equals credit"
         actions={(
@@ -45,7 +46,7 @@ export default function TrialBalancePage() {
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-input"
             />
           </div>
         )}

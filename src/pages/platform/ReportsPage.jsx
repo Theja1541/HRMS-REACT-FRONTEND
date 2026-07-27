@@ -6,7 +6,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import PeriodSelector from '../../components/finance/PeriodSelector';
 import TablePagination from '../../components/shared/TablePagination';
 import { REPORT_TYPES } from '../../constants/platform';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, cn } from '../../utils/helpers';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
@@ -77,17 +77,19 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reports" subtitle="HR analytics and export-ready summaries" />
+      <PageHeader badge="Platform · Reports" title="Reports" subtitle="HR analytics and export-ready summaries" />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {REPORT_TYPES.map((t) => {
           const Icon = Icons[t.icon] || Icons.FileText;
           return (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={report === t.id}
               onClick={() => setReport(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium border transition-colors ${report === t.id ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              className={cn('inline-flex items-center gap-2', report === t.id && 'ds-tab-active')}
             >
               <Icon size={14} /> {t.label}
             </button>

@@ -9,17 +9,18 @@ import ExportExcelButton from '../../components/shared/ExportExcelButton';
 import PayslipView from '../../components/payroll/PayslipView';
 import Form16Panel from '../../components/payroll/Form16Panel';
 import { exportPayslipsExcel } from '../../utils/excelExports';
+import { generateAndStorePayslipPdf } from '../../utils/generatePayslipPdfFromView';
 import { PAYROLL_STATUS, MONTHS } from '../../constants/payroll';
 import { cn, formatINR } from '../../utils/helpers';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 export default function PayslipsPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const isSelfService = location.pathname.startsWith('/me/');
-  const { user } = useAuthStore();
-  const isAdmin = ['super_admin', 'owner', 'hr'].includes(user?.role);
+  const role = usePortalRole();
+  const isAdmin = ['super_admin', 'owner', 'hr'].includes(role);
   const now = new Date();
   const initialMonth = parseInt(searchParams.get('month'), 10);
   const initialYear = parseInt(searchParams.get('year'), 10);
@@ -247,14 +248,42 @@ export default function PayslipsPage() {
   });
 
   const emailAllMutation = useMutation({
-    mutationFn: (runId) => payrollApi.emailRunPayslips(runId),
+    mutationFn: async (runId) => {
+      // Generate view-matching PDFs for every payslip, then email with attachments
+      const list = payslipsData?.data?.payslips || [];
+      let pdfPrepared = 0;
+      let pdfFailed = 0;
+
+      for (const row of list) {
+        try {
+          const detail = await payrollApi.getPayslip(row.id);
+          const full = detail?.data?.payslip;
+          if (!full) throw new Error('Payslip detail missing');
+          await generateAndStorePayslipPdf(full, { force: true });
+          pdfPrepared += 1;
+        } catch {
+          pdfFailed += 1;
+        }
+      }
+
+      const res = await payrollApi.emailRunPayslips(runId);
+      return { ...res, pdfPrepared, pdfFailed };
+    },
     onSuccess: (res) => {
       const s = res?.data?.summary;
+      const pdfNote =
+        typeof res?.pdfPrepared === 'number'
+          ? ` PDFs prepared: ${res.pdfPrepared}${res.pdfFailed ? `, ${res.pdfFailed} PDF failed` : ''}.`
+          : '';
       setEmailAllMessage(
         s
-          ? `Payslip emails: ${s.sent} sent, ${s.failed} failed${s.skipped ? `, ${s.skipped} skipped (no email)` : ''}.`
-          : 'Payslip emails sent.'
+          ? `Bulk email: ${s.sent} sent, ${s.failed} failed${s.skipped ? `, ${s.skipped} skipped (no email)` : ''}.${pdfNote}`
+          : `Payslip emails sent.${pdfNote}`
       );
+      queryClient.invalidateQueries({ queryKey: ['payslips', month, year] });
+      if (selectedPayslipId) {
+        queryClient.invalidateQueries({ queryKey: ['payslip', selectedPayslipId] });
+      }
     },
     onError: (err) => {
       setEmailAllMessage(err.response?.data?.error?.message || 'Failed to send payslip emails');
@@ -295,6 +324,7 @@ export default function PayslipsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge={isSelfService ? 'Payroll · My Payslips' : 'Payroll · Payslips'}
         title={isSelfService ? 'My Payslips' : 'Payslips'}
         subtitle={isSelfService ? 'Your payslip history' : isAdmin ? 'Run payroll, review and approve payslips' : 'Payslip history'}
         actions={
@@ -346,8 +376,10 @@ export default function PayslipsPage() {
                   }}
                   disabled={emailAllMutation.isPending}
                   className="btn-secondary"
+                  title="Generate view-matching PDFs and email every payslip in this run"
                 >
-                  <Mail size={14} /> {emailAllMutation.isPending ? 'Emailing…' : 'Email All Payslips'}
+                  <Mail size={14} />{' '}
+                  {emailAllMutation.isPending ? 'Preparing & emailing…' : 'Bulk Email Payslips'}
                 </button>
               )}
               {currentRun && currentRun.status === 'locked' && (
@@ -365,8 +397,10 @@ export default function PayslipsPage() {
         }
       />
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <select value={month} onChange={(e) => { setMonth(parseInt(e.target.value, 10)); setProcessMessage(null); setUnlockMessage(null); setSelectedPayslipId(null); }} className="text-sm border border-slate-200 rounded-lg px-3 py-2">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row items-center">
+        <select value={month} onChange={(e) => { setMonth(parseInt(e.target.value, 10)); setProcessMessage(null); setUnlockMessage(null); setSelectedPayslipId(null); }} className="ds-select sm:min-w-[120px]">
           {MONTHS.map((m, i) => {
             const optionMonth = i + 1;
             const disabledFuture =
@@ -392,7 +426,7 @@ export default function PayslipsPage() {
             setUnlockMessage(null);
             setSelectedPayslipId(null);
           }}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2"
+          className="ds-select sm:min-w-[100px]"
         >
           {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -411,6 +445,8 @@ export default function PayslipsPage() {
             Run: {currentRun.status} · {currentRun.total_employees} employees · {formatINR(currentRun.total_net)} net
           </span>
         )}
+          </div>
+        </div>
       </div>
 
       {unlockNotice && !isSelfService && (
@@ -560,11 +596,11 @@ export default function PayslipsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="card">
           {isLoading ? (
-            <div className="p-8 text-center text-slate-400">Loading…</div>
+            <div className="py-12 text-center text-slate-400 text-sm">Loading payslips…</div>
           ) : payslips.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText size={32} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">No payslips for {MONTHS[month - 1]} {year}</p>
+            <div className="py-16 text-center">
+              <FileText size={32} className="mx-auto text-slate-200 mb-3" />
+              <p className="text-slate-400 text-sm">No payslips for {MONTHS[month - 1]} {year}</p>
               {isAdmin && <p className="text-xs text-slate-400 mt-1">Click "Run Payroll" to generate</p>}
             </div>
           ) : (
@@ -615,7 +651,7 @@ export default function PayslipsPage() {
               }}
             />
           ) : (
-            <div className="card p-12 text-center text-slate-400 text-sm">
+            <div className="card py-16 text-center text-slate-400 text-sm">
               Select a payslip to preview
             </div>
           )}

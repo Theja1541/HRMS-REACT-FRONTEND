@@ -19,6 +19,7 @@ import {
   BANK_ACCOUNT_PATTERN,
 } from '../../utils/validation';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function vendorToForm(vendor) {
@@ -65,8 +66,9 @@ function buildPayload(form) {
 
 export default function VendorsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -204,6 +206,7 @@ export default function VendorsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Vendors"
         title="Vendors"
         subtitle="Suppliers you pay"
         actions={
@@ -221,28 +224,29 @@ export default function VendorsPage() {
         <StatCard label="GST Registered" value={gstCount} delta="GST applicable vendors" deltaType="neutral" />
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+          <div className="relative flex-1 min-w-0 sm:max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, contact, email, GSTIN…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input pl-9 w-full"
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            className="ds-select w-full sm:w-auto sm:min-w-[140px]"
           >
             <option value="">All types</option>
             {VENDOR_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2 whitespace-nowrap">
             <input
               type="checkbox"
               checked={showInactive}
@@ -251,6 +255,7 @@ export default function VendorsPage() {
             />
             Show inactive
           </label>
+          </div>
         </div>
       </div>
 

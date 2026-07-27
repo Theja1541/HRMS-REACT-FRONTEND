@@ -4,7 +4,7 @@ import { format, parseISO, subMonths } from 'date-fns';
 import { Check, X } from 'lucide-react';
 import { compOffApi, attendanceApi, leaveApi } from '../../api';
 import { LEAVE_STATUS } from '../../constants/hr';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 import { Avatar } from '../../components/shared/StatusBadge';
 
 const WORK_STATUSES = new Set(['present', 'wfh', 'late', 'half_day']);
@@ -16,7 +16,7 @@ const emptyForm = {
 };
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 function monthYearPairs(lookback = 3) {

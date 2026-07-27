@@ -7,6 +7,7 @@ export default function RolesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Admin · Roles"
         title="Roles & Permissions"
         subtitle="Role hierarchy and module access matrix for your organization"
       />

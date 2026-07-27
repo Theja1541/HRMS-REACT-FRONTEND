@@ -7,7 +7,6 @@ import { useAuthStore } from '../../store/auth.store';
 import { useUiStore } from '../../store/ui.store';
 import { leaveApi, hrApi, portalApi, brandingApi } from '../../api';
 import { NAV_ITEMS, getMostSpecificNavPath, isNavItemVisible, isNavPathActive } from '../../constants/routes';
-import { Avatar, RoleBadge } from '../shared/StatusBadge';
 import { cn, getInitials, resolveAssetUrl } from '../../utils/helpers';
 import { isPlatformPortal, resolvePortalRole } from '../../utils/portalContext';
 // import TenantSwitcher from './TenantSwitcher'; // Super Admin org switcher hidden for now
@@ -26,27 +25,32 @@ function NavItemLink({ item, isIconOnly, showLabels, count, onNavigate, classNam
       onClick={onNavigate}
       className={() =>
         cn(
-          'flex items-center text-xs font-normal relative transition-colors',
-          isIconOnly ? 'justify-center px-2 py-2.5 mx-2 rounded-lg' : 'gap-2.5 px-4 py-2',
+          'group/nav flex items-center text-xs font-medium relative transition-all duration-200',
+          isIconOnly ? 'justify-center mx-2 px-2 py-2.5 rounded-xl' : 'gap-2.5 mx-2 px-3 py-2 rounded-xl',
           isActive
-            ? 'bg-blue-900 text-white before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-sky-400'
-            : 'text-slate-400 hover:bg-sidebar-hover hover:text-slate-200',
-          isIconOnly && isActive && 'before:left-1 before:rounded-full',
+            ? 'bg-gradient-to-r from-brand-600/90 to-sky-600/80 text-white shadow-md shadow-brand-600/20'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
           className
         )
       }
     >
-      <span className="relative shrink-0">
-        <Icon size={15} />
+      <span
+        className={cn(
+          'relative shrink-0 flex items-center justify-center rounded-lg transition-colors',
+          isIconOnly ? 'w-8 h-8' : 'w-7 h-7',
+          isActive ? 'bg-white/15 text-white' : 'text-slate-400 group-hover/nav:text-sky-300'
+        )}
+      >
+        <Icon size={15} strokeWidth={isActive ? 2.25 : 2} />
         {isIconOnly && count > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 min-w-[15px] h-3.5 px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center ring-2 ring-slate-950">
             {count > 9 ? '9+' : count}
           </span>
         )}
       </span>
-      {showLabels && <span className="flex-1 truncate">{item.label}</span>}
+      {showLabels && <span className="flex-1 truncate tracking-tight">{item.label}</span>}
       {showLabels && count > 0 && (
-        <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+        <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 shadow-sm shadow-rose-500/30">
           {count}
         </span>
       )}
@@ -86,6 +90,7 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
     location.pathname,
     visibleItems.map((item) => item.path)
   );
+  const sectionActive = Boolean(activeItemPath);
 
   return (
     <div ref={rootRef} className="relative mx-2 mb-1">
@@ -95,13 +100,22 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          'w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-slate-400 hover:bg-sidebar-hover hover:text-slate-200 transition-colors relative',
-          open && 'bg-sidebar-hover text-slate-200'
+          'w-full flex items-center justify-center px-2 py-2.5 rounded-xl transition-all duration-200 relative',
+          open || sectionActive
+            ? 'bg-white/10 text-white'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
         )}
       >
-        <SectionIcon size={15} />
+        <span
+          className={cn(
+            'flex items-center justify-center w-8 h-8 rounded-lg',
+            open || sectionActive ? 'bg-brand-600/40 text-sky-200' : ''
+          )}
+        >
+          <SectionIcon size={15} />
+        </span>
         {sectionBadgeTotal > 0 && (
-          <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute top-1 right-1 min-w-[15px] h-3.5 px-0.5 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center ring-2 ring-slate-950">
             {sectionBadgeTotal > 9 ? '9+' : sectionBadgeTotal}
           </span>
         )}
@@ -109,28 +123,30 @@ function CollapsedSectionFlyout({ visibleItems, sectionLabel, SectionIcon, badge
       </button>
 
       {open && (
-        <div className="absolute left-full top-0 ml-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-[110] py-2 max-h-[70vh] overflow-y-auto">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-2 border-b border-slate-800">
+        <div className="absolute left-full top-0 ml-2 w-56 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-md shadow-2xl shadow-black/40 z-[110] py-2 max-h-[70vh] overflow-y-auto">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-300/80 px-3.5 py-2 border-b border-white/5">
             {sectionLabel}
           </p>
-          {visibleItems.map((item) => {
-            const count = badgeCount(item);
-            return (
-              <NavItemLink
-                key={item.path}
-                item={item}
-                isIconOnly={false}
-                showLabels
-                count={count}
-                isActive={activeItemPath === item.path}
-                onNavigate={() => {
-                  setOpen(false);
-                  onNavigate?.(item);
-                }}
-                className="px-3"
-              />
-            );
-          })}
+          <div className="py-1 space-y-0.5">
+            {visibleItems.map((item) => {
+              const count = badgeCount(item);
+              return (
+                <NavItemLink
+                  key={item.path}
+                  item={item}
+                  isIconOnly={false}
+                  showLabels
+                  count={count}
+                  isActive={activeItemPath === item.path}
+                  onNavigate={() => {
+                    setOpen(false);
+                    onNavigate?.(item);
+                  }}
+                  className="mx-1.5"
+                />
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -280,54 +296,65 @@ export default function Sidebar() {
         <button
           type="button"
           aria-label="Close navigation menu"
-          className="fixed inset-0 z-[90] bg-slate-900/50 lg:hidden"
+          className="fixed inset-0 z-[90] bg-slate-950/60 backdrop-blur-[2px] lg:hidden"
           onClick={closeMobileSidebar}
         />
       )}
 
       <aside
         className={cn(
-          'bg-sidebar-bg flex flex-col h-screen overflow-y-auto z-[100] transition-[width,transform] duration-300 ease-in-out',
+          'sidebar-shell flex flex-col h-screen overflow-hidden z-[100] transition-[width,transform] duration-300 ease-in-out',
           'fixed inset-y-0 left-0 w-[240px]',
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           sidebarCollapsed ? 'lg:w-16 lg:min-w-[64px]' : 'lg:w-[240px] lg:min-w-[240px]'
         )}
         aria-label="Main navigation"
       >
-        <div className={cn('border-b border-slate-800', isIconOnly ? 'p-3' : 'p-4')}>
+        {/* Ambient brand glow */}
+        <div
+          className="pointer-events-none absolute -top-16 left-1/2 -translate-x-1/2 h-40 w-40 rounded-full bg-brand-600/25 blur-3xl"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute bottom-20 -left-10 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl"
+          aria-hidden
+        />
+
+        <div className={cn('relative border-b border-white/5', isIconOnly ? 'p-3' : 'p-4')}>
           <div
             className={cn(
               'flex mb-3',
               isIconOnly ? 'flex-col items-center gap-2' : 'items-center gap-2'
             )}
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               {brandLogo ? (
                 <img
                   src={brandLogo}
                   alt={brandTitle}
-                  className="w-8 h-8 rounded-lg object-contain bg-white/10 shrink-0"
+                  className="w-9 h-9 rounded-xl object-contain bg-white/10 ring-1 ring-white/10 shrink-0 shadow-lg shadow-black/20"
                 />
               ) : (
-                <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0">
+                <div className="w-9 h-9 bg-gradient-to-br from-brand-600 to-sky-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-lg shadow-brand-600/30 ring-1 ring-white/10">
                   {isSuperAdmin ? 'H' : getInitials(tenantName)}
                 </div>
               )}
-              <span
+              <div
                 className={cn(
-                  'text-white font-semibold text-sm whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out',
+                  'min-w-0 overflow-hidden transition-all duration-300 ease-in-out',
                   showLabels ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
                 )}
               >
-                {brandTitle}
-              </span>
+                <p className="text-white font-semibold text-sm truncate tracking-tight">{brandTitle}</p>
+                <p className="text-[10px] text-slate-400 truncate">HR Management</p>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={toggleSidebarCollapsed}
               className={cn(
-                'hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors duration-200 shrink-0',
+                'hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors duration-200 shrink-0',
                 !isIconOnly && 'ml-auto'
               )}
               aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -341,7 +368,7 @@ export default function Sidebar() {
               type="button"
               onClick={closeMobileSidebar}
               className={cn(
-                'w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 lg:hidden shrink-0',
+                'w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white lg:hidden shrink-0',
                 !isIconOnly && 'ml-auto'
               )}
               aria-label="Close sidebar"
@@ -355,21 +382,24 @@ export default function Sidebar() {
             <TenantSwitcher showLabels={showLabels} isIconOnly={isIconOnly} />
           ) : */}
           {!isSuperAdmin && !isIconOnly && (
-            <div className="w-full flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2">
+            <div className="w-full flex items-center gap-2.5 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2 backdrop-blur-sm">
               {tenantLogo ? (
-                <img src={tenantLogo} alt="" className="w-5 h-5 rounded object-contain shrink-0" />
+                <img src={tenantLogo} alt="" className="w-6 h-6 rounded-lg object-contain shrink-0 bg-white/10" />
               ) : (
-                <div className="w-5 h-5 rounded-full bg-brand-600 text-[9px] font-semibold text-white flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-brand-600 to-sky-500 text-[9px] font-semibold text-white flex items-center justify-center shrink-0">
                   {getInitials(tenantName)}
                 </div>
               )}
-              <span className="text-slate-300 text-xs font-medium flex-1 text-left truncate">{tenantName}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] uppercase tracking-wider text-slate-500 font-medium">Organization</p>
+                <p className="text-slate-200 text-xs font-medium truncate">{tenantName}</p>
+              </div>
             </div>
           )}
           {/* } */}
         </div>
 
-        <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
+        <nav className="relative flex-1 py-3 overflow-y-auto overflow-x-hidden sidebar-nav-scroll space-y-0.5">
           {navGroups.map((group) => {
             const visibleItems = group.items.filter((item) => isNavItemVisible(item, role, moduleCodes));
             if (!visibleItems.length) return null;
@@ -388,7 +418,7 @@ export default function Sidebar() {
 
             if (!isCollapsible) {
               return (
-                <div key={group.section} className="mb-1">
+                <div key={group.section} className="mb-1 space-y-0.5">
                   {visibleItems.map((item) => (
                     <NavItemLink
                       key={item.path}
@@ -424,18 +454,26 @@ export default function Sidebar() {
                   onClick={() => toggleNavSection(group.section)}
                   aria-expanded={isExpanded}
                   className={cn(
-                    'w-full flex items-center gap-2 px-4 py-2 text-left transition-colors',
+                    'w-full flex items-center gap-2 mx-2 px-3 py-2 rounded-xl text-left transition-all duration-200',
+                    'max-w-[calc(100%-1rem)]',
                     sectionActive
-                      ? 'text-slate-200'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-sidebar-hover/50'
+                      ? 'text-sky-200 bg-white/5'
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                   )}
                 >
-                  <SectionIcon size={14} className="shrink-0" />
-                  <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider truncate">
+                  <span
+                    className={cn(
+                      'flex items-center justify-center w-6 h-6 rounded-md shrink-0',
+                      sectionActive ? 'bg-brand-600/30 text-sky-300' : 'text-slate-500'
+                    )}
+                  >
+                    <SectionIcon size={13} />
+                  </span>
+                  <span className="flex-1 text-[10px] font-semibold uppercase tracking-wider truncate">
                     {sectionLabel}
                   </span>
                   {sectionBadgeTotal > 0 && !isExpanded && (
-                    <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                    <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
                       {sectionBadgeTotal > 9 ? '9+' : sectionBadgeTotal}
                     </span>
                   )}
@@ -447,7 +485,7 @@ export default function Sidebar() {
                 </button>
 
                 {isExpanded && (
-                  <div className="pb-1">
+                  <div className="pb-1 pt-0.5 space-y-0.5">
                     {visibleItems.map((item) => (
                       <NavItemLink
                         key={item.path}
@@ -457,7 +495,7 @@ export default function Sidebar() {
                         count={badgeCount(item)}
                         isActive={activeItemPath === item.path}
                         onNavigate={() => handleNavItemNavigate(item)}
-                        className="pl-8"
+                        className="pl-4"
                       />
                     ))}
                   </div>
@@ -466,7 +504,6 @@ export default function Sidebar() {
             );
           })}
         </nav>
-
       </aside>
     </>
   );

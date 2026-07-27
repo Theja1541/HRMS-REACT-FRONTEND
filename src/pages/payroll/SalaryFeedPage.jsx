@@ -7,6 +7,7 @@ import TablePagination from '../../components/shared/TablePagination';
 import { FEED_TYPES, FEED_TYPE_META, MONTHS } from '../../constants/payroll';
 import { cn, formatINR } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -27,8 +28,9 @@ function formatTypeLabel(type) {
 
 export default function SalaryFeedPage() {
   const queryClient = useQueryClient();
-  const { user, selectedTenantId } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -153,6 +155,7 @@ export default function SalaryFeedPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Salary Feed"
         title="Salary Feed"
         subtitle="Add one-time earnings or deductions before processing payroll for a month"
         actions={
@@ -186,17 +189,18 @@ export default function SalaryFeedPage() {
         </div>
       )}
 
-      <div className="card p-4">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-4 justify-between">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4 justify-between">
           <div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
               <Calendar size={14} /> Payroll period
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="toolbar-row">
               <select
                 value={month}
                 onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white min-w-[120px]"
+                className="ds-select sm:min-w-[120px]"
               >
                 {MONTHS.map((m, i) => (
                   <option key={m} value={i + 1}>{m}</option>
@@ -205,7 +209,7 @@ export default function SalaryFeedPage() {
               <select
                 value={year}
                 onChange={(e) => setYear(parseInt(e.target.value, 10))}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white min-w-[100px]"
+                className="ds-select sm:min-w-[100px]"
               >
                 {YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y}>{y}</option>
@@ -217,16 +221,13 @@ export default function SalaryFeedPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="ds-tabs scroll-tabs flex-wrap" role="tablist">
             <button
               type="button"
+              role="tab"
+              aria-selected={typeFilter === 'all'}
               onClick={() => setTypeFilter('all')}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                typeFilter === 'all'
-                  ? 'bg-slate-800 text-white border-slate-800'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-              )}
+              className={cn(typeFilter === 'all' && 'ds-tab-active')}
             >
               All types
             </button>
@@ -234,17 +235,15 @@ export default function SalaryFeedPage() {
               <button
                 key={t}
                 type="button"
+                role="tab"
+                aria-selected={typeFilter === t}
                 onClick={() => setTypeFilter(t)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-                  typeFilter === t
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                )}
+                className={cn(typeFilter === t && 'ds-tab-active')}
               >
                 {FEED_TYPE_META[t].label}
               </button>
             ))}
+          </div>
           </div>
         </div>
       </div>
@@ -258,13 +257,13 @@ export default function SalaryFeedPage() {
 
       <div className="card overflow-x-auto">
         {isLoading ? (
-          <div className="p-12 text-center text-slate-400">Loading salary feed entries…</div>
+          <div className="py-16 text-center text-slate-400 text-sm">Loading salary feed entries…</div>
         ) : error ? (
-          <div className="p-12 text-center text-red-500">Failed to load salary feed entries</div>
+          <div className="py-16 text-center text-red-500 text-sm">Failed to load salary feed entries</div>
         ) : filteredEntries.length === 0 ? (
-          <div className="p-12 text-center">
-            <PenLine size={32} className="mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500">No entries for {periodLabel}</p>
+          <div className="py-16 text-center">
+            <PenLine size={32} className="mx-auto mb-3 text-slate-200" />
+            <p className="text-slate-400 text-sm">No entries for {periodLabel}</p>
             <p className="text-xs text-slate-400 mt-1">
               {typeFilter === 'all'
                 ? 'Click "Add entry" to record bonus, arrears, OT, or other adjustments'

@@ -7,8 +7,8 @@ import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import { useTablePagination, normalizePagination } from '../../hooks/useTablePagination';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { formatINR, cn } from '../../utils/helpers';
-import { useAuthStore } from '../../store/auth.store';
+import { formatINR, cn, localDateString } from '../../utils/helpers';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { BILLING_CYCLES } from '../../constants/tenant';
 
 function selectClass() {
@@ -29,11 +29,11 @@ function billingCycleLabel(value) {
 }
 
 function todayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 export default function TenantSubscriptionsPage() {
-  const user = useAuthStore((s) => s.user);
+  const role = usePortalRole();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [billingCycles, setBillingCycles] = useState({});
@@ -115,28 +115,31 @@ export default function TenantSubscriptionsPage() {
       setError(tenantId, err?.response?.data?.error?.message || 'Failed to renew subscription'),
   });
 
-  if (user?.role !== 'super_admin') {
+  if (role !== 'super_admin') {
     return <Navigate to="/dashboard" replace />;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Admin · Subscriptions"
         title="Tenant Subscriptions"
         subtitle="Manage subscription plans, billing cycles, and access for each tenant"
       />
 
       <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
           <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search company or tenant code…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
+              className="ds-input pl-9 w-full"
             />
+          </div>
           </div>
         </div>
 

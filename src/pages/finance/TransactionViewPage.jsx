@@ -17,6 +17,7 @@ import {
 } from '../../constants/finance';
 import { formatINR, cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 function invalidateFinanceQueries(queryClient) {
   queryClient.invalidateQueries({ queryKey: ['finance-transactions'] });
@@ -27,9 +28,10 @@ function invalidateFinanceQueries(queryClient) {
 export default function TransactionViewPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canWrite = FINANCE_WRITE_ROLES.includes(user?.role);
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canWrite = FINANCE_WRITE_ROLES.includes(role);
   const [showReceivePayment, setShowReceivePayment] = useState(false);
 
   const { data, isLoading, error } = useQuery({
@@ -74,6 +76,7 @@ export default function TransactionViewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Transaction"
         title="View Transaction"
         subtitle={`Invoice ref: ${buildTransactionNumber(tx)}`}
         actions={

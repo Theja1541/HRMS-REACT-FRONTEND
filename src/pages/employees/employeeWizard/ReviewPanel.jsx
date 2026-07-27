@@ -101,6 +101,15 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
             value={`${form.probation_duration_months || 6} months`}
           />
         )}
+        {form.has_probation === true && form.probation_policy_id && (
+          <ReviewItem
+            label="Probation Policy"
+            value={
+              probationPreview?.policy_name ||
+              `Policy #${form.probation_policy_id}`
+            }
+          />
+        )}
       </ReviewSection>
 
       {form.has_probation === false ? (
@@ -115,7 +124,9 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
           <div className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-50 border-b border-brand-100">
             <CalendarClock size={13} className="text-brand-600" />
             <h4 className="text-xs font-semibold text-brand-700">Probation</h4>
-            <span className="ml-1 text-[10px] text-brand-400 font-medium">auto-resolved · read-only</span>
+            <span className="ml-1 text-[10px] text-brand-400 font-medium">
+              {probationPreview.selected ? 'selected policy' : 'auto-matched'}
+            </span>
           </div>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
             <ReviewItem label="Has Probation" value="Yes" />
@@ -126,10 +137,10 @@ export default function ReviewPanel({ form, documents, existingDocuments = {}, l
           </div>
         </div>
       ) : form.has_probation === true ? (
-        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 flex items-center gap-1.5">
-          <CalendarClock size={13} className="text-slate-400" />
-          <p className="text-xs text-slate-400">
-            No probation policy matched — employee will be set to <span className="font-medium text-slate-500">active</span> on creation.
+        <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3 flex items-center gap-1.5">
+          <CalendarClock size={13} className="text-amber-500" />
+          <p className="text-xs text-amber-700">
+            No probation policy available — create one under Probation Policies before saving.
           </p>
         </div>
       ) : null}

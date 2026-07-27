@@ -14,11 +14,13 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Wallet, Users } from 'lucide-react';
 import { financeApi } from '../../api';
-import PageHeader, { StatCard } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/PageHeader';
+import DashboardHero, { DashboardSection } from '../../components/shared/DashboardHero';
 import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
 import TablePagination from '../../components/shared/TablePagination';
 import { formatINR, cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 
@@ -38,8 +40,9 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 export default function DaybookDashboardPage() {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -80,23 +83,39 @@ export default function DaybookDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <DashboardHero
+        badge="Finance overview"
         title="Finance Dashboard"
         subtitle="Income, expense, and cash flow"
+        chips={
+          !isLoading && !error
+            ? [
+                { label: 'Income', value: formatINR(kpis?.total_income ?? 0), tone: 'emerald' },
+                { label: 'Expense', value: formatINR(kpis?.total_expense ?? 0), tone: 'rose' },
+                {
+                  label: 'Net',
+                  value: formatINR(kpis?.net_profit_loss ?? 0),
+                  tone: netPositive ? 'teal' : 'amber',
+                },
+              ]
+            : []
+        }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input w-auto text-xs py-1.5"
+              aria-label="From date"
             />
-            <span className="text-slate-400 text-sm">to</span>
+            <span className="text-sky-100 text-xs">to</span>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input w-auto text-xs py-1.5"
+              aria-label="To date"
             />
           </div>
         }
@@ -110,33 +129,57 @@ export default function DaybookDashboardPage() {
         <div className="text-center py-16 text-red-500">Failed to load dashboard</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatCard label="Total Income" value={formatINR(kpis?.total_income ?? 0)} icon={TrendingUp} />
-            <StatCard label="Total Expense" value={formatINR(kpis?.total_expense ?? 0)} icon={TrendingDown} />
-            <StatCard
-              label="Employee Salary Expense"
-              value={formatINR(kpis?.employee_salary_expense ?? 0)}
-              icon={Users}
-              delta="Salary Expense COA"
-              deltaType="neutral"
-            />
-            <StatCard
-              label="Net Profit / Loss"
-              value={formatINR(kpis?.net_profit_loss ?? 0)}
-              icon={Wallet}
-              delta={netPositive ? 'Profit' : 'Loss'}
-              deltaType={netPositive ? 'up' : 'neutral'}
-            />
-          </div>
+          <DashboardSection title="Key metrics">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard
+                label="Total Income"
+                value={formatINR(kpis?.total_income ?? 0)}
+                icon={TrendingUp}
+                tone="emerald"
+                to="/transactions"
+              />
+              <StatCard
+                label="Total Expense"
+                value={formatINR(kpis?.total_expense ?? 0)}
+                icon={TrendingDown}
+                tone="rose"
+                to="/transactions"
+              />
+              <StatCard
+                label="Employee Salary Expense"
+                value={formatINR(kpis?.employee_salary_expense ?? 0)}
+                icon={Users}
+                delta="Salary Expense COA"
+                deltaType="neutral"
+                tone="sky"
+                to="/transactions"
+              />
+              <StatCard
+                label="Net Profit / Loss"
+                value={formatINR(kpis?.net_profit_loss ?? 0)}
+                icon={Wallet}
+                delta={netPositive ? 'Profit' : 'Loss'}
+                deltaType={netPositive ? 'up' : 'down'}
+                tone={netPositive ? 'teal' : 'amber'}
+                to="/finance"
+              />
+            </div>
+          </DashboardSection>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-900">Cash Flow Trend</h3>
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between border-b border-emerald-50 bg-gradient-to-r from-emerald-50/80 to-white px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm">
+                    <TrendingUp size={16} />
+                  </span>
+                  <h3 className="text-sm font-semibold text-slate-800">Cash Flow Trend</h3>
+                </div>
                 <span className="text-[10px] text-slate-400 uppercase">
                   {dashboard?.bucket === 'day' ? 'Daily' : 'Monthly'} · Cash & Bank
                 </span>
               </div>
+              <div className="p-5">
               {(dashboard?.cash_flow_trend || []).some((p) => p.inflow || p.outflow) ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={dashboard.cash_flow_trend}>
@@ -153,13 +196,20 @@ export default function DaybookDashboardPage() {
               ) : (
                 <p className="text-sm text-slate-400 text-center py-16">No cash movement in this period</p>
               )}
+              </div>
             </div>
 
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-900">Expense By Category</h3>
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between border-b border-amber-50 bg-gradient-to-r from-amber-50/80 to-white px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white shadow-sm">
+                    <TrendingDown size={16} />
+                  </span>
+                  <h3 className="text-sm font-semibold text-slate-800">Expense By Category</h3>
+                </div>
                 <span className="text-[10px] text-slate-400 uppercase">Expense COA accounts</span>
               </div>
+              <div className="p-5">
               {expenseChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={expenseChartData} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -176,6 +226,7 @@ export default function DaybookDashboardPage() {
               ) : (
                 <p className="text-sm text-slate-400 text-center py-16">No expenses posted in this period</p>
               )}
+              </div>
             </div>
           </div>
 

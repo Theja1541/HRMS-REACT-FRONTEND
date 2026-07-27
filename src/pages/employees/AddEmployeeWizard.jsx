@@ -125,73 +125,99 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
     staleTime: 5 * 60 * 1000,
   });
   const probationPolicies = probationData?.data?.policies || [];
+  const activeProbationPolicies = useMemo(
+    () => probationPolicies.filter((p) => p.is_enabled !== false),
+    [probationPolicies]
+  );
+
+  const addMonthsLocal = (dateStr, months) => {
+    const [year, month, day] = String(dateStr).slice(0, 10).split('-').map((n) => parseInt(n, 10));
+    const d = new Date(year, month - 1, day);
+    d.setMonth(d.getMonth() + Number(months));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayNum}`;
+  };
+
+  const pickDurationFromPolicy = (policy) => {
+    const months = Number(policy?.default_duration_months);
+    if (PROBATION_DURATION_OPTIONS.includes(months)) return months;
+    return 6;
+  };
 
   const probationPreview = useMemo(() => {
-    if (!form.has_probation || !form.date_of_joining || !probationPolicies.length) return null;
+    if (!form.has_probation || !form.date_of_joining || !activeProbationPolicies.length) return null;
 
-    const { department_id, designation_id, employment_type, date_of_joining } = form;
+    const { department_id, designation_id, employment_type, date_of_joining, probation_policy_id } = form;
 
     let bestPolicy = null;
-    let bestScore = -1;
 
-    for (const policy of probationPolicies) {
-      if (!policy.is_enabled) continue;
-
-      let policyBest = -1;
-      for (const a of policy.assignments || []) {
-        if (a.employee_id != null) continue;
-
-        let score = 0;
-        let match = true;
-
-        if (a.department_id != null) {
-          if (String(a.department_id) !== String(department_id)) match = false;
-          else score += 30;
-        }
-        if (a.designation_id != null) {
-          if (String(a.designation_id) !== String(designation_id)) match = false;
-          else score += 40;
-        }
-        if (a.employment_type != null) {
-          if (a.employment_type !== employment_type) match = false;
-          else score += 20;
-        }
-
-        if (!match) continue;
-        if (score === 0) score = 10;
-        if (score > policyBest) policyBest = score;
-      }
-
-      if (policyBest > bestScore) {
-        bestScore = policyBest;
-        bestPolicy = policy;
-      }
+    if (probation_policy_id) {
+      bestPolicy =
+        activeProbationPolicies.find((p) => String(p.id) === String(probation_policy_id)) || null;
     }
 
     if (!bestPolicy) {
-      bestPolicy = probationPolicies.find((p) => p.is_enabled && p.is_default) ?? null;
+      let bestScore = -1;
+      for (const policy of activeProbationPolicies) {
+        let policyBest = -1;
+        for (const a of policy.assignments || []) {
+          if (a.employee_id != null) continue;
+
+          let score = 0;
+          let match = true;
+
+          if (a.department_id != null) {
+            if (String(a.department_id) !== String(department_id)) match = false;
+            else score += 30;
+          }
+          if (a.designation_id != null) {
+            if (String(a.designation_id) !== String(designation_id)) match = false;
+            else score += 40;
+          }
+          if (a.employment_type != null) {
+            if (a.employment_type !== employment_type) match = false;
+            else score += 20;
+          }
+
+          if (!match) continue;
+          if (score === 0) score = 10;
+          if (score > policyBest) policyBest = score;
+        }
+
+        if (policyBest > bestScore) {
+          bestScore = policyBest;
+          bestPolicy = policy;
+        }
+      }
+
+      if (!bestPolicy) {
+        bestPolicy = activeProbationPolicies.find((p) => p.is_default) ?? null;
+      }
     }
 
     if (!bestPolicy) return null;
 
     const durationMonths = PROBATION_DURATION_OPTIONS.includes(Number(form.probation_duration_months))
       ? Number(form.probation_duration_months)
-      : 6;
-
-    const d = new Date(date_of_joining + 'T00:00:00');
-    d.setMonth(d.getMonth() + durationMonths);
-    const endDate = d.toISOString().slice(0, 10);
+      : pickDurationFromPolicy(bestPolicy);
 
     return {
       policy_name: bestPolicy.policy_name,
+      policy_id: bestPolicy.id,
+      selected: !!probation_policy_id,
       duration_months: durationMonths,
       probation_start_date: date_of_joining,
-      probation_end_date: endDate,
+      probation_end_date: addMonthsLocal(date_of_joining, durationMonths),
+      auto_confirm: !!bestPolicy.auto_confirm,
+      allow_extension: bestPolicy.allow_extension !== false,
     };
   }, [
     form.has_probation,
     form.probation_duration_months,
-    probationPolicies,
+    form.probation_policy_id,
+    activeProbationPolicies,
     form.department_id,
     form.designation_id,
     form.employment_type,
@@ -289,6 +315,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
         draft.form.work_mode ||
         (draft.form.work_from_home ? 'remote' : 'office'),
       has_probation: draft.form.has_probation === true,
+      probation_policy_id: draft.form.probation_policy_id || '',
       probation_duration_months: draft.form.probation_duration_months || 6,
     };
     setForm(restoredForm);
@@ -399,10 +426,11 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-3xl shadow-xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col">
+    <div className="modal-backdrop">
+      <div className="modal-panel max-w-3xl max-h-[100dvh] sm:max-h-[92vh]">
+        <div className="h-1 w-full bg-gradient-to-r from-brand-600 to-sky-500 shrink-0" aria-hidden />
         {/* Header */}
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="modal-panel-header">
           <div className="min-w-0">
             <h3 className="font-semibold text-slate-900">
               {isView ? 'View Employee' : isEdit ? 'Edit Employee' : 'Add Employee'}
@@ -488,7 +516,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
         </div>
 
         {/* Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+        <div className="modal-panel-body">
           {loadEmployee && loadingEmployee && (
             <div className="py-16 text-center text-slate-400 text-sm">Loading employee…</div>
           )}
@@ -511,7 +539,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   className={ic(errors.emp_code)}
                   placeholder="EMP004"
                   maxLength={20}
-                  disabled={!isAdd}
+                  disabled={ro}
                 />
               </WizardField>
               <InternationalPhoneInput
@@ -651,6 +679,7 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                       setForm((prev) => ({
                         ...prev,
                         has_probation: enabled,
+                        probation_policy_id: enabled ? prev.probation_policy_id : '',
                         probation_duration_months: enabled
                           ? prev.probation_duration_months || 6
                           : prev.probation_duration_months,
@@ -669,6 +698,41 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                     <option value="yes">Yes</option>
                   </select>
                 </WizardField>
+
+              {form.has_probation && (
+                <WizardField
+                  label="Probation Policy"
+                  error={errors.probation_policy_id}
+                  hint="Policies from Probation Policies page. Leave as auto-match to use assignments/default."
+                >
+                  <select
+                    value={form.probation_policy_id}
+                    onChange={(e) => {
+                      const policyId = e.target.value;
+                      const selected = activeProbationPolicies.find(
+                        (p) => String(p.id) === String(policyId)
+                      );
+                      setForm((prev) => ({
+                        ...prev,
+                        probation_policy_id: policyId,
+                        probation_duration_months: selected
+                          ? pickDurationFromPolicy(selected)
+                          : prev.probation_duration_months || 6,
+                      }));
+                    }}
+                    className={ic(errors.probation_policy_id)}
+                  >
+                    <option value="">Auto-match (by assignment / default)</option>
+                    {activeProbationPolicies.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.policy_name}
+                        {p.is_default ? ' (Default)' : ''}
+                        {` — ${p.default_duration_months} mo`}
+                      </option>
+                    ))}
+                  </select>
+                </WizardField>
+              )}
 
               {form.has_probation && (
                 <WizardField label="Probation Duration" error={errors.probation_duration_months}>
@@ -691,7 +755,9 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                   <div className="flex items-center gap-1.5 mb-3">
                     <CalendarClock size={13} className="text-brand-600" />
                     <p className="text-xs font-semibold text-brand-700">Probation Preview</p>
-                    <span className="ml-1 text-[10px] text-brand-400 font-medium">auto-resolved · read-only</span>
+                    <span className="ml-1 text-[10px] text-brand-400 font-medium">
+                      {probationPreview.selected ? 'selected policy' : 'auto-matched'}
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
@@ -715,16 +781,25 @@ export default function AddEmployeeWizard({ employeeId, mode = 'add', onClose, o
                       </p>
                     </div>
                   </div>
+                  {(probationPreview.auto_confirm || probationPreview.allow_extension) && (
+                    <p className="mt-3 text-[11px] text-slate-500">
+                      {[
+                        probationPreview.auto_confirm ? 'Auto-confirms when period ends' : null,
+                        probationPreview.allow_extension ? 'Extensions allowed' : 'No extensions',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  )}
                 </div>
               )}
 
               {form.has_probation && !probationPreview && form.date_of_joining && !!probationData && (
-                <div className="sm:col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="sm:col-span-2 rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
                   <div className="flex items-center gap-1.5">
-                    <CalendarClock size={13} className="text-slate-400" />
-                    <p className="text-xs text-slate-400">
-                      No active probation policy found — employee will be set to <span className="font-medium text-slate-500">active</span>
-                      {isAdd ? ' on creation' : ' if probation cannot be applied'}.
+                    <CalendarClock size={13} className="text-amber-500" />
+                    <p className="text-xs text-amber-700">
+                      No active probation policy found. Create one under People → Probation Policies, then select it here.
                     </p>
                   </div>
                 </div>

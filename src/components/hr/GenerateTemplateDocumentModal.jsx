@@ -4,7 +4,7 @@ import { Download, FileOutput, Loader2, Printer, X } from 'lucide-react';
 import { employeeApi, hrApi } from '../../api';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '../../constants/hr';
 import { printHtmlDocument } from '../../utils/printDocument';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 
 function empLabel(emp) {
   if (!emp) return '';
@@ -45,7 +45,7 @@ export default function GenerateTemplateDocumentModal({ open, template, onClose 
   const queryClient = useQueryClient();
   const [employeeId, setEmployeeId] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
-  const [letterDate, setLetterDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [letterDate, setLetterDate] = useState(() => localDateString());
   const [html, setHtml] = useState('');
   const [meta, setMeta] = useState(null);
   const [error, setError] = useState('');
@@ -90,7 +90,7 @@ export default function GenerateTemplateDocumentModal({ open, template, onClose 
     if (!open) {
       setEmployeeId('');
       setEmployeeSearch('');
-      setLetterDate(new Date().toISOString().slice(0, 10));
+      setLetterDate(localDateString());
       setHtml('');
       setMeta(null);
       setError('');

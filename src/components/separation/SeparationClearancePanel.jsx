@@ -22,7 +22,7 @@ import {
   CLEARANCE_STATUSES,
 } from '../../constants/hr';
 import { useAuthStore } from '../../store/auth.store';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 import { resolvePortalRole } from '../../utils/portalContext';
 
 const TERMINAL_ITEM_STATUSES = ['completed', 'waived', 'not_applicable'];
@@ -60,7 +60,7 @@ function apiErrorMessage(err, fallback) {
 function canActOnItem(item, clearance, user, role) {
   if (!clearance || LOCKED_CLEARANCE_STATUSES.includes(clearance.status)) return false;
   if (TERMINAL_ITEM_STATUSES.includes(item.status)) return false;
-  if (HR_ADMIN_ROLES.includes(role || user?.role)) return true;
+  if (HR_ADMIN_ROLES.includes(role)) return true;
   return item.assigned_to === user?.id;
 }
 
@@ -346,7 +346,7 @@ export default function SeparationClearancePanel({ separationRequestId, enabled 
                       const overdue =
                         item.due_date &&
                         !TERMINAL_ITEM_STATUSES.includes(item.status) &&
-                        item.due_date < new Date().toISOString().slice(0, 10);
+                        item.due_date < localDateString();
 
                       return (
                         <li key={item.id} className="p-4 space-y-2">

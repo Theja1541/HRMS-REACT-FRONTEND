@@ -10,6 +10,7 @@ import {
 import PageHeader from '../../components/shared/PageHeader';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const EMPLOYMENT_TYPES = [
   { value: 'full_time', label: 'Full time' },
@@ -283,8 +284,9 @@ function AssignModal({ policy, departments, designations, employees, onClose, on
 
 export default function NoticePeriodPolicyPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [showInactive, setShowInactive] = useState(false);
   const [policyModal, setPolicyModal] = useState(null);
@@ -421,6 +423,7 @@ export default function NoticePeriodPolicyPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Policies"
         title="Notice Period Policies"
         subtitle="Configure notice period days for resignations and separations by scope"
         actions={
@@ -430,8 +433,8 @@ export default function NoticePeriodPolicyPage() {
         }
       />
 
-      <div className="card">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar flex items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             Policies are matched by specificity: employee → designation → department → employment type → tenant-wide → default.
           </p>
@@ -448,7 +451,11 @@ export default function NoticePeriodPolicyPage() {
             {error.response?.data?.error?.message || error.message}
           </p>
         ) : !policies.length ? (
-          <p className="p-8 text-center text-slate-400 text-sm">No policies configured</p>
+          <div className="p-12 text-center">
+            <Clock size={32} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-600">No notice period policies configured</p>
+            <p className="text-xs text-slate-500 mt-1">Add a policy to define notice days for resignations and separations.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {policies.map((p) => (

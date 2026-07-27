@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Clock, Pencil, LogIn, LogOut, X } from 'lucide-react';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 
 const BULK_STATUSES = [
   { value: 'present', label: 'Present' },
@@ -30,7 +30,7 @@ export default function MonthlyBulkEditBar({
 }) {
   const [panel, setPanel] = useState(null); // 'status' | 'check_in' | 'check_out' | null
   const defaultDate = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateString();
     if (dates.includes(today)) return today;
     return dates[0] || '';
   }, [dates]);

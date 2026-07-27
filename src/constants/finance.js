@@ -1,3 +1,5 @@
+import { localDateString } from '../utils/helpers';
+
 export const GST_TYPES = [
   { value: 'input', label: 'Input (Purchase)' },
   { value: 'output', label: 'Output (Sales)' },
@@ -157,7 +159,7 @@ export const EMPTY_LINE_ITEM = {
 };
 
 export const EMPTY_TRANSACTION_FORM = {
-  date: new Date().toISOString().slice(0, 10),
+  date: localDateString(),
   transaction_type: 'debit',
   vendor_id: '',
   category_id: '',
@@ -269,11 +271,11 @@ export function buildPlaceholderQuotationNumber(sequence = 1) {
 function addDaysToDateString(dateStr, days) {
   const date = new Date(`${dateStr}T00:00:00`);
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return localDateString(date);
 }
 
 export function createEmptyQuotationForm({ quotationNumber, date } = {}) {
-  const quotationDate = date || new Date().toISOString().slice(0, 10);
+  const quotationDate = date || localDateString();
   return {
     quotation_number: quotationNumber || '',
     date: quotationDate,
@@ -441,7 +443,7 @@ export function quotationFormValuesToApiPayload(formValues, { status } = {}) {
 export function duplicateQuotationDetail(source, { newId, quotationNo, createdBy, date } = {}) {
   if (!source) return null;
 
-  const quotationDate = date || new Date().toISOString().slice(0, 10);
+  const quotationDate = date || localDateString();
 
   return {
     ...source,

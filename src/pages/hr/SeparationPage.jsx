@@ -7,7 +7,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import SeparationDetailDrawer from '../../components/separation/SeparationDetailDrawer';
 import { SEPARATION_STATUSES } from '../../constants/hr';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
 import { resolvePortalRole } from '../../utils/portalContext';
@@ -22,7 +22,7 @@ export default function SeparationPage() {
   const [completeError, setCompleteError] = useState(null);
   const { setPage, setLimit, paginateClient } = useTablePagination();
   const [form, setForm] = useState({
-    employee_id: '', resignation_date: new Date().toISOString().slice(0, 10),
+    employee_id: '', resignation_date: localDateString(),
     last_working_date: '', reason: '', exit_type: 'resignation',
   });
 
@@ -104,6 +104,7 @@ export default function SeparationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Separation"
         subtitle={isHrAdmin ? 'Exit workflow, clearance and F&F tracking' : 'Team exit status for your direct reports'}
         actions={
@@ -134,8 +135,14 @@ export default function SeparationPage() {
       />
 
       <div className="card overflow-x-auto overscroll-x-contain">
-        {isLoading ? <p className="p-8 text-center text-slate-400">Loading…</p> : requests.length === 0 ? (
-          <p className="p-12 text-center text-slate-400">No separation requests</p>
+        {isLoading ? (
+          <p className="p-8 text-center text-slate-400 text-sm">Loading separations…</p>
+        ) : requests.length === 0 ? (
+          <div className="p-12 text-center">
+            <ClipboardList size={32} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-600">No separation requests</p>
+            <p className="text-xs text-slate-500 mt-1">Exit workflows appear here once initiated.</p>
+          </div>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b"><tr>

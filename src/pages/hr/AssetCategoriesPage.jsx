@@ -7,6 +7,7 @@ import TablePagination from '../../components/shared/TablePagination';
 import { EMPTY_ASSET_CATEGORY_FORM } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function categoryToForm(category) {
@@ -36,8 +37,9 @@ function slugifyCode(name) {
 
 export default function AssetCategoriesPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -148,6 +150,7 @@ export default function AssetCategoriesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Assets · Categories"
         title="Asset Categories"
         subtitle="Classify company assets by type — laptops, monitors, furniture, and more"
         actions={
@@ -163,18 +166,19 @@ export default function AssetCategoriesPage() {
         <StatCard label="In Use" value={inUseCount} delta="Categories with linked assets" deltaType="neutral" />
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row items-center">
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name or code…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input pl-9"
             />
           </div>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 px-2 w-auto">
             <input
               type="checkbox"
               checked={showInactive}
@@ -183,16 +187,17 @@ export default function AssetCategoriesPage() {
             />
             Show inactive
           </label>
+          </div>
         </div>
       </div>
 
       <div className="card overflow-x-auto overscroll-x-contain">
         {isLoading ? (
-          <p className="text-center py-12 text-slate-400">Loading categories…</p>
+          <p className="text-center py-16 text-slate-400 text-sm">Loading categories…</p>
         ) : error ? (
-          <p className="text-center py-12 text-red-500">Failed to load categories</p>
+          <p className="text-center py-16 text-red-500 text-sm">Failed to load categories</p>
         ) : categories.length === 0 ? (
-          <p className="text-center py-12 text-slate-400">No categories found</p>
+          <p className="text-center py-16 text-slate-400 text-sm">No categories found</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

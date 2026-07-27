@@ -13,13 +13,14 @@ import {
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { departmentApi, designationApi, employeeApi } from '../../api';
+import { departmentApi, designationApi, employeeApi, probationPolicyApi } from '../../api';
 import GenerateExperienceLetterAction from '../../components/employees/GenerateExperienceLetterAction';
 import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
-import { cn } from '../../utils/helpers';
+import { usePortalRole } from '../../hooks/usePortalRole';
+import { cn, localDateString } from '../../utils/helpers';
 
 function fmtDate(value) {
   if (!value) return '—';
@@ -55,8 +56,9 @@ function StatCard({ label, value, tone }) {
 }
 
 function RehireModal({ employee, onClose, onSuccess }) {
-  const [joining, setJoining] = useState(new Date().toISOString().slice(0, 10));
+  const [joining, setJoining] = useState(localDateString());
   const [hasProbation, setHasProbation] = useState(true);
+  const [probationPolicyId, setProbationPolicyId] = useState('');
   const [probationDurationMonths, setProbationDurationMonths] = useState(6);
   const [departmentId, setDepartmentId] = useState(employee.department_id || '');
   const [designationId, setDesignationId] = useState(employee.designation_id || '');
@@ -73,15 +75,21 @@ function RehireModal({ employee, onClose, onSuccess }) {
     queryKey: ['designations-lite'],
     queryFn: () => designationApi.list({ limit: 200 }),
   });
+  const { data: probationData } = useQuery({
+    queryKey: ['probation-policies-rehire'],
+    queryFn: () => probationPolicyApi.list({ status: 'active' }),
+  });
 
   const departments = deptData?.data?.departments || [];
   const designations = desigData?.data?.designations || [];
+  const probationPolicies = (probationData?.data?.policies || []).filter((p) => p.is_enabled !== false);
 
   const mutation = useMutation({
     mutationFn: () =>
       employeeApi.rehire(employee.id, {
         date_of_joining: joining,
         has_probation: hasProbation,
+        probation_policy_id: hasProbation && probationPolicyId ? parseInt(probationPolicyId, 10) : null,
         probation_duration_months: hasProbation ? probationDurationMonths : null,
         status: hasProbation ? 'probation' : 'active',
         department_id: departmentId || undefined,
@@ -124,6 +132,7 @@ function RehireModal({ employee, onClose, onSuccess }) {
               onChange={(e) => {
                 const enabled = e.target.value === 'yes';
                 setHasProbation(enabled);
+                if (!enabled) setProbationPolicyId('');
                 if (enabled && !probationDurationMonths) setProbationDurationMonths(6);
               }}
             >
@@ -132,24 +141,50 @@ function RehireModal({ employee, onClose, onSuccess }) {
             </select>
           </div>
           {hasProbation ? (
-            <div>
-              <label className="text-[10px] text-slate-500">Probation Duration</label>
-              <select
-                className="input text-xs w-full mt-1"
-                value={probationDurationMonths}
-                onChange={(e) => setProbationDurationMonths(parseInt(e.target.value, 10))}
-              >
-                {PROBATION_DURATION_OPTIONS.map((months) => (
-                  <option key={months} value={months}>
-                    {months} {months === 1 ? 'month' : 'months'}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-slate-400 mt-1">
-                Start = joining date · End = joining + {probationDurationMonths} month
-                {probationDurationMonths === 1 ? '' : 's'}
-              </p>
-            </div>
+            <>
+              <div>
+                <label className="text-[10px] text-slate-500">Probation Policy</label>
+                <select
+                  className="input text-xs w-full mt-1"
+                  value={probationPolicyId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setProbationPolicyId(id);
+                    const selected = probationPolicies.find((p) => String(p.id) === String(id));
+                    if (selected && PROBATION_DURATION_OPTIONS.includes(Number(selected.default_duration_months))) {
+                      setProbationDurationMonths(Number(selected.default_duration_months));
+                    }
+                  }}
+                >
+                  <option value="">Auto-match (by assignment / default)</option>
+                  {probationPolicies.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.policy_name}
+                      {p.is_default ? ' (Default)' : ''}
+                      {` — ${p.default_duration_months} mo`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">Probation Duration</label>
+                <select
+                  className="input text-xs w-full mt-1"
+                  value={probationDurationMonths}
+                  onChange={(e) => setProbationDurationMonths(parseInt(e.target.value, 10))}
+                >
+                  {PROBATION_DURATION_OPTIONS.map((months) => (
+                    <option key={months} value={months}>
+                      {months} {months === 1 ? 'month' : 'months'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Start = joining date · End = joining + {probationDurationMonths} month
+                  {probationDurationMonths === 1 ? '' : 's'}
+                </p>
+              </div>
+            </>
           ) : (
             <p className="text-[10px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
               Employee will be rehired as <span className="font-medium text-slate-600">active</span> with no
@@ -651,8 +686,9 @@ function ArchiveDetailDrawer({ employeeId, canManage, onClose, onRehire, onResto
 export default function EmployeeArchivePage() {
   const queryClient = useQueryClient();
   const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canManage = ['super_admin', 'owner', 'hr'].includes(user?.role) || user?.type === 'super_admin';
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canManage = ['super_admin', 'owner', 'hr'].includes(role) || user?.type === 'super_admin';
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -747,6 +783,7 @@ export default function EmployeeArchivePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Archive"
         title="Employee Archive"
         subtitle="Complete employment history retained — payroll, attendance, leave, assets, documents, and F&F stay linked to the same employee record"
         actions={
@@ -768,74 +805,76 @@ export default function EmployeeArchivePage() {
         <StatCard label="Blacklisted" value={stats.blacklisted} tone="red" />
       </div>
 
-      <div className="card">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+            <div className="relative flex-1 min-w-0 sm:max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="search"
+                className="ds-input pl-9"
+                placeholder="Name, code, email, phone, PAN…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
+            <select
+              className="ds-select w-full sm:w-auto sm:min-w-[150px]"
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+            >
+              <option value="">All departments</option>
+              {(Array.isArray(departments) ? departments : []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="ds-select w-full sm:w-auto sm:min-w-[140px]"
+              value={exitTypeFilter}
+              onChange={(e) => setExitTypeFilter(e.target.value)}
+            >
+              <option value="">Exit type: all</option>
+              <option value="resignation">Resignation</option>
+              <option value="termination">Termination</option>
+              <option value="retirement">Retirement</option>
+              <option value="absconding">Absconding</option>
+              <option value="manual_archive">Manual archive</option>
+            </select>
+            <select
+              className="ds-select w-full sm:w-auto sm:min-w-[140px]"
+              value={rehireableFilter}
+              onChange={(e) => setRehireableFilter(e.target.value)}
+            >
+              <option value="">Rehireable: all</option>
+              <option value="true">Rehireable only</option>
+              <option value="false">Not rehireable</option>
+            </select>
+            <select
+              className="ds-select w-full sm:w-auto sm:min-w-[140px]"
+              value={blacklistFilter}
+              onChange={(e) => setBlacklistFilter(e.target.value)}
+            >
+              <option value="">Blacklist: all</option>
+              <option value="true">Blacklisted only</option>
+              <option value="false">Not blacklisted</option>
+            </select>
             <input
-              type="search"
-              className="pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs w-56"
-              placeholder="Name, code, email, phone, PAN…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              type="date"
+              className="ds-input w-full sm:w-auto"
+              value={archivedFrom}
+              onChange={(e) => setArchivedFrom(e.target.value)}
+              title="Archived from"
+            />
+            <input
+              type="date"
+              className="ds-input w-full sm:w-auto"
+              value={archivedTo}
+              onChange={(e) => setArchivedTo(e.target.value)}
+              title="Archived to"
             />
           </div>
-          <select
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-          >
-            <option value="">All departments</option>
-            {(Array.isArray(departments) ? departments : []).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={exitTypeFilter}
-            onChange={(e) => setExitTypeFilter(e.target.value)}
-          >
-            <option value="">Exit type: all</option>
-            <option value="resignation">Resignation</option>
-            <option value="termination">Termination</option>
-            <option value="retirement">Retirement</option>
-            <option value="absconding">Absconding</option>
-            <option value="manual_archive">Manual archive</option>
-          </select>
-          <select
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={rehireableFilter}
-            onChange={(e) => setRehireableFilter(e.target.value)}
-          >
-            <option value="">Rehireable: all</option>
-            <option value="true">Rehireable only</option>
-            <option value="false">Not rehireable</option>
-          </select>
-          <select
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={blacklistFilter}
-            onChange={(e) => setBlacklistFilter(e.target.value)}
-          >
-            <option value="">Blacklist: all</option>
-            <option value="true">Blacklisted only</option>
-            <option value="false">Not blacklisted</option>
-          </select>
-          <input
-            type="date"
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={archivedFrom}
-            onChange={(e) => setArchivedFrom(e.target.value)}
-            title="Archived from"
-          />
-          <input
-            type="date"
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-            value={archivedTo}
-            onChange={(e) => setArchivedTo(e.target.value)}
-            title="Archived to"
-          />
         </div>
 
         {isLoading ? (
@@ -849,17 +888,17 @@ export default function EmployeeArchivePage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="table-scroll">
               <table className="w-full text-xs min-w-[800px]">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr className="text-slate-500">
-                    <th className="text-left px-4 py-3 font-semibold">Employee</th>
-                    <th className="text-left px-4 py-3 font-semibold">Department</th>
-                    <th className="text-left px-4 py-3 font-semibold">Exit</th>
-                    <th className="text-left px-4 py-3 font-semibold">Archived</th>
-                    <th className="text-left px-4 py-3 font-semibold">Rehireable</th>
-                    <th className="text-left px-4 py-3 font-semibold">Blacklist</th>
-                    <th className="px-4 py-3" />
+                <thead>
+                  <tr className="bg-slate-50 text-left border-b border-slate-100">
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Employee</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Department</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Exit</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Archived</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Rehireable</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Blacklist</th>
+                    <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">

@@ -17,9 +17,10 @@ import {
   HELPDESK_ATTACHMENT_ACCEPT,
   HELPDESK_ATTACHMENT_HINT,
 } from '../../constants/platform';
-import { cn, resolveAssetUrl } from '../../utils/helpers';
+import { cn, resolveAssetUrl, localDateString } from '../../utils/helpers';
 import { getSlaDisplay, isActiveSlaOverdue } from '../../utils/helpdeskSla';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { buildTicketTimeline } from '../../utils/helpdeskTimeline';
 
@@ -115,10 +116,11 @@ export default function HelpdeskPage() {
   const location = useLocation();
   const isSelfService = location.pathname.startsWith('/me/');
   const { user } = useAuthStore();
-  const canAssign = !isSelfService && ['super_admin', 'owner', 'admin', 'hr'].includes(user?.role);
+  const role = usePortalRole();
+  const canAssign = !isSelfService && ['super_admin', 'owner', 'admin', 'hr'].includes(role);
   const canPostInternalNote = canAssign;
   const isAdmin = canAssign;
-  const isHelpdeskStaffUser = ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
+  const isHelpdeskStaffUser = ['super_admin', 'owner', 'hr', 'manager'].includes(role);
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [reply, setReply] = useState('');
@@ -380,7 +382,7 @@ export default function HelpdeskPage() {
         ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
       };
       const response = await platformApi.exportTickets(params);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateString();
       const ext = format === 'pdf' ? 'pdf' : 'xlsx';
       triggerBlobDownload(response.data, `helpdesk_tickets_${today}.${ext}`);
     } catch (err) {
@@ -441,6 +443,7 @@ export default function HelpdeskPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge={isSelfService ? 'My Work · Helpdesk' : 'Platform · Helpdesk'}
         title={isSelfService ? 'My Helpdesk' : 'Helpdesk'}
         subtitle={isSelfService ? 'Create tickets, track progress, and get updates in one place' : 'Manage employee support requests with clear status, SLA, and actions'}
         actions={(
@@ -928,26 +931,28 @@ export default function HelpdeskPage() {
               </button>
             </div>
           )}
-          <div className="p-3 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="ds-toolbar border-b border-slate-100">
+            <div className="toolbar-row">
+            <div className="relative flex-1 min-w-0">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search ticket number, subject, or employee..."
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+                className="ds-input pl-9 w-full"
               />
             </div>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm sm:w-44 shrink-0"
+              className="ds-select w-full sm:w-44 shrink-0"
             >
               {STATUS_FILTER_OPTIONS.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+            </div>
           </div>
           <div className="px-3 py-2 border-b border-slate-100 flex flex-wrap gap-2">
             {isAdmin && visibleTickets.length > 0 && (

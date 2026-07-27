@@ -7,12 +7,14 @@ import PageHeader from '../../components/shared/PageHeader';
 import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
 import { PAYMENT_MODES, PAYMENT_MODE_LABELS, flattenCoaGroups } from '../../constants/finance';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 
 export default function PaymentModeAccountsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
   const [formError, setFormError] = useState('');
   const [drafts, setDrafts] = useState({});
 
@@ -62,6 +64,7 @@ export default function PaymentModeAccountsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Payment Modes"
         title="Payment Modes"
         subtitle="Link Cash, Bank, UPI, and Cheque to accounts"
       />

@@ -8,7 +8,7 @@ import WorkingCalendarPage from './WorkingCalendarPage';
 import AttendancePolicyPage from './AttendancePolicyPage';
 import ChangePasswordForm from '../../components/auth/ChangePasswordForm';
 import MfaSettings from '../../components/auth/MfaSettings';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn } from '../../utils/helpers';
 
 const ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
@@ -34,8 +34,7 @@ function tabFromPath(pathname, role) {
 export default function SettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
-  const role = user?.role;
+  const role = usePortalRole();
   const isAdmin = ADMIN_ROLES.includes(role);
 
   const [tab, setTab] = useState(() => tabFromPath(location.pathname, role));
@@ -72,6 +71,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Admin · Settings"
         title={isAdmin ? 'Company Settings' : 'Settings'}
         subtitle={
           isAdmin
@@ -80,23 +80,22 @@ export default function SettingsPage() {
         }
       />
 
-      <div className="card">
-        <div className="px-4 border-b border-slate-200 flex gap-4 overflow-x-auto">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectTab(t)}
-              className={cn(
-                'py-3 text-xs font-medium border-b-2 -mb-px whitespace-nowrap',
-                tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-400'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="ds-tabs scroll-tabs" role="tablist">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => selectTab(t)}
+            className={cn(tab === t.id && 'ds-tab-active')}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
+      <div className="card">
         <div className="p-4">
           {tab === 'security' && SECURITY_ROLES.includes(role) && (
             <div className="max-w-lg space-y-8">

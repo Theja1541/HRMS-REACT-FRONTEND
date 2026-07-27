@@ -73,6 +73,7 @@ export default function MeNotificationPreferencesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Notifications"
         title="Notification Settings"
         subtitle="Choose how you receive updates for each category"
         actions={

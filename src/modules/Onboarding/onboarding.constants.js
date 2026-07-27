@@ -19,7 +19,8 @@ export const WORKFLOW_STEPS = [
   {
     step: 2,
     title: 'Start onboarding',
-    description: 'Pick a new employee — the system copies your template into their personal checklist.',
+    description:
+      'Pick a confirmed employee — if they are on probation, confirm them in Probation Tracker first, then assign the checklist.',
   },
   {
     step: 3,

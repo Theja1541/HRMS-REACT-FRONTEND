@@ -28,6 +28,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import { HOLIDAY_TYPES, getIndiaNationalHolidayPresets, holidayTypeMeta } from '../../constants/holidays';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const ADMIN_ROLES = ['super_admin', 'owner', 'hr'];
@@ -54,9 +55,10 @@ function holidayToForm(h) {
 
 export default function HolidayCalendarPage() {
   const queryClient = useQueryClient();
-  const { user, selectedTenantId } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canWrite = ADMIN_ROLES.includes(user?.role);
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canWrite = ADMIN_ROLES.includes(role);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -217,6 +219,7 @@ export default function HolidayCalendarPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Holidays"
         title="Holiday Calendar"
         subtitle="Company-wide and branch holidays used in attendance, leave, and payroll"
         actions={
@@ -245,70 +248,72 @@ export default function HolidayCalendarPage() {
         </p>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={goPrevMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50" aria-label="Previous month">
-            <ChevronLeft size={16} />
-          </button>
-          <h2 className="text-lg font-semibold text-slate-900 min-w-[180px] text-center">
-            {format(monthDate, 'MMMM yyyy')}
-          </h2>
-          <button type="button" onClick={goNextMonth} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50" aria-label="Next month">
-            <ChevronRight size={16} />
-          </button>
-          <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="ml-2 text-sm border border-slate-200 rounded-lg px-3 py-2"
-          >
-            {[year - 1, year, year + 1].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => {
-              setYear(now.getFullYear());
-              setMonth(now.getMonth());
-            }}
-            className="text-xs text-brand-600 hover:underline px-2"
-          >
-            Today
-          </button>
-        </div>
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={goPrevMonth} className="btn-secondary p-2" aria-label="Previous month">
+                <ChevronLeft size={16} />
+              </button>
+              <h2 className="text-sm font-semibold text-slate-900 min-w-[180px] text-center">
+                {format(monthDate, 'MMMM yyyy')}
+              </h2>
+              <button type="button" onClick={goNextMonth} className="btn-secondary p-2" aria-label="Next month">
+                <ChevronRight size={16} />
+              </button>
+              <select
+                value={year}
+                onChange={(e) => setYear(parseInt(e.target.value, 10))}
+                className="ds-select ml-1"
+              >
+                {[year - 1, year, year + 1].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setYear(now.getFullYear());
+                  setMonth(now.getMonth());
+                }}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 px-2"
+              >
+                Today
+              </button>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2"
-          >
-            <option value="">All branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-          <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
-            <button
-              type="button"
-              onClick={() => setView('calendar')}
-              className={cn(
-                'px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1',
-                view === 'calendar' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'
-              )}
-            >
-              <CalendarDays size={13} /> Calendar
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('list')}
-              className={cn(
-                'px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1',
-                view === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'
-              )}
-            >
-              <List size={13} /> List
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="ds-select"
+              >
+                <option value="">All branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <div className="ds-tabs scroll-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === 'calendar'}
+                  onClick={() => setView('calendar')}
+                  className={cn(view === 'calendar' && 'ds-tab-active')}
+                >
+                  <CalendarDays size={13} /> Calendar
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === 'list'}
+                  onClick={() => setView('list')}
+                  className={cn(view === 'list' && 'ds-tab-active')}
+                >
+                  <List size={13} /> List
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

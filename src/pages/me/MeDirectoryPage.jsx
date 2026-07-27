@@ -9,6 +9,7 @@ import { Avatar } from '../../components/shared/StatusBadge';
 import { cn } from '../../utils/helpers';
 import { format, parseISO } from 'date-fns';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 function OrgNode({ node, depth = 0, onSelect }) {
   const [expanded, setExpanded] = useState(depth < 2);
@@ -149,8 +150,9 @@ function ProfileDrawer({ employeeId, onClose }) {
 }
 
 export default function MeDirectoryPage() {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
   const [tab, setTab] = useState('directory');
   const [search, setSearch] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -189,18 +191,17 @@ export default function MeDirectoryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="People Directory" subtitle="Find colleagues and explore the org structure" />
+      <PageHeader badge="My Work · Directory" title="People Directory" subtitle="Find colleagues and explore the org structure" />
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {['directory', 'org-chart'].map((t) => (
           <button
             key={t}
             type="button"
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px capitalize',
-              tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500'
-            )}
+            className={cn(tab === t && 'ds-tab-active')}
           >
             {t === 'org-chart' ? 'Org Chart' : 'Directory'}
           </button>
@@ -209,26 +210,30 @@ export default function MeDirectoryPage() {
 
       {tab === 'directory' && (
         <>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-              <Search size={14} className="text-slate-400 shrink-0" />
+          <div className="card overflow-hidden">
+            <div className="ds-toolbar">
+              <div className="toolbar-row">
+            <div className="relative flex-1 min-w-0">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name, email, or employee code…"
-                className="flex-1 text-sm border-none outline-none bg-transparent"
+                className="ds-input pl-9 w-full"
               />
             </div>
             <select
               value={departmentId}
               onChange={(e) => setDepartmentId(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white min-w-[160px]"
+              className="ds-select w-full sm:w-auto sm:min-w-[160px]"
             >
               <option value="">All departments</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
+              </div>
+            </div>
           </div>
 
           {tenantRequired ? (

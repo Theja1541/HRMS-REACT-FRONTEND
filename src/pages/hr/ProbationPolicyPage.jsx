@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Pencil, Plus, Power, Trash2, UserCheck, Users } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCircle2,
+  Info,
+  Pencil,
+  Plus,
+  Power,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import {
   departmentApi,
   designationApi,
@@ -10,6 +22,7 @@ import {
 import PageHeader from '../../components/shared/PageHeader';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const EMPLOYMENT_TYPES = [
   { value: 'full_time', label: 'Full time' },
@@ -51,16 +64,47 @@ function assignmentLabel(a) {
   return 'All employees';
 }
 
+function StatPill({ icon: Icon, label, value, tone = 'slate' }) {
+  const tones = {
+    slate: 'bg-slate-50 text-slate-700 border-slate-200',
+    brand: 'bg-brand-50 text-brand-700 border-brand-100',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+  };
+  return (
+    <div className={cn('rounded-xl border px-4 py-3 flex items-center gap-3', tones[tone])}>
+      <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center shrink-0">
+        <Icon size={15} />
+      </div>
+      <div>
+        <p className="text-[10px] uppercase tracking-wide opacity-70">{label}</p>
+        <p className="text-lg font-semibold leading-tight">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 function PolicyModal({ mode, form, setForm, onClose, onSubmit, loading, error }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-label="Close" />
       <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-xl p-6 max-h-[90vh] overflow-y-auto">
-        <h3 className="font-semibold text-slate-900">
-          {mode === 'create' ? 'Add Probation Policy' : 'Edit Probation Policy'}
-        </h3>
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+            <UserCheck size={16} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">
+              {mode === 'create' ? 'Add Probation Policy' : 'Edit Probation Policy'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Policies appear in the Employees form when Has Probation is Yes.
+            </p>
+          </div>
+        </div>
+
         <form
-          className="mt-4 space-y-4"
+          className="mt-5 space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             onSubmit();
@@ -84,6 +128,7 @@ function PolicyModal({ mode, form, setForm, onClose, onSubmit, loading, error })
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              placeholder="Optional notes for HR"
             />
           </div>
 
@@ -100,9 +145,14 @@ function PolicyModal({ mode, form, setForm, onClose, onSubmit, loading, error })
               className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               required
             />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Suggested when this policy is selected on the employee form. HR can still override duration per hire.
+            </p>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Rules</p>
+
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -134,7 +184,7 @@ function PolicyModal({ mode, form, setForm, onClose, onSubmit, loading, error })
                     onChange={(e) =>
                       setForm({ ...form, max_extensions: parseInt(e.target.value, 10) || 0 })
                     }
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                   />
                 </div>
                 <div>
@@ -150,7 +200,7 @@ function PolicyModal({ mode, form, setForm, onClose, onSubmit, loading, error })
                         max_extension_duration_months: parseInt(e.target.value, 10) || 3,
                       })
                     }
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                   />
                 </div>
               </div>
@@ -220,7 +270,7 @@ function AssignModal({ policy, departments, designations, employees, onClose, on
           }}
         >
           <p className="text-xs text-slate-500">
-            Assign this policy ({policy.default_duration_months} months) to a scope. Tenant-wide applies when no specific scope is set.
+            Optional auto-match scopes. Employees can still pick this policy directly when Has Probation is Yes.
           </p>
           <div>
             <label className="text-xs font-medium text-slate-600">Assignment scope</label>
@@ -318,8 +368,9 @@ function AssignModal({ policy, departments, designations, employees, onClose, on
 
 export default function ProbationPolicyPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [showInactive, setShowInactive] = useState(false);
   const [policyModal, setPolicyModal] = useState(null);
@@ -361,6 +412,14 @@ export default function ProbationPolicyPage() {
   const departments = deptData?.data?.departments || [];
   const designations = desigData?.data?.designations || [];
   const employees = empData?.data?.employees || [];
+
+  const stats = useMemo(() => {
+    const active = policies.filter((p) => p.is_enabled).length;
+    const inactive = policies.filter((p) => !p.is_enabled).length;
+    const defaults = policies.filter((p) => p.is_default && p.is_enabled).length;
+    const assignments = policies.reduce((sum, p) => sum + (p.assignments?.length || 0), 0);
+    return { active, inactive, defaults, assignments, total: policies.length };
+  }, [policies]);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['probation-policies'] });
@@ -467,8 +526,9 @@ export default function ProbationPolicyPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Probation"
         title="Probation Policies"
-        subtitle="Configure probation duration, extensions, and auto-confirmation rules by scope"
+        subtitle="Define probation rules, then select them on the Employees page when an employee has a probation period"
         actions={
           <button type="button" onClick={openCreate} className="btn-primary text-xs">
             <Plus size={14} /> Add policy
@@ -476,11 +536,39 @@ export default function ProbationPolicyPage() {
         }
       />
 
-      <div className="card">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-500">
-            Policies are matched by specificity: employee → designation → department → employment type → tenant-wide → default.
-          </p>
+      <div className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/80 via-white to-slate-50 px-5 py-4 flex gap-3">
+        <div className="w-9 h-9 rounded-xl bg-white border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+          <Info size={16} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-800">How probation policies work</p>
+          <ol className="mt-1.5 text-xs text-slate-600 space-y-1 list-decimal list-inside">
+            <li>Create one or more policies with duration, extension, and auto-confirm rules.</li>
+            <li>Optionally assign by department, designation, employment type, or employee for auto-match.</li>
+            <li>
+              On <span className="font-medium text-slate-800">Employees → Add / Edit</span>, set Has Probation to Yes
+              and choose the policy from the dropdown.
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatPill icon={ShieldCheck} label="Active policies" value={stats.active} tone="brand" />
+        <StatPill icon={CheckCircle2} label="Default" value={stats.defaults} tone="emerald" />
+        <StatPill icon={Users} label="Assignments" value={stats.assignments} tone="slate" />
+        <StatPill icon={RefreshCw} label="Inactive" value={showInactive ? stats.inactive : '—'} tone="amber" />
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Policy catalogue</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Active policies are selectable on the employee form. Auto-match order: employee → designation →
+              department → employment type → tenant-wide → default.
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-xs text-slate-600 shrink-0">
             <input
               type="checkbox"
@@ -492,24 +580,37 @@ export default function ProbationPolicyPage() {
         </div>
 
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400 text-sm">Loading policies…</p>
+          <p className="p-10 text-center text-slate-400 text-sm">Loading policies…</p>
         ) : error ? (
-          <p className="p-8 text-center text-red-500 text-sm">
+          <p className="p-10 text-center text-red-500 text-sm">
             {error.response?.data?.error?.message || error.message}
           </p>
         ) : !policies.length ? (
-          <p className="p-8 text-center text-slate-400 text-sm">No probation policies configured</p>
+          <div className="p-12 text-center">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center">
+              <UserCheck size={22} />
+            </div>
+            <h3 className="mt-4 text-sm font-semibold text-slate-800">No probation policies yet</h3>
+            <p className="mt-1.5 text-xs text-slate-500 max-w-sm mx-auto">
+              Create your first policy so HR can select it when adding employees with a probation period.
+            </p>
+            <button type="button" onClick={openCreate} className="btn-primary text-xs mt-5">
+              <Plus size={14} /> Add first policy
+            </button>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {policies.map((p) => (
-              <div key={p.id} className={cn('px-4 py-4', !p.is_enabled && 'opacity-60')}>
+              <div key={p.id} className={cn('px-4 py-4 hover:bg-slate-50/60 transition-colors', !p.is_enabled && 'opacity-60')}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <UserCheck size={14} className="text-brand-600 shrink-0" />
+                      <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                        <UserCheck size={14} />
+                      </div>
                       <h3 className="font-medium text-slate-900 text-sm">{p.policy_name}</h3>
                       {p.is_default && (
-                        <span className="text-[10px] font-semibold uppercase bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-semibold uppercase bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-100">
                           Default
                         </span>
                       )}
@@ -518,26 +619,36 @@ export default function ProbationPolicyPage() {
                           Inactive
                         </span>
                       )}
-                      <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-slate-100 px-2 py-0.5 rounded-full text-slate-600">
                         <CalendarClock size={10} />
-                        {p.default_duration_months}mo
+                        {p.default_duration_months} months
                       </span>
                     </div>
 
                     {p.description && (
-                      <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                      <p className="text-xs text-slate-500 mt-2 ml-10">{p.description}</p>
                     )}
 
-                    <div className="flex flex-wrap gap-x-3 mt-1">
-                      <p className="text-[11px] text-slate-500">
+                    <div className="flex flex-wrap gap-2 mt-2.5 ml-10">
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
                         {p.allow_extension
                           ? `Extensions: ${p.max_extensions === 0 ? 'unlimited' : `up to ${p.max_extensions}`}` +
                             ` · max ${p.max_extension_duration_months}mo each`
                           : 'No extensions'}
-                      </p>
-                      {p.auto_confirm && (
-                        <p className="text-[11px] text-slate-500">· Auto-confirms on end date</p>
-                      )}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[10px] px-2 py-0.5 rounded-md border',
+                          p.auto_confirm
+                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                            : 'bg-white border-slate-200 text-slate-500'
+                        )}
+                      >
+                        {p.auto_confirm ? 'Auto-confirm on end date' : 'Manual confirmation'}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500">
+                        {(p.assignments || []).length} assignment{(p.assignments || []).length === 1 ? '' : 's'}
+                      </span>
                     </div>
                   </div>
 
@@ -596,7 +707,7 @@ export default function ProbationPolicyPage() {
                 </div>
 
                 {(p.assignments || []).length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 ml-10 flex flex-wrap gap-2">
                     {p.assignments.map((a) => (
                       <span
                         key={a.id}

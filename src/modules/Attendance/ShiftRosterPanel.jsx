@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, Settings2, Clock, Moon, X } from 'lucide-react';
 import { shiftApi, departmentApi } from '../../api';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn } from '../../utils/helpers';
 import CalendarColumnLegend from '../../components/attendance/CalendarColumnLegend';
 import {
@@ -350,8 +350,8 @@ function RotationModal({ open, onClose, shifts, employees, onApply, applying }) 
 
 export default function ShiftRosterPanel() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const isAdmin = ADMIN_ROLES.includes(user?.role);
+  const role = usePortalRole();
+  const isAdmin = ADMIN_ROLES.includes(role);
 
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);

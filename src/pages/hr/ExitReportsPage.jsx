@@ -15,7 +15,8 @@ import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
-import { formatINR } from '../../utils/helpers';
+import { usePortalRole } from '../../hooks/usePortalRole';
+import { formatINR, cn, localDateString } from '../../utils/helpers';
 
 const REPORT_TYPES = [
   { id: 'resignation', label: 'Resignations', icon: 'LogOut' },
@@ -94,10 +95,10 @@ const EXIT_TYPE_OPTIONS = [
 
 function defaultDateRange() {
   const now = new Date();
-  const from = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 11, 1));
+  const from = new Date(now.getFullYear(), now.getMonth() - 11, 1);
   return {
-    from: from.toISOString().slice(0, 10),
-    to: now.toISOString().slice(0, 10),
+    from: localDateString(from),
+    to: localDateString(now),
   };
 }
 
@@ -144,8 +145,9 @@ export default function ExitReportsPage() {
   const [exporting, setExporting] = useState('');
   const [exportError, setExportError] = useState('');
 
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const queryParams = useMemo(
     () => ({
@@ -194,7 +196,7 @@ export default function ExitReportsPage() {
         ...queryParams,
         format,
       });
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = localDateString();
       const filename = `${reportType.replace(/-/g, '_')}_report_${stamp}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
       triggerBlobDownload(response.data, filename);
     } catch (err) {
@@ -223,6 +225,7 @@ export default function ExitReportsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Exit Management Reports"
         subtitle="Resignation, notice, KT, clearance, assets, F&F, attrition, and interview exports"
         actions={
@@ -243,32 +246,31 @@ export default function ExitReportsPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="ds-tabs scroll-tabs flex-wrap" role="tablist">
         {REPORT_TYPES.map((type) => (
           <button
             key={type.id}
             type="button"
+            role="tab"
+            aria-selected={reportType === type.id}
             onClick={() => {
               setReportType(type.id);
               setStatus('');
               setExportError('');
             }}
-            className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
-              reportType === type.id
-                ? 'border-brand-600 bg-brand-50 text-brand-700'
-                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
+            className={cn(reportType === type.id && 'ds-tab-active')}
           >
             {type.label}
           </button>
         ))}
       </div>
 
-      <div className="card p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter size={14} className="text-slate-400" />
-          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Filters</p>
-        </div>
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter size={14} className="text-slate-400" />
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Filters</p>
+          </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label className="text-[10px] text-slate-500 uppercase">From</label>
@@ -276,7 +278,7 @@ export default function ExitReportsPage() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              className="ds-input mt-1 w-full"
             />
           </div>
           <div>
@@ -285,7 +287,7 @@ export default function ExitReportsPage() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              className="ds-input mt-1 w-full"
             />
           </div>
           <div>
@@ -293,7 +295,7 @@ export default function ExitReportsPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              className="ds-select mt-1 w-full"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -306,7 +308,7 @@ export default function ExitReportsPage() {
               <select
                 value={exitType}
                 onChange={(e) => setExitType(e.target.value)}
-                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                className="ds-select mt-1 w-full"
               >
                 {EXIT_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -319,7 +321,7 @@ export default function ExitReportsPage() {
             <select
               value={departmentId}
               onChange={(e) => setDepartmentId(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              className="ds-select mt-1 w-full"
             >
               <option value="">All departments</option>
               {(Array.isArray(departments) ? departments : []).map((dept) => (
@@ -355,6 +357,7 @@ export default function ExitReportsPage() {
               <AlertCircle size={12} /> {exportError}
             </p>
           )}
+        </div>
         </div>
       </div>
 

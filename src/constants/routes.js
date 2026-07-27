@@ -65,7 +65,7 @@ export const NAV_ITEMS = [
       { label: 'Holiday Calendar', path: '/holidays', icon: 'CalendarDays', roles: ['super_admin', 'owner', 'hr', 'manager', 'employee'], moduleCode: 'leaves' },
       { label: 'Recruitment', path: '/recruitment', icon: 'UserPlus', roles: ['super_admin', 'owner', 'hr', 'manager'], moduleCode: 'recruitment' },
       { label: 'Onboarding', path: '/onboarding', icon: 'ClipboardList', roles: ['super_admin', 'owner', 'hr', 'manager'], moduleCode: 'onboarding' },
-      { label: 'Probation', path: '/probation-policies', icon: 'UserCheck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'probation' },
+      { label: 'Probation Policies', path: '/probation-policies', icon: 'UserCheck', roles: ['super_admin', 'owner', 'hr'], moduleCode: 'probation' },
       { label: 'Probation Tracker', path: '/probation-tracker', icon: 'CalendarClock', roles: ['super_admin', 'owner', 'hr', 'manager'], moduleCode: 'probation' },
       { label: 'Policy Documents', path: '/people/policy-documents', icon: 'ScrollText', roles: ['super_admin', 'owner', 'hr', 'manager'], moduleCode: 'org_structure' },
       { label: 'Document Templates', path: '/document-templates', icon: 'FileText', roles: ['super_admin', 'owner', 'hr', 'auditor'], moduleCode: 'employees' },

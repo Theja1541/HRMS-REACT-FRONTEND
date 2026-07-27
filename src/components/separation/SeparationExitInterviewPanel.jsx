@@ -9,6 +9,7 @@ import {
   EXIT_RESIGNATION_REASON_LABELS,
   EXIT_RESIGNATION_REASONS,
 } from '../../constants/hr';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useAuthStore } from '../../store/auth.store';
 import { cn } from '../../utils/helpers';
 
@@ -75,7 +76,8 @@ export default function SeparationExitInterviewPanel({
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isHr = HR_ROLES.includes(user?.role) || user?.type === 'super_admin';
+  const role = usePortalRole();
+  const isHr = HR_ROLES.includes(role) || user?.type === 'super_admin';
 
   const bySeparationQuery = useQuery({
     queryKey: ['exit-interview-by-separation', separationRequestId],

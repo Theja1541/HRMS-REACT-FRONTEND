@@ -14,6 +14,7 @@ import { RESIGNATION_STATUS, RESIGNATION_STATUS_LABELS } from '../../constants/h
 import { calculateExpectedLwd, isEarlyLwd } from '../../utils/resignationLwd';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 const ACTIVE_STATUSES = new Set(['pending_manager', 'pending_hr']);
@@ -417,7 +418,8 @@ function ApprovalTable({ requests, level, onView, onApprove, onReject, actionPen
 export default function MeResignationPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isManager = ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
+  const role = usePortalRole();
+  const isManager = ['super_admin', 'owner', 'hr', 'manager'].includes(role);
 
   const [showSubmit, setShowSubmit] = useState(false);
   const [withdrawTarget, setWithdrawTarget] = useState(null);
@@ -437,7 +439,7 @@ export default function MeResignationPage() {
     paginateClient: paginateMyRequests,
   } = useTablePagination();
 
-  const canWaiveEarly = ['super_admin', 'owner', 'hr'].includes(user?.role);
+  const canWaiveEarly = ['super_admin', 'owner', 'hr'].includes(role);
 
   const { data: profileData } = useQuery({
     queryKey: ['employee-self'],
@@ -509,6 +511,7 @@ export default function MeResignationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Resignation"
         title="Resignation"
         subtitle="Submit and track your resignation requests"
         actions={

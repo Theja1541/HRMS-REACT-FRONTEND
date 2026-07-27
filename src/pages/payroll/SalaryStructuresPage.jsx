@@ -15,6 +15,7 @@ import {
 } from '../employees/employeeWizard/salaryStructure';
 import { formatINR } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const EMPTY_FORM = {
   name: '',
@@ -32,9 +33,10 @@ function structureToForm(structure) {
 
 export default function SalaryStructuresPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canWrite = ['super_admin', 'owner', 'hr'].includes(user?.role);
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canWrite = ['super_admin', 'owner', 'hr'].includes(role);
 
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -157,6 +159,7 @@ export default function SalaryStructuresPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Structures"
         title="Salary Structures"
         subtitle="Create and manage reusable salary templates for employee assignment"
         actions={
@@ -174,25 +177,29 @@ export default function SalaryStructuresPage() {
         </p>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
         <input
           type="search"
           placeholder="Search structures…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 border border-slate-200 rounded-lg text-sm"
+          className="ds-input flex-1 sm:max-w-sm"
         />
+          </div>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <p className="p-10 text-center text-slate-400 text-sm">Loading structures…</p>
+          <p className="py-16 text-center text-slate-400 text-sm">Loading structures…</p>
         ) : error ? (
-          <p className="p-10 text-center text-red-600 text-sm">Failed to load salary structures</p>
+          <p className="py-16 text-center text-red-600 text-sm">Failed to load salary structures</p>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <Layers size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">No salary structures yet</p>
+          <div className="py-16 text-center">
+            <Layers size={32} className="mx-auto text-slate-200 mb-3" />
+            <p className="text-slate-400 text-sm">No salary structures yet</p>
             {canWrite && (
               <button type="button" onClick={openCreate} className="btn-primary text-sm mt-4">
                 <Plus size={14} /> Create first structure

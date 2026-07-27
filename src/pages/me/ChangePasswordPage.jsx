@@ -31,6 +31,7 @@ export default function ChangePasswordPage() {
   return (
     <div className="space-y-6 max-w-lg">
       <PageHeader
+        badge="My Work · Security"
         title={forced ? 'Set your password' : 'Security Settings'}
         subtitle={
           forced

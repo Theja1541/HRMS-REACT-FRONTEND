@@ -262,7 +262,7 @@ export default function MeAssetsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="My Assets" subtitle="Company equipment assigned to you" />
+      <PageHeader badge="My Work · Assets" title="My Assets" subtitle="Company equipment assigned to you" />
 
       {isLoading ? (
         <div className="card p-12 text-center text-slate-400">Loading assets…</div>

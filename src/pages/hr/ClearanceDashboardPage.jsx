@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { hrApi } from '../../api';
-import PageHeader from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/PageHeader';
+import DashboardHero from '../../components/shared/DashboardHero';
 import TablePagination from '../../components/shared/TablePagination';
 import SeparationClearancePanel from '../../components/separation/SeparationClearancePanel';
 import {
@@ -27,6 +28,7 @@ import {
 } from '../../constants/hr';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn } from '../../utils/helpers';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,22 +75,6 @@ function DeptProgressPills({ departmentProgress }) {
           </span>
         );
       })}
-    </div>
-  );
-}
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, icon: Icon, colorClass }) {
-  return (
-    <div className="card flex items-center gap-4 p-4 min-w-0">
-      <div className={cn('p-2.5 rounded-xl shrink-0', colorClass)}>
-        <Icon size={18} className="text-white" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
-        <p className="text-xs text-slate-500 truncate">{label}</p>
-      </div>
     </div>
   );
 }
@@ -533,11 +519,11 @@ function DepartmentQueuePanel({ enabled, onOpenClearance }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatCard label="Open items" value={summary?.open_items ?? 0} icon={ClipboardList} colorClass="bg-brand-600" />
-        <StatCard label="Overdue" value={summary?.overdue ?? 0} icon={AlertTriangle} colorClass="bg-red-500" />
-        <StatCard label="Due soon" value={summary?.due_soon ?? 0} icon={Clock} colorClass="bg-amber-500" />
-        <StatCard label="Escalated" value={summary?.escalated ?? 0} icon={Siren} colorClass="bg-violet-500" />
-        <StatCard label="SLA breached" value={summary?.sla_breached ?? 0} icon={AlertTriangle} colorClass="bg-rose-600" />
+        <StatCard label="Open items" value={summary?.open_items ?? 0} icon={ClipboardList} tone="brand" to="/clearance-dashboard" />
+        <StatCard label="Overdue" value={summary?.overdue ?? 0} icon={AlertTriangle} tone="rose" to="/clearance-dashboard" />
+        <StatCard label="Due soon" value={summary?.due_soon ?? 0} icon={Clock} tone="amber" to="/clearance-dashboard" />
+        <StatCard label="Escalated" value={summary?.escalated ?? 0} icon={Siren} tone="violet" to="/clearance-dashboard" />
+        <StatCard label="SLA breached" value={summary?.sla_breached ?? 0} icon={AlertTriangle} tone="rose" to="/clearance-dashboard" />
       </div>
 
       <div className="grid sm:grid-cols-5 gap-2">
@@ -660,11 +646,10 @@ function DepartmentQueuePanel({ enabled, onOpenClearance }) {
 }
 
 export default function ClearanceDashboardPage() {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canManageOwners = ['super_admin', 'owner', 'hr', 'admin'].includes(
-    user?.role || user?.system_role
-  );
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canManageOwners = ['super_admin', 'owner', 'hr', 'admin'].includes(role);
 
   const [tab, setTab] = useState('overview');
   const [statusFilter, setStatusFilter] = useState('');
@@ -808,24 +793,33 @@ export default function ClearanceDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <DashboardHero
+        badge="Exit clearance"
         title="Clearance Dashboard"
         subtitle="Department owners, SLA tracking, and mandatory approval gates for exits"
+        chips={[
+          { label: 'Total', value: stats.total ?? 0 },
+          { label: 'In progress', value: stats.in_progress ?? 0, tone: 'sky' },
+          { label: 'Overdue', value: slaSummary?.overdue ?? 0, tone: 'rose' },
+        ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Link to="/clearance-templates" className="btn-secondary text-xs">
+          <>
+            <Link
+              to="/clearance-templates"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-sky-50 transition-colors"
+            >
               <ClipboardList size={13} /> Manage Templates
             </Link>
             <button
               type="button"
               onClick={() => refetch()}
               disabled={isFetching}
-              className="btn-secondary text-xs"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/25 transition-colors"
             >
               <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
               Refresh
             </button>
-          </div>
+          </>
         }
       />
 
@@ -851,13 +845,13 @@ export default function ClearanceDashboardPage() {
       {tab === 'overview' && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            <StatCard label="Total Clearances" value={stats.total} icon={ClipboardList} colorClass="bg-brand-600" />
-            <StatCard label="Pending" value={stats.pending} icon={Clock} colorClass="bg-slate-500" />
-            <StatCard label="In Progress" value={stats.in_progress} icon={Loader2} colorClass="bg-blue-500" />
-            <StatCard label="Completed" value={stats.completed} icon={CheckCircle2} colorClass="bg-emerald-500" />
-            <StatCard label="Open items" value={slaSummary?.open_items ?? 0} icon={ClipboardList} colorClass="bg-indigo-500" />
-            <StatCard label="Overdue" value={slaSummary?.overdue ?? 0} icon={AlertTriangle} colorClass="bg-red-500" />
-            <StatCard label="Escalated" value={slaSummary?.escalated ?? 0} icon={Siren} colorClass="bg-violet-500" />
+            <StatCard label="Total Clearances" value={stats.total} icon={ClipboardList} tone="brand" to="/clearance-dashboard" />
+            <StatCard label="Pending" value={stats.pending} icon={Clock} tone="slate" to="/clearance-dashboard" />
+            <StatCard label="In Progress" value={stats.in_progress} icon={Loader2} tone="sky" to="/clearance-dashboard" />
+            <StatCard label="Completed" value={stats.completed} icon={CheckCircle2} tone="emerald" to="/clearance-dashboard" />
+            <StatCard label="Open items" value={slaSummary?.open_items ?? 0} icon={ClipboardList} tone="indigo" to="/clearance-dashboard" />
+            <StatCard label="Overdue" value={slaSummary?.overdue ?? 0} icon={AlertTriangle} tone="rose" to="/clearance-dashboard" />
+            <StatCard label="Escalated" value={slaSummary?.escalated ?? 0} icon={Siren} tone="violet" to="/clearance-dashboard" />
           </div>
 
           <div className="card">

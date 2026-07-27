@@ -18,7 +18,7 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Audit Logs" subtitle="Immutable trail of system actions" />
+      <PageHeader badge="Platform · Audit" title="Audit Logs" subtitle="Immutable trail of system actions" />
 
       <div className="card overflow-x-auto overscroll-x-contain">
         {isLoading ? <p className="p-8 text-center text-slate-400">Loading…</p> : logs.length === 0 ? (

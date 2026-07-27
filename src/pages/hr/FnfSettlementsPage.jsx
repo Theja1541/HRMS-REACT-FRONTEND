@@ -172,27 +172,32 @@ export default function FnfSettlementsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="F&F Settlements"
         subtitle="Advances, loans, reimbursements, gratuity, tax, payment approvals and finance reconciliation"
-        actions={
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={cn('btn-secondary text-xs', view === 'settlements' && 'bg-slate-100')}
-              onClick={() => setView('settlements')}
-            >
-              Settlements
-            </button>
-            <button
-              type="button"
-              className={cn('btn-secondary text-xs', view === 'reconciliation' && 'bg-slate-100')}
-              onClick={() => setView('reconciliation')}
-            >
-              Finance reconciliation
-            </button>
-          </div>
-        }
+        actions={null}
       />
+
+      <div className="ds-tabs scroll-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'settlements'}
+          onClick={() => setView('settlements')}
+          className={cn(view === 'settlements' && 'ds-tab-active')}
+        >
+          Settlements
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'reconciliation'}
+          onClick={() => setView('reconciliation')}
+          className={cn(view === 'reconciliation' && 'ds-tab-active')}
+        >
+          Finance reconciliation
+        </button>
+      </div>
 
       {view === 'reconciliation' ? (
         <div className="space-y-4">
@@ -347,13 +352,15 @@ export default function FnfSettlementsPage() {
       </div>
 
       {/* Search + active filter chip */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
         <input
           type="search"
           value={search}
           onChange={(e) => { setSearch(e.target.value); }}
           placeholder="Search by employee, code or ref…"
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-64"
+          className="ds-input w-full sm:max-w-xs"
         />
         {statusFilter && (
           <button
@@ -365,6 +372,8 @@ export default function FnfSettlementsPage() {
             {FNF_SETTLEMENT_STATUS_LABELS[statusFilter]}
           </button>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Table */}

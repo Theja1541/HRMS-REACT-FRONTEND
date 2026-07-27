@@ -8,7 +8,7 @@ import ExportExcelButton from '../../components/shared/ExportExcelButton';
 import TablePagination from '../../components/shared/TablePagination';
 import ShiftRosterPanel from '../../modules/Attendance/ShiftRosterPanel';
 import { exportAttendanceDailyExcel, exportAttendanceRegisterExcel } from '../../utils/excelExports';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { ATTENDANCE_STATUS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import CalendarColumnLegend from '../../components/attendance/CalendarColumnLegend';
@@ -121,7 +121,7 @@ function SummaryCard({ label, value, color }) {
 export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const role = usePortalRole();
   const tabParam = searchParams.get('tab');
   const tab = tabParam === 'monthly' ? 'monthly' : tabParam === 'roster' ? 'roster' : 'daily';
 
@@ -146,9 +146,9 @@ export default function AttendancePage() {
     paginateClient: paginateSummaries,
   } = useTablePagination({ resetDeps: [tab, month, year, departmentId] });
 
-  const isManager = user?.role === 'manager';
-  const canFinalize = ['super_admin', 'owner', 'admin', 'hr'].includes(user?.role);
-  const canEditAttendance = ['super_admin', 'owner', 'admin', 'manager'].includes(user?.role);
+  const isManager = role === 'manager';
+  const canFinalize = ['super_admin', 'owner', 'admin', 'hr'].includes(role);
+  const canEditAttendance = ['super_admin', 'owner', 'admin', 'hr', 'manager'].includes(role);
   const { data: deptData } = useQuery({
     queryKey: ['departments', 'active'],
     queryFn: () => departmentApi.list({ status: 'active' }),
@@ -424,6 +424,7 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Attendance"
         title="Attendance"
         subtitle={
           tab === 'roster'
@@ -440,16 +441,15 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px transition-colors',
-              tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-            )}
+            className={cn(tab === t.id && 'ds-tab-active')}
           >
             {t.label}
           </button>
@@ -460,105 +460,71 @@ export default function AttendancePage() {
         <ShiftRosterPanel />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 min-w-[160px]"
-            >
-              <option value="">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-
-            {tab === 'daily' ? (
-              <>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700"
-                />
-                {(dayType === 'weekend' || dayType === 'holiday') && (
-                  <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
-                    {dayType === 'holiday' ? 'Company holiday' : 'Weekend'} — marking allowed; present work auto-credits comp-off
-                  </span>
-                )}
-                <div className="flex items-center gap-2 ml-auto">
-                  <ExportExcelButton
-                    disabled={!dailyRows.length || dailyLoading}
-                    onExport={() => exportAttendanceDailyExcel(dailyData)}
-                  />
-                  <select
-                    value={bulkStatus}
-                    onChange={(e) => setBulkStatus(e.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
-                  >
-                    {DAILY_BULK_STATUSES.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={applyToAll}
-                    disabled={bulkMutation.isPending || !dailyRows.length}
-                    className="btn-primary"
-                  >
-                    {bulkMutation.isPending ? 'Applying…' : 'Apply to All'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 ml-auto">
-                <button type="button" onClick={() => shiftMonth(-1)} className="btn-secondary p-2">
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-sm font-medium px-2 min-w-[100px] text-center">
-                  {new Date(year, month - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
-                </span>
-                <button type="button" onClick={() => shiftMonth(1)} className="btn-secondary p-2">
-                  <ChevronRight size={14} />
-                </button>
-                <ExportExcelButton
-                  label="Export Register"
-                  disabled={!grid.length || monthlyLoading}
-                  onExport={() => exportAttendanceRegisterExcel(monthlyData)}
-                />
-                {canFinalize && (
-                  finalization?.finalized ? (
-                    <button
-                      type="button"
-                      className="btn-secondary text-xs inline-flex items-center gap-1.5"
-                      disabled={unfinalizeMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm('Unlock attendance for this month? Marking will be allowed again until re-finalized.')) {
-                          unfinalizeMutation.mutate();
-                        }
-                      }}
-                    >
-                      <Unlock size={14} />
-                      {unfinalizeMutation.isPending ? 'Unlocking…' : 'Unlock Attendance'}
+          {tab === 'monthly' && (
+          <div className="card overflow-hidden">
+            <div className="ds-toolbar">
+              <div className="toolbar-row">
+                <select
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className="ds-select w-full sm:w-auto sm:min-w-[160px]"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                  <div className="flex flex-wrap items-center gap-2 ml-auto">
+                    <button type="button" onClick={() => shiftMonth(-1)} className="btn-secondary p-2">
+                      <ChevronLeft size={14} />
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-primary text-xs inline-flex items-center gap-1.5"
-                      disabled={finalizeMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm('Finalize attendance for this month? Payroll can run only after finalization, and marking will be locked.')) {
-                          finalizeMutation.mutate();
-                        }
-                      }}
-                    >
-                      <Lock size={14} />
-                      {finalizeMutation.isPending ? 'Finalizing…' : 'Finalize Attendance'}
+                    <span className="text-sm font-medium px-2 min-w-[100px] text-center">
+                      {new Date(year, month - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button type="button" onClick={() => shiftMonth(1)} className="btn-secondary p-2">
+                      <ChevronRight size={14} />
                     </button>
-                  )
-                )}
+                    <ExportExcelButton
+                      label="Export Register"
+                      disabled={!grid.length || monthlyLoading}
+                      onExport={() => exportAttendanceRegisterExcel(monthlyData)}
+                    />
+                    {canFinalize && (
+                      finalization?.finalized ? (
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                          disabled={unfinalizeMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm('Unlock attendance for this month? Marking will be allowed again until re-finalized.')) {
+                              unfinalizeMutation.mutate();
+                            }
+                          }}
+                        >
+                          <Unlock size={14} />
+                          {unfinalizeMutation.isPending ? 'Unlocking…' : 'Unlock Attendance'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-primary text-xs inline-flex items-center gap-1.5"
+                          disabled={finalizeMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm('Finalize attendance for this month? Payroll can run only after finalization, and marking will be locked.')) {
+                              finalizeMutation.mutate();
+                            }
+                          }}
+                        >
+                          <Lock size={14} />
+                          {finalizeMutation.isPending ? 'Finalizing…' : 'Finalize Attendance'}
+                        </button>
+                      )
+                    )}
+                  </div>
               </div>
-            )}
+            </div>
           </div>
+          )}
 
           {tab === 'monthly' && finalization && (
             <div
@@ -629,7 +595,55 @@ export default function AttendancePage() {
           )}
 
           {tab === 'daily' && (
-            <div className="card overflow-x-auto overscroll-x-contain">
+            <div className="card overflow-hidden">
+              <div className="ds-toolbar">
+                <div className="toolbar-row">
+                  <select
+                    value={departmentId}
+                    onChange={(e) => setDepartmentId(e.target.value)}
+                    className="ds-select w-full sm:w-auto sm:min-w-[160px]"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="ds-input w-full sm:w-auto"
+                  />
+                  {(dayType === 'weekend' || dayType === 'holiday') && (
+                    <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-100">
+                      {dayType === 'holiday' ? 'Company holiday' : 'Weekend'} — marking allowed; present work auto-credits comp-off
+                    </span>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 ml-auto">
+                    <ExportExcelButton
+                      disabled={!dailyRows.length || dailyLoading}
+                      onExport={() => exportAttendanceDailyExcel(dailyData)}
+                    />
+                    <select
+                      value={bulkStatus}
+                      onChange={(e) => setBulkStatus(e.target.value)}
+                      className="ds-select"
+                    >
+                      {DAILY_BULK_STATUSES.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={applyToAll}
+                      disabled={bulkMutation.isPending || !dailyRows.length}
+                      className="btn-primary"
+                    >
+                      {bulkMutation.isPending ? 'Applying…' : 'Apply to All'}
+                    </button>
+                  </div>
+                </div>
+              </div>
               {dailyLoading && !dailyData ? (
                 <div className="p-12 text-center text-slate-400 text-sm">Loading attendance…</div>
               ) : dailyRows.length === 0 ? (

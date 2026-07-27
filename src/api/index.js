@@ -187,7 +187,7 @@ export const leaveApi = {
       const formData = new FormData();
       Object.entries(payload).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          formData.append(key, value);
+          formData.append(key, typeof value === 'boolean' ? String(value) : value);
         }
       });
       formData.append('attachment', file);
@@ -511,6 +511,10 @@ export const hrApi = {
       .then((r) => r.data),
   createDocumentTemplate: (payload) =>
     api.post('/hr/document-templates', payload).then((r) => r.data),
+  listDocumentTemplateDefaults: () =>
+    api.get('/hr/document-templates/defaults').then((r) => r.data),
+  seedDefaultDocumentTemplates: () =>
+    api.post('/hr/document-templates/seed-defaults').then((r) => r.data),
   parseDocumentTemplateFile: (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -859,8 +863,10 @@ export const platformApi = {
   deleteHelpdeskCategory: (id) => api.delete(`/platform/helpdesk/categories/${id}`).then((r) => r.data),
   listAnnouncements: (params) => api.get('/platform/announcements', { params }).then((r) => r.data),
   createAnnouncement: (payload) => api.post('/platform/announcements', payload).then((r) => r.data),
+  updateAnnouncement: (id, payload) => api.patch(`/platform/announcements/${id}`, payload).then((r) => r.data),
   publishAnnouncement: (id) => api.post(`/platform/announcements/${id}/publish`).then((r) => r.data),
   archiveAnnouncement: (id) => api.post(`/platform/announcements/${id}/archive`).then((r) => r.data),
+  acknowledgeAnnouncement: (id) => api.post(`/platform/announcements/${id}/acknowledge`).then((r) => r.data),
   listAuditLogs: (params) => api.get('/platform/audit-logs', { params }).then((r) => r.data),
   listNotifications: (params) => api.get('/platform/notifications', { params }).then((r) => r.data),
   markNotificationRead: (id) => api.patch(`/platform/notifications/${id}/read`).then((r) => r.data),

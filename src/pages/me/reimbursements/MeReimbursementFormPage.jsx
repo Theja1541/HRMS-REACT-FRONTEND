@@ -125,9 +125,9 @@ export default function MeReimbursementFormPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <PageHeader
+        badge="My Work · Reimbursements"
         title={isEdit ? 'Edit Claim' : 'New Reimbursement Claim'}
         subtitle={isEdit ? 'Update your draft before submitting' : 'Fill in expense details and attach a receipt if required'}
-        breadcrumbs={['My Reimbursements', isEdit ? 'Edit' : 'New']}
         actions={(
           <Link to="/me/reimbursements" className="btn-secondary text-xs inline-flex items-center gap-1.5">
             <ArrowLeft size={14} /> Back to list

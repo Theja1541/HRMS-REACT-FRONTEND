@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pencil, Trash2, CheckCircle } from 'lucide-react';
 import api from '../../api/client';
 import AttendancePolicyForm from './AttendancePolicyForm';
+import PageHeader from '../../components/shared/PageHeader';
 import { cn } from '../../utils/helpers';
 
 export default function AttendancePolicyPage() {
@@ -66,22 +67,23 @@ export default function AttendancePolicyPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-800">Attendance Policies</h3>
-          <p className="text-xs text-slate-500">Configure multiple attendance policies for your enterprise</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingPolicy(null);
-            setIsFormOpen(true);
-          }}
-          className="btn-primary text-xs px-3 py-1.5"
-        >
-          Add Policy
-        </button>
-      </div>
+      <PageHeader
+        badge="People · Attendance"
+        title="Attendance Policies"
+        subtitle="Configure multiple attendance policies for your enterprise"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              setEditingPolicy(null);
+              setIsFormOpen(true);
+            }}
+            className="btn-primary text-xs px-3 py-1.5"
+          >
+            Add Policy
+          </button>
+        }
+      />
 
       <div className="card divide-y divide-slate-100">
         {policies.length === 0 ? (

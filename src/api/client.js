@@ -111,6 +111,7 @@ api.interceptors.response.use(
           newToken = await promoteToWorkspaceAccessToken(newToken);
         }
 
+        useAuthStore.getState().setAccessToken(newToken);
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
