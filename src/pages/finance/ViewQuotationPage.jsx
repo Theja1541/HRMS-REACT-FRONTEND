@@ -20,6 +20,7 @@ import { formatINR, cn } from '../../utils/helpers';
 import { printElementById } from '../../utils/printDocument';
 import { buildQuotationPdfFilename, exportQuotationPdf } from '../../utils/exportQuotationPdf';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 function DetailItem({ label, value, mono, className, multiline }) {
   const display = value == null || String(value).trim() === '' ? '—' : value;
@@ -138,9 +139,10 @@ function QuotationViewContent({ quotation }) {
 export default function ViewQuotationPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canWrite = FINANCE_WRITE_ROLES.includes(user?.role);
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canWrite = FINANCE_WRITE_ROLES.includes(role);
 
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -244,6 +246,7 @@ export default function ViewQuotationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Quotation"
         title="View Quotation"
         subtitle={quotation.quotation_no}
         actions={

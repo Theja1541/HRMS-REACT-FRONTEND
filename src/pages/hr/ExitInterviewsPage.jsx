@@ -96,6 +96,7 @@ export default function ExitInterviewsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Exit Interviews"
         subtitle="Employee questionnaires, manager & HR feedback, resignation reasons, and analytics"
         actions={
@@ -269,17 +270,19 @@ export default function ExitInterviewsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+        <div className="relative flex-1 min-w-0 sm:max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
-            className="input text-xs pl-8 w-56"
+            className="ds-input pl-9 w-full"
             placeholder="Search employee…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input text-xs w-48" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="ds-select w-full sm:w-auto sm:min-w-[160px]" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
           {Object.entries(EXIT_INTERVIEW_STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>
@@ -287,13 +290,18 @@ export default function ExitInterviewsPage() {
             </option>
           ))}
         </select>
-      </div>
+          </div>
+        </div>
 
-      <div className="card overflow-x-auto">
+      <div className="overflow-x-auto">
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400 text-xs">Loading…</p>
+          <p className="p-8 text-center text-slate-400 text-xs">Loading exit interviews…</p>
         ) : filtered.length === 0 ? (
-          <p className="p-12 text-center text-slate-400 text-xs">No exit interviews</p>
+          <div className="p-12 text-center">
+            <MessageSquareQuote size={32} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-600">No exit interviews</p>
+            <p className="text-xs text-slate-500 mt-1">Interviews appear when separations are in progress.</p>
+          </div>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b">
@@ -356,6 +364,7 @@ export default function ExitInterviewsPage() {
             onLimitChange={setLimit}
           />
         )}
+      </div>
       </div>
 
       {selectedId && (

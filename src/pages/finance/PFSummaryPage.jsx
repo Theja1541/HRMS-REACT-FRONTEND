@@ -32,6 +32,7 @@ export default function PFSummaryPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · PF / ESI"
         title="PF / ESI"
         subtitle="Monthly PF, ESI, and PT from payroll"
         actions={<PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />}
@@ -62,7 +63,7 @@ export default function PFSummaryPage() {
             <StatCard label="TDS Deducted" value={formatINR(summary?.tds?.total)} icon={Receipt} />
           </div>
 
-          <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+          <div className="ds-tabs scroll-tabs" role="tablist">
             {[
               { id: 'pf', label: 'PF Register' },
               { id: 'esi', label: 'ESI Register' },
@@ -72,10 +73,10 @@ export default function PFSummaryPage() {
               <button
                 key={t.id}
                 type="button"
+                role="tab"
+                aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-4 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
-                  tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                className={tab === t.id ? 'ds-tab-active' : undefined}
               >
                 {t.label}
               </button>

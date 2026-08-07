@@ -19,6 +19,7 @@ import {
   buildTransactionNumber,
 } from '../../constants/finance';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 let lineKey = 0;
 const EMPTY_PENDING_TRANSACTIONS = [];
@@ -140,8 +141,9 @@ export default function AddTransactionPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [form, setForm] = useState({
     ...EMPTY_TRANSACTION_FORM,
@@ -512,6 +514,7 @@ export default function AddTransactionPage() {
   return (
     <div className="space-y-6 relative z-0">
       <PageHeader
+        badge="Finance · Day Book"
         title={isEdit ? 'Edit Entry' : 'Add Entry'}
         subtitle={isEdit ? 'Update this payment or receipt' : 'Record a payment or receipt'}
         actions={

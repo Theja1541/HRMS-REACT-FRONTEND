@@ -1,5 +1,7 @@
 import { ROLE_LABELS } from './routes';
 
+import { localDateString } from '../utils/helpers';
+
 export const ATTENDANCE_STATUS = {
   present: { label: 'P', full: 'Present', color: 'bg-emerald-100 text-emerald-700' },
   absent: { label: 'A', full: 'Absent', color: 'bg-red-100 text-red-700' },
@@ -407,7 +409,7 @@ export const EMPTY_ASSET_MAINTENANCE_FORM = {
   asset_id: '',
   maintenance_type: 'service',
   vendor_id: '',
-  scheduled_date: new Date().toISOString().slice(0, 10),
+  scheduled_date: localDateString(),
   completed_date: '',
   cost: '',
   description: '',

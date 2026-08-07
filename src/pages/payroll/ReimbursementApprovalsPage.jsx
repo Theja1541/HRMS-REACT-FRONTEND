@@ -13,6 +13,7 @@ import {
 } from '../../constants/reimbursement';
 import { cn, formatINR } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function formatDate(value) {
@@ -26,8 +27,9 @@ function formatDate(value) {
 
 export default function ReimbursementApprovalsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectNote, setRejectNote] = useState('');
@@ -103,6 +105,7 @@ export default function ReimbursementApprovalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Reimbursements"
         title="Reimbursement Claims"
         subtitle="Review and approve employee expense reimbursement requests"
       />
@@ -118,16 +121,16 @@ export default function ReimbursementApprovalsPage() {
       </div>
 
       <div className="card overflow-x-auto overscroll-x-contain">
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <div className="ds-toolbar flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Pending approval queue</h3>
           <span className="text-xs text-slate-500">{claims.length} claim(s)</span>
         </div>
 
         {isLoading ? (
-          <p className="text-center py-12 text-slate-400">Loading reimbursement claims…</p>
+          <p className="text-center py-16 text-slate-400 text-sm">Loading reimbursement claims…</p>
         ) : error ? (
-          <div className="text-center py-12 space-y-3">
-            <p className="text-red-500">
+          <div className="text-center py-16 space-y-3">
+            <p className="text-red-500 text-sm">
               {error?.response?.data?.error?.message || 'Failed to load reimbursement claims'}
             </p>
             <button type="button" onClick={() => refetch()} className="btn-secondary text-xs">
@@ -135,9 +138,9 @@ export default function ReimbursementApprovalsPage() {
             </button>
           </div>
         ) : claims.length === 0 ? (
-          <div className="text-center py-12 space-y-2">
-            <Wallet size={28} className="mx-auto text-slate-300" />
-            <p className="text-sm font-medium text-slate-600">No pending reimbursement claims</p>
+          <div className="text-center py-16 space-y-2">
+            <Wallet size={28} className="mx-auto text-slate-200" />
+            <p className="text-slate-400 text-sm">No pending reimbursement claims</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               When employees submit claims from My Reimbursements, they will appear here for review.
             </p>

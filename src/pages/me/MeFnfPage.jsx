@@ -134,7 +134,7 @@ export default function MeFnfPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
+        <PageHeader badge="My Work · F&amp;F" title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
         <div className="card p-14 flex items-center justify-center gap-2 text-slate-400 text-sm">
           <Loader2 size={16} className="animate-spin" /> Loading settlement…
         </div>
@@ -145,7 +145,7 @@ export default function MeFnfPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
+        <PageHeader badge="My Work · F&amp;F" title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
         <div className="card p-10 flex items-center gap-4 bg-red-50 border border-red-100">
           <AlertCircle size={18} className="text-red-500 shrink-0" />
           <p className="text-sm text-red-700">Failed to load your F&amp;F settlement. Please try again later.</p>
@@ -157,7 +157,7 @@ export default function MeFnfPage() {
   if (!settlement) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
+        <PageHeader badge="My Work · F&amp;F" title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
         <div className="card p-14 text-center">
           <IndianRupee size={32} className="text-slate-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-slate-700">No F&amp;F settlement yet</p>
@@ -178,7 +178,7 @@ export default function MeFnfPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
+      <PageHeader badge="My Work · F&amp;F" title="Full &amp; Final" subtitle="Your F&amp;F settlement details" />
 
       {isDraft && (
         <div className="card p-4 flex items-center gap-3 bg-amber-50 border border-amber-100">

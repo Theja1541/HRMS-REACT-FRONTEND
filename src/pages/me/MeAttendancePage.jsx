@@ -5,13 +5,13 @@ import { attendanceApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import CheckInOutWidget from '../../components/attendance/CheckInOutWidget';
 import { ATTENDANCE_STATUS } from '../../constants/hr';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 
 export default function MeAttendancePage() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = localDateString(now);
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-attendance', month, year],
@@ -34,6 +34,7 @@ export default function MeAttendancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Attendance"
         title="My Attendance"
         subtitle={`${new Date(year, month - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`}
         actions={

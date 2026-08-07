@@ -1,3 +1,5 @@
+import { localDateString } from '../utils/helpers';
+
 export const INDUSTRY_TYPES = [
   'Information Technology',
   'Manufacturing',
@@ -116,7 +118,7 @@ export function emptyTenantForm() {
       username: '',
     },
     subscription_plan_id: '',
-    subscription_start_date: new Date().toISOString().slice(0, 10),
+    subscription_start_date: localDateString(),
     billing_cycle: 'yearly',
     employee_limit: '',
     monthly_cost: '',

@@ -16,6 +16,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import { CLEARANCE_DEPARTMENT_LABELS, CLEARANCE_DEPARTMENTS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -451,8 +452,9 @@ function TemplateModal({ mode, form, setForm, onClose, onSubmit, loading, error 
 
 export default function ClearanceTemplatePage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [showInactive, setShowInactive] = useState(false);
   const [exitTypeFilter, setExitTypeFilter] = useState('');
@@ -594,6 +596,7 @@ export default function ClearanceTemplatePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Clearance Templates"
         subtitle="Define exit checklists that are automatically assigned when a separation is approved"
         actions={
@@ -605,18 +608,19 @@ export default function ClearanceTemplatePage() {
 
       <div className="card">
         {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search templates…"
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-44"
+            className="ds-input w-full sm:w-44"
           />
           <select
             value={exitTypeFilter}
             onChange={(e) => setExitTypeFilter(e.target.value)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+            className="ds-select w-full sm:w-auto"
           >
             <option value="">All exit types</option>
             {EXIT_TYPE_OPTIONS.map((t) => (
@@ -631,6 +635,7 @@ export default function ClearanceTemplatePage() {
             />
             Show inactive
           </label>
+          </div>
         </div>
 
         {/* Content */}

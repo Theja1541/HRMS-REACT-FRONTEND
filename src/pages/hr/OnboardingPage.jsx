@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
@@ -89,7 +90,18 @@ export default function OnboardingPage() {
     () =>
       employees.filter(
         (e) =>
-          ['active', 'probation'].includes(e.status) &&
+          e.status === 'active' &&
+          e.onboarding_status !== 'completed' &&
+          !employeeIdsWithTasks.has(e.id)
+      ),
+    [employees, employeeIdsWithTasks]
+  );
+
+  const probationBlockedCandidates = useMemo(
+    () =>
+      employees.filter(
+        (e) =>
+          e.status === 'probation' &&
           e.onboarding_status !== 'completed' &&
           !employeeIdsWithTasks.has(e.id)
       ),
@@ -154,9 +166,15 @@ export default function OnboardingPage() {
       showToast('success', 'Onboarding started — checklist assigned to employee');
     },
     onError: (err) => {
-      const msg = err.response?.data?.error?.message || 'Failed to start onboarding';
+      const code = err.response?.data?.error?.code;
+      const msg =
+        err.response?.data?.error?.message ||
+        (code === 'IN_PROBATION'
+          ? 'Employee is in probation. Confirm probation in Probation Tracker before starting onboarding.'
+          : 'Failed to start onboarding');
       setFormError(msg);
-      if (err.response?.data?.error?.code === 'NO_TEMPLATES') setTab('template');
+      if (code === 'NO_TEMPLATES') setTab('template');
+      if (code === 'IN_PROBATION') showToast('error', msg);
     },
   });
 
@@ -188,6 +206,7 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Onboarding"
         title="Employee Onboarding"
         subtitle={
           isHrAdmin
@@ -246,20 +265,17 @@ export default function OnboardingPage() {
         />
       )}
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {(isHrAdmin ? TABS : TABS.filter((t) => t.id === 'active')).map((t) => {
           const Icon = t.icon;
           return (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 -mb-px whitespace-nowrap',
-                tab === t.id
-                  ? 'border-brand-600 text-brand-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              )}
+              className={cn(tab === t.id && 'ds-tab-active')}
             >
               <Icon size={14} />
               {t.label}
@@ -514,6 +530,36 @@ export default function OnboardingPage() {
               </ul>
             </div>
           )}
+
+          {templatesReady && probationBlockedCandidates.length > 0 && (
+            <div className="card p-4 border border-amber-200 bg-amber-50/60">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-amber-900 mb-1">
+                    Waiting on probation confirmation
+                  </h3>
+                  <p className="text-xs text-amber-800 mb-3">
+                    These employees are still in probation. Confirm probation in{' '}
+                    <Link to="/probation-tracker" className="font-semibold underline underline-offset-2">
+                      Probation Tracker
+                    </Link>{' '}
+                    before starting onboarding.
+                  </p>
+                  <ul className="flex flex-wrap gap-2">
+                    {probationBlockedCandidates.slice(0, 8).map((e) => (
+                      <li
+                        key={e.id}
+                        className="text-xs px-3 py-1.5 rounded-full border border-amber-200 bg-white text-amber-900"
+                      >
+                        {e.emp_code} — {e.first_name} {e.last_name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -547,7 +593,30 @@ export default function OnboardingPage() {
                 </select>
                 {onboardingCandidates.length === 0 && (
                   <p className="text-xs text-amber-700 mt-2">
-                    All active employees already have a checklist, or none are eligible.
+                    {probationBlockedCandidates.length > 0 ? (
+                      <>
+                        No employees are ready to onboard yet. {probationBlockedCandidates.length} employee
+                        {probationBlockedCandidates.length === 1 ? ' is' : 's are'} still in probation — confirm
+                        them in{' '}
+                        <Link to="/probation-tracker" className="font-semibold underline underline-offset-2">
+                          Probation Tracker
+                        </Link>{' '}
+                        first.
+                      </>
+                    ) : (
+                      'All active employees already have a checklist, or none are eligible.'
+                    )}
+                  </p>
+                )}
+                {probationBlockedCandidates.length > 0 && onboardingCandidates.length > 0 && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    {probationBlockedCandidates.length} employee
+                    {probationBlockedCandidates.length === 1 ? '' : 's'} in probation cannot be onboarded until
+                    confirmed in{' '}
+                    <Link to="/probation-tracker" className="font-semibold underline underline-offset-2">
+                      Probation Tracker
+                    </Link>
+                    .
                   </p>
                 )}
               </div>

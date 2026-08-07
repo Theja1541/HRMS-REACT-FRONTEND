@@ -3,7 +3,13 @@ import { Download, FileText, Mail } from 'lucide-react';
 import { payrollApi } from '../../api';
 import { amountInWordsINR, formatPayslipAmount } from '../../utils/amountInWords';
 import { resolveAssetUrl } from '../../utils/helpers';
-import { downloadPdfBlob, exportPayslipImage, renderElementToPdfBlob } from '../../utils/exportPayslipPdf';
+import {
+  PAYSLIP_EXPORT_WIDTH,
+  downloadPdfBlob,
+  exportPayslipImage,
+  renderElementToPdfBlob,
+} from '../../utils/exportPayslipPdf';
+import { PAYSLIP_PRINT_ELEMENT_ID } from '../../utils/printDocument';
 
 /** Step 3 salary structure — earnings (A) */
 const EARNING_FIELDS = [
@@ -95,7 +101,14 @@ function padRows(earnings, deductions, minRows = 9) {
   return { earnings: e, deductions: d };
 }
 
-export default function PayslipView({ payslip, employee, tenantName, showActions = true, showEmail = false, onPdfStored }) {
+export default function PayslipView({
+  payslip,
+  employee,
+  tenantName,
+  showActions = true,
+  showEmail = false,
+  onPdfStored,
+}) {
   const slipRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [pdfError, setPdfError] = useState(null);
@@ -192,12 +205,18 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
     );
   };
 
+  /** Capture the on-screen view payslip DOM — same markup for PDF / Image / Email. */
+  const captureViewPdfBlob = async () => {
+    if (!slipRef.current) throw new Error('Payslip preview not ready');
+    await waitForImages(slipRef.current);
+    await document.fonts?.ready;
+    return renderElementToPdfBlob(slipRef.current);
+  };
+
   const ensurePdfStored = async ({ force = false } = {}) => {
     if (!payslip?.id) return;
     if (!force && payslip?.pdf_url) return;
-    if (!slipRef.current) throw new Error('Payslip preview not ready');
-    await waitForImages(slipRef.current);
-    const blob = await renderElementToPdfBlob(slipRef.current);
+    const blob = await captureViewPdfBlob();
     const res = await payrollApi.uploadPayslipPdf(payslip.id, blob, pdfFilename);
     onPdfStored?.(res?.data?.payslip?.pdf_url);
   };
@@ -207,8 +226,7 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
     setExporting(true);
     setPdfError(null);
     try {
-      await waitForImages(slipRef.current);
-      const blob = await renderElementToPdfBlob(slipRef.current);
+      const blob = await captureViewPdfBlob();
       downloadPdfBlob(blob, pdfFilename);
       if (payslip?.id) {
         try {
@@ -228,9 +246,13 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
   const handleDownloadImage = async () => {
     if (!slipRef.current || exporting) return;
     setExporting(true);
+    setPdfError(null);
     try {
       await waitForImages(slipRef.current);
+      await document.fonts?.ready;
       await exportPayslipImage(slipRef.current, `payslip_${fileSlug}.png`);
+    } catch {
+      setPdfError('Could not generate image. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -286,15 +308,18 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
       )}
 
       <div className="table-scroll">
+        {/* A4 content column — same width used by Download PDF / Image / Email */}
         <div
           ref={slipRef}
+          id={PAYSLIP_PRINT_ELEMENT_ID}
           data-payslip-export
           className="bg-white mx-auto"
           style={{
-            width: '640px',
+            width: `${PAYSLIP_EXPORT_WIDTH}px`,
             maxWidth: '100%',
             fontFamily: 'Arial, Helvetica, sans-serif',
             color: '#000000',
+            boxSizing: 'border-box',
           }}
         >
           <table
@@ -314,26 +339,31 @@ export default function PayslipView({ payslip, employee, tenantName, showActions
             <tbody>
               <tr>
                 <td colSpan={4} style={cell({ padding: '8px', verticalAlign: 'middle' })}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: '26%', flexShrink: 0, textAlign: 'center' }}>
-                      {logoUrl ? (
-                        <img
-                          src={logoUrl}
-                          alt="Company logo"
-                          crossOrigin="anonymous"
-                          style={{ maxWidth: '100%', maxHeight: '64px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
-                        />
-                      ) : null}
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '4px 8px' }}>
-                      <div style={{ fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', margin: 0 }}>
-                        {companyName}
-                      </div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px' }}>
-                        Pay Slip for the Month of {monthLabel}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Table layout (not flex) so html2canvas captures 1:1 with the view */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', border: 'none', tableLayout: 'fixed' }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: '26%', border: 'none', padding: 0, textAlign: 'center', verticalAlign: 'middle' }}>
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt="Company logo"
+                              crossOrigin="anonymous"
+                              style={{ maxWidth: '100%', maxHeight: '64px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                            />
+                          ) : null}
+                        </td>
+                        <td style={{ border: 'none', padding: '4px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', margin: 0 }}>
+                            {companyName}
+                          </div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px' }}>
+                            Pay Slip for the Month of {monthLabel}
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </td>
               </tr>
 

@@ -3,6 +3,8 @@ import { useMutation } from '@tanstack/react-query';
 import { financeApi } from '../../api';
 import { PAYMENT_MODES } from '../../constants/finance';
 
+import { localDateString } from '../../utils/helpers';
+
 function round2(n) {
   return Math.round(n * 100) / 100;
 }
@@ -18,7 +20,7 @@ function formatMoney(amount) {
 
 export default function ReceivePaymentModal({ open, transaction, onClose, onSuccess }) {
   const pending = round2(parseFloat(transaction?.pending_amount) || 0);
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(localDateString());
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
   const [chequeNumber, setChequeNumber] = useState('');
@@ -28,7 +30,7 @@ export default function ReceivePaymentModal({ open, transaction, onClose, onSucc
 
   useEffect(() => {
     if (!open || !transaction) return;
-    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentDate(localDateString());
     setAmount(String(pending || ''));
     setPaymentMode(transaction.payment_mode || 'cash');
     setChequeNumber('');

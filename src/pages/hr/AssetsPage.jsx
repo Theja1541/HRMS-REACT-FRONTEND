@@ -8,9 +8,10 @@ import { assetCategoryApi, employeeApi, financeApi, hrApi } from '../../api';
 import PageHeader from '../../components/shared/PageHeader';
 import ExportExcelButton from '../../components/shared/ExportExcelButton';
 import { ASSET_STATUSES, ASSET_STATUS_OPTIONS, EMPTY_ASSET_FORM } from '../../constants/hr';
-import { formatINR, cn } from '../../utils/helpers';
+import { formatINR, cn, localDateString } from '../../utils/helpers';
 import { exportAssetsCsvFromApi } from '../../utils/assetExports';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 function categoryLabel(asset) {
   return asset.category_name || asset.category_info?.name || asset.category || '—';
@@ -50,8 +51,9 @@ function buildPayload(form) {
 
 export default function AssetsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -69,7 +71,7 @@ export default function AssetsPage() {
   const [assignAsset, setAssignAsset] = useState(null);
   const [assignForm, setAssignForm] = useState({
     employee_id: '',
-    assigned_date: new Date().toISOString().slice(0, 10),
+    assigned_date: localDateString(),
     condition_at_assign: 'Good',
   });
 
@@ -234,6 +236,7 @@ export default function AssetsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Assets · Registry"
         title="Asset Registry"
         subtitle={
           pagination
@@ -266,21 +269,22 @@ export default function AssetsPage() {
         </div>
       )}
 
-      <div className="card p-4">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search code, name, brand, model, serial…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input pl-9"
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            className="ds-select sm:min-w-[140px]"
           >
             <option value="">All statuses</option>
             {ASSET_STATUS_OPTIONS.map((s) => (
@@ -292,7 +296,7 @@ export default function AssetsPage() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            className="ds-select sm:min-w-[140px]"
           >
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -305,23 +309,24 @@ export default function AssetsPage() {
             value={brandFilter}
             onChange={(e) => setBrandFilter(e.target.value)}
             placeholder="Filter by brand…"
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm min-w-[140px]"
+            className="ds-input sm:min-w-[140px]"
           />
+          </div>
         </div>
       </div>
 
       <div className="card overflow-x-auto overscroll-x-contain">
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400">Loading assets…</p>
+          <p className="py-16 text-center text-slate-400 text-sm">Loading assets…</p>
         ) : error ? (
-          <div className="p-12 text-center space-y-3">
-            <p className="text-red-500">Failed to load assets</p>
+          <div className="py-16 text-center space-y-3">
+            <p className="text-red-500 text-sm">Failed to load assets</p>
             <button type="button" onClick={() => refetch()} className="btn-secondary text-xs">
               Retry
             </button>
           </div>
         ) : assets.length === 0 ? (
-          <p className="p-12 text-center text-slate-400">No assets match your filters</p>
+          <p className="py-16 text-center text-slate-400 text-sm">No assets match your filters</p>
         ) : (
           <>
             <div className="overflow-x-auto">

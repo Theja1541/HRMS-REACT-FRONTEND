@@ -8,7 +8,7 @@ import TablePagination from '../../components/shared/TablePagination';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { useTablePagination, normalizePagination } from '../../hooks/useTablePagination';
 import { cn } from '../../utils/helpers';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 const STATUS_TABS = [
   { id: 'pending', label: 'Pending' },
@@ -118,7 +118,7 @@ function ReviewModal({ request, action, onClose, onConfirm, isPending }) {
 }
 
 export default function PendingApprovalsPage() {
-  const user = useAuthStore((s) => s.user);
+  const role = usePortalRole();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -163,45 +163,45 @@ export default function PendingApprovalsPage() {
     },
   });
 
-  if (user?.role !== 'super_admin') {
+  if (role !== 'super_admin') {
     return <Navigate to="/" replace />;
   }
 
   return (
     <div className="space-y-4">
       <PageHeader
+        badge="Admin · Approvals"
         title="Pending Approvals"
         subtitle="Review and action subscription upgrade, renewal, and employee limit requests"
       />
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
-          <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
-            {STATUS_TABS.map((tab) => (
+        <div className="ds-toolbar border-b border-slate-100">
+          <div className="toolbar-row w-full">
+          <div className="ds-tabs scroll-tabs" role="tablist">
+            {STATUS_TABS.map((tabItem) => (
               <button
-                key={tab.id || 'all'}
+                key={tabItem.id || 'all'}
                 type="button"
-                onClick={() => setStatusFilter(tab.id)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
-                  statusFilter === tab.id
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                )}
+                role="tab"
+                aria-selected={statusFilter === tabItem.id}
+                onClick={() => setStatusFilter(tabItem.id)}
+                className={cn(statusFilter === tabItem.id && 'ds-tab-active')}
               >
-                {tab.label}
+                {tabItem.label}
               </button>
             ))}
           </div>
           <div className="relative flex-1 min-w-[200px] max-w-xs ml-auto">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tenant…"
-              className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
+              className="ds-input pl-8 w-full text-xs"
             />
+          </div>
           </div>
         </div>
 

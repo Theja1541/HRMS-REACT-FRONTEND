@@ -1,3 +1,5 @@
+import { localDateString } from '../utils/helpers';
+
 export const PAYMENT_MODES = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'upi', label: 'UPI' },
@@ -55,7 +57,7 @@ export function formatBillingDate(dateStr) {
 }
 
 export function todayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 export function severityClass(severity) {

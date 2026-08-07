@@ -212,7 +212,7 @@ export default function App() {
             <Route path="/mfa-verify" element={<PublicRoute><MfaVerificationPage /></PublicRoute>} />
             <Route path="/careers/:tenantSlug" element={<CareersPage />} />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
             <Route
               path="/subscription-expired"
               element={

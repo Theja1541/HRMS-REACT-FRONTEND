@@ -107,7 +107,7 @@ export default function PlanFormModal({
   };
 
   return (
-    <div className="modal-backdrop z-50">
+    <div className="modal-backdrop !z-[110]">
       <div className="modal-panel sm:max-w-5xl">
         <div className="modal-panel-header">
           <h3 className="font-semibold text-slate-900 text-sm sm:text-base">
@@ -132,6 +132,17 @@ export default function PlanFormModal({
                   onChange={(e) => updateForm({ name: e.target.value })}
                   className={inputClass()}
                   placeholder="e.g. Professional Tier"
+                />
+              </Field>
+
+              <Field label="Description">
+                <textarea
+                  value={localForm.description || ''}
+                  onChange={(e) => updateForm({ description: e.target.value })}
+                  rows={3}
+                  maxLength={2000}
+                  className={inputClass('resize-y min-h-[72px]')}
+                  placeholder="Short summary shown to tenants when upgrading"
                 />
               </Field>
 
@@ -214,7 +225,7 @@ export default function PlanFormModal({
                 <div>
                   <h4 className="text-sm font-semibold text-slate-800">Modules &amp; Pages by Role</h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Same access matrix as Roles &amp; Permissions — select pages per role for this plan
+                    Browse the same nav matrix as Roles &amp; Permissions to pick pages included in this plan
                   </p>
                 </div>
               </div>
@@ -320,7 +331,8 @@ export default function PlanFormModal({
               </div>
 
               <p className="text-[10px] text-slate-400 mt-2">
-                Selections are saved per role — the plan includes the combined pages from all roles
+                Role tabs organize the catalog for selection. The plan stores the combined module and page
+                entitlements across all roles.
               </p>
             </div>
           </div>
@@ -337,8 +349,12 @@ export default function PlanFormModal({
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
-            <button type="submit" disabled={saving || catalogLoading} className={cn('btn-primary', saving && 'opacity-70')}>
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Plan'}
+            <button
+              type="submit"
+              disabled={saving || catalogLoading || !localForm.catalogHydrated}
+              className={cn('btn-primary', (saving || catalogLoading) && 'opacity-70')}
+            >
+              {saving ? 'Saving…' : catalogLoading ? 'Loading catalog…' : isEdit ? 'Save Changes' : 'Create Plan'}
             </button>
           </div>
         </form>

@@ -4,6 +4,11 @@ export const QUOTATION_PRINT_ELEMENT_ID = 'quotation-view-print';
 export const QUOTATION_CONTENT_WIDTH_MM = 194;
 export const QUOTATION_PAGE_MARGIN_MM = 8;
 
+/** Payslip — A4 portrait sheet (same visual as View Payslip) */
+export const PAYSLIP_PRINT_ELEMENT_ID = 'payslip-view-print';
+export const PAYSLIP_CONTENT_WIDTH_MM = 190;
+export const PAYSLIP_PAGE_MARGIN_MM = 10;
+
 export function mmToPx(mm) {
   return Math.round(mm * (96 / 25.4));
 }
@@ -57,6 +62,54 @@ const QUOTATION_PRINT_STYLES = `
   #quotation-view-print th {
     font-family: Arial, Helvetica, sans-serif !important;
     line-height: 1.45 !important;
+  }
+`;
+
+const PAYSLIP_PRINT_STYLES = `
+  @page { size: A4 portrait; margin: ${PAYSLIP_PAGE_MARGIN_MM}mm; }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #${PAYSLIP_PRINT_ELEMENT_ID} {
+    width: ${PAYSLIP_CONTENT_WIDTH_MM}mm !important;
+    max-width: ${PAYSLIP_CONTENT_WIDTH_MM}mm !important;
+    min-width: ${PAYSLIP_CONTENT_WIDTH_MM}mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  #${PAYSLIP_PRINT_ELEMENT_ID} table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+  #${PAYSLIP_PRINT_ELEMENT_ID} td,
+  #${PAYSLIP_PRINT_ELEMENT_ID} th {
+    border-color: #000 !important;
+    border-style: solid !important;
+    border-width: 1px !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #000 !important;
+    background: #fff !important;
+    -webkit-font-smoothing: antialiased;
+  }
+  #${PAYSLIP_PRINT_ELEMENT_ID} table table td,
+  #${PAYSLIP_PRINT_ELEMENT_ID} table table th {
+    border: none !important;
   }
 `;
 
@@ -132,10 +185,18 @@ export function isQuotationPrintElement(elementId) {
   return elementId === QUOTATION_PRINT_ELEMENT_ID;
 }
 
+export function isPayslipPrintElement(elementId) {
+  return elementId === PAYSLIP_PRINT_ELEMENT_ID;
+}
+
 export function getPrintStyles(elementId) {
-  return isQuotationPrintElement(elementId)
-    ? `${BASE_PRINT_STYLES}${QUOTATION_PRINT_STYLES}`
-    : BASE_PRINT_STYLES;
+  if (isQuotationPrintElement(elementId)) {
+    return `${BASE_PRINT_STYLES}${QUOTATION_PRINT_STYLES}`;
+  }
+  if (isPayslipPrintElement(elementId)) {
+    return `${BASE_PRINT_STYLES}${PAYSLIP_PRINT_STYLES}`;
+  }
+  return BASE_PRINT_STYLES;
 }
 
 /**

@@ -18,8 +18,9 @@ import { hrApi } from '../../api';
 import PageHeader, { StatCard } from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import { REVIEW_STATUSES } from '../../constants/hr';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 const REVIEW_PIPELINE = [
@@ -32,7 +33,7 @@ const REVIEW_PIPELINE = [
 const EMPTY_CYCLE_FORM = {
   name: '',
   cycle_type: 'annual',
-  start_date: new Date().toISOString().slice(0, 10),
+  start_date: localDateString(),
   end_date: `${new Date().getFullYear()}-12-31`,
   goals: [''],
 };
@@ -284,8 +285,9 @@ function resolveReviewGoals(review) {
 export default function PerformancePage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isAdmin = ['super_admin', 'owner', 'hr'].includes(user?.role);
-  const isManager = user?.role === 'manager';
+  const role = usePortalRole();
+  const isAdmin = ['super_admin', 'owner', 'hr'].includes(role);
+  const isManager = role === 'manager';
   const isManagerOnly = isManager && !isAdmin;
   const [tab, setTab] = useState(isManagerOnly ? 'team' : 'reviews');
   const [cycleFilter, setCycleFilter] = useState('');
@@ -456,6 +458,7 @@ export default function PerformancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Performance"
         title="Performance"
         subtitle="Review cycles, goals, self-assessment, and manager ratings"
         actions={isAdmin && (
@@ -507,16 +510,15 @@ export default function PerformancePage() {
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px',
-              tab === t.key ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500'
-            )}
+            className={cn(tab === t.key && 'ds-tab-active')}
           >
             {t.label}
           </button>

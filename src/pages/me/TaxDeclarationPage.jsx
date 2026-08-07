@@ -53,6 +53,7 @@ export default function TaxDeclarationPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <PageHeader
+        badge="My Work · Tax"
         title="Tax Declaration"
         subtitle={`Financial year ${form.financial_year} — used for monthly TDS calculation`}
       />

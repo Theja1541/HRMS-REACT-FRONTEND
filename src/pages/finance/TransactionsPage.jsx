@@ -34,17 +34,10 @@ import {
   resolvePaymentStatus,
   resolveLineGstSplit,
 } from '../../constants/finance';
-import { formatINR, cn } from '../../utils/helpers';
+import { formatINR, cn, monthBounds } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
-function monthBounds(date = new Date()) {
-  const y = date.getFullYear();
-  const m = date.getMonth();
-  return {
-    from: new Date(y, m, 1).toISOString().slice(0, 10),
-    to: new Date(y, m + 1, 0).toISOString().slice(0, 10),
-  };
-}
 
 function daysLeftUntil(dateStr) {
   if (!dateStr) return null;
@@ -70,10 +63,11 @@ function pendingAmount(tx) {
 
 export default function TransactionsPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const canWrite = FINANCE_WRITE_ROLES.includes(user?.role);
-  const isAuditor = user?.role === 'auditor';
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const canWrite = FINANCE_WRITE_ROLES.includes(role);
+  const isAuditor = role === 'auditor';
   const [auditorTab, setAuditorTab] = useState('transactions');
 
   const defaults = monthBounds();
@@ -155,6 +149,7 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Day Book"
         title="Day Book"
         subtitle={
           isAuditor
@@ -173,25 +168,22 @@ export default function TransactionsPage() {
       {!isAuditor && <FinanceModuleGuide page="transactions" />}
 
       {isAuditor && (
-        <div className="card px-4 border-b border-slate-200">
-          <div className="flex gap-4 scroll-tabs border-b border-slate-200 -mx-4 px-4">
-            {[
-              { id: 'transactions', label: 'Payments & Receipts' },
-              { id: 'salary-payments', label: 'Salary Payments' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setAuditorTab(t.id)}
-                className={cn(
-                  'py-3 text-xs font-medium border-b-2 -mb-px',
-                  auditorTab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-400'
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+        <div className="ds-tabs scroll-tabs" role="tablist">
+          {[
+            { id: 'transactions', label: 'Payments & Receipts' },
+            { id: 'salary-payments', label: 'Salary Payments' },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={auditorTab === t.id}
+              onClick={() => setAuditorTab(t.id)}
+              className={cn(auditorTab === t.id && 'ds-tab-active')}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -205,45 +197,45 @@ export default function TransactionsPage() {
             <StatCard label="Credit (Money in)" value={formatINR(creditTotal)} icon={ArrowDownLeft} />
           </div>
 
-          <div className="card p-4">
-            <div className="flex flex-col xl:flex-row gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="card overflow-hidden">
+            <div className="ds-toolbar">
+              <div className="toolbar-row">
+              <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search notes…"
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  className="ds-input pl-9 w-full"
                 />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="ds-input w-full sm:w-auto" />
+                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="ds-input w-full sm:w-auto" />
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="ds-select w-full sm:w-auto">
                   <option value="">All types</option>
                   <option value="debit">Debit</option>
                   <option value="credit">Credit</option>
                 </select>
-                <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="ds-select w-full sm:w-auto">
                   <option value="">All modes</option>
                   <option value="cash">Cash</option>
                   <option value="bank">Bank</option>
                   <option value="upi">UPI</option>
                   <option value="cheque">Cheque</option>
                 </select>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="ds-select w-full sm:w-auto">
                   <option value="">All statuses</option>
                   {PAYMENT_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>{status.label}</option>
                   ))}
                 </select>
-                <label className="inline-flex items-center gap-1.5 px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white">
+                <label className="inline-flex items-center gap-1.5 ds-input w-full sm:w-auto py-1.5">
                   <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap pl-1">Due</span>
                   <input
                     type="date"
                     value={dueDateFilter}
                     onChange={(e) => setDueDateFilter(e.target.value)}
-                    className="border-none outline-none text-sm bg-transparent py-0.5"
+                    className="border-none outline-none text-sm bg-transparent py-0.5 flex-1 min-w-0"
                     title="Due date"
                     aria-label="Due date"
                   />

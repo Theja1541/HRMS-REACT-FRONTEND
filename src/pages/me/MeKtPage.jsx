@@ -36,6 +36,7 @@ export default function MeKtPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Knowledge Transfer"
         title="My Knowledge Transfer"
         subtitle="Complete handover tasks, upload documents, and track manager approval"
       />

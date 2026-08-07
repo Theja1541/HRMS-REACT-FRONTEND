@@ -716,7 +716,7 @@ export default function MeExitPage() {
   if (!activeResignation) {
     return (
       <div className="space-y-6">
-        <PageHeader title="My Exit Status" subtitle="Your exit clearance and settlement details" />
+        <PageHeader badge="My Work · Exit" title="My Exit Status" subtitle="Your exit clearance and settlement details" />
         <div className="card p-14 text-center">
           <DoorOpen size={36} className="text-slate-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-slate-700">No active exit process</p>
@@ -729,6 +729,7 @@ export default function MeExitPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Exit"
         title="My Exit Status"
         subtitle={`${EXIT_TYPE_LABELS[exitType]} · Read-only view`}
       />

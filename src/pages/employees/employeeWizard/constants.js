@@ -1,5 +1,7 @@
 import { INITIAL_SALARY_STRUCTURE } from './salaryStructure';
 
+import { localDateString } from '../../../utils/helpers';
+
 export const INITIAL_FORM = {
   emp_code: '',
   first_name: '',
@@ -14,7 +16,7 @@ export const INITIAL_FORM = {
   system_role: 'employee',
   department_id: '',
   designation_id: '',
-  date_of_joining: new Date().toISOString().slice(0, 10),
+  date_of_joining: localDateString(),
   branch_id: '',
   employment_type: 'full_time',
   reporting_to: '',
@@ -31,6 +33,7 @@ export const INITIAL_FORM = {
   esic_number: '',
   notes: '',
   has_probation: false,
+  probation_policy_id: '',
   probation_duration_months: 6,
   status: 'active',
   emergency_contacts: [

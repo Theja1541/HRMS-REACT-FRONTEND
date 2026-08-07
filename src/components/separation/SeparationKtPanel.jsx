@@ -16,6 +16,7 @@ import {
   KT_TASK_STATUSES,
   KT_TASK_STATUS_LABELS,
 } from '../../constants/hr';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useAuthStore } from '../../store/auth.store';
 import { cn } from '../../utils/helpers';
 
@@ -64,7 +65,8 @@ function ProgressBar({ pct, detail }) {
 export default function SeparationKtPanel({ separationRequestId, planId: planIdProp, enabled = true }) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isHr = HR_ROLES.has(user?.role);
+  const role = usePortalRole();
+  const isHr = HR_ROLES.has(role);
   const [tab, setTab] = useState('tasks');
   const [successorId, setSuccessorId] = useState('');
   const [taskForm, setTaskForm] = useState({ title: '', category: 'process', is_mandatory: true });

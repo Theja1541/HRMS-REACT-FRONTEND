@@ -1,3 +1,5 @@
+import { localDateString } from '../../../utils/helpers';
+
 export const INITIAL_SALARY_STRUCTURE = {
   earnings: {
     basic: '',
@@ -327,7 +329,7 @@ export function resolveSalaryEffectiveFrom(form, currentSalary = null) {
     }
     return cur;
   }
-  return doj || new Date().toISOString().slice(0, 10);
+  return doj || localDateString();
 }
 
 export function buildSalaryAssignPayload(employeeId, effectiveFrom, structure, revisionReason, salaryStructureId = null) {

@@ -59,6 +59,10 @@ export function buildPayload(form) {
     emergency_contacts: contacts,
     notes: form.notes.trim() || null,
     has_probation: form.has_probation === true,
+    probation_policy_id:
+      form.has_probation === true && form.probation_policy_id
+        ? parseInt(form.probation_policy_id, 10)
+        : null,
     probation_duration_months:
       form.has_probation === true ? parseInt(form.probation_duration_months, 10) || 6 : null,
     status: form.has_probation === true ? 'probation' : 'active',

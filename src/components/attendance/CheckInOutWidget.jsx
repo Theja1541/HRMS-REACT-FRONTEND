@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Clock, LogIn, LogOut, RefreshCw } from 'lucide-react';
 import { attendanceApi } from '../../api';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 
 export default function CheckInOutWidget() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -10,7 +10,7 @@ export default function CheckInOutWidget() {
 
   const { data: todayRecord, isLoading, refetch } = useQuery({
     queryKey: ['today-attendance'],
-    queryFn: () => attendanceApi.list({ date: new Date().toISOString().slice(0, 10) }),
+    queryFn: () => attendanceApi.list({ date: localDateString() }),
     refetchInterval: 30000,
   });
 

@@ -55,6 +55,7 @@ export function mapEmployeeToForm(employee, salary = null) {
       if (v === false || v === 0 || v === '0' || v === 'false') return false;
       return employee.status === 'probation';
     })(),
+    probation_policy_id: employee.probation_policy_id ? String(employee.probation_policy_id) : '',
     probation_duration_months: employee.probation_duration_months || 6,
     emergency_contacts: contacts,
     salary_structure: salary

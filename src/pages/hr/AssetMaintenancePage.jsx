@@ -15,6 +15,7 @@ import {
 } from '../../constants/hr';
 import { cn, formatINR } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function formatDate(value) {
@@ -56,8 +57,9 @@ function buildPayload(form) {
 
 export default function AssetMaintenancePage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -195,6 +197,7 @@ export default function AssetMaintenancePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Assets · Maintenance"
         title="Asset Maintenance"
         subtitle="Schedule repairs, services, and inspections"
         actions={
@@ -215,21 +218,22 @@ export default function AssetMaintenancePage() {
         <StatCard label="Total Logged" value={records.length} icon={Wrench} deltaType="neutral" />
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search asset, vendor, description…"
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+              className="ds-input pl-9"
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            className="ds-select sm:min-w-[140px]"
           >
             <option value="">All statuses</option>
             {MAINTENANCE_STATUSES.map((s) => (
@@ -241,7 +245,7 @@ export default function AssetMaintenancePage() {
           <select
             value={assetFilter}
             onChange={(e) => setAssetFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm min-w-[180px]"
+            className="ds-select sm:min-w-[180px]"
           >
             <option value="">All assets</option>
             {assets.map((a) => (
@@ -250,16 +254,17 @@ export default function AssetMaintenancePage() {
               </option>
             ))}
           </select>
+          </div>
         </div>
       </div>
 
       <div className="card overflow-x-auto">
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400">Loading maintenance records…</p>
+          <p className="py-16 text-center text-slate-400 text-sm">Loading maintenance records…</p>
         ) : error ? (
-          <p className="p-8 text-center text-red-500">Failed to load maintenance records</p>
+          <p className="py-16 text-center text-red-500 text-sm">Failed to load maintenance records</p>
         ) : filtered.length === 0 ? (
-          <p className="p-12 text-center text-slate-400">No maintenance records found</p>
+          <p className="py-16 text-center text-slate-400 text-sm">No maintenance records found</p>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b">

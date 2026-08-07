@@ -53,6 +53,8 @@ export function buildUpdatePayload(form) {
     date_of_joining: dateOrNull(form.date_of_joining),
     status: form.status,
     has_probation: form.has_probation === true,
+    probation_policy_id:
+      form.has_probation === true ? numOrNull(form.probation_policy_id) : null,
     probation_duration_months:
       form.has_probation === true ? numOrNull(form.probation_duration_months) || 6 : null,
     roles,

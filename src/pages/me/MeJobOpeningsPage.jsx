@@ -247,6 +247,7 @@ export default function MeJobOpeningsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="My Work · Careers"
         title="Careers & Referrals"
         subtitle="Apply for internal roles or refer external candidates to open positions"
       />
@@ -260,16 +261,15 @@ export default function MeJobOpeningsPage() {
         </ul>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs overflow-x-auto">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px whitespace-nowrap',
-              tab === t.key ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500'
-            )}
+            className={cn(tab === t.key && 'ds-tab-active')}
           >
             {t.label}{t.count ? ` (${t.count})` : ''}
           </button>

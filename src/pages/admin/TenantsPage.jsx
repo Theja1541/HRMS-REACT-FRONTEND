@@ -156,6 +156,7 @@ export default function TenantsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Admin · Tenants"
         title="Tenants / Organizations"
         subtitle="Manage all tenants"
         actions={

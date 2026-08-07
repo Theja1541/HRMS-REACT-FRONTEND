@@ -3,21 +3,23 @@ import { useNavigate, Link } from 'react-router-dom';
 import { AlertTriangle, LogOut, RefreshCw } from 'lucide-react';
 import { authApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { getDefaultHomeRoute } from '../../constants/routeAccess';
 import { isTenantSubscriptionBlocked } from '../../utils/subscriptionAccess';
 
 export default function SubscriptionExpiredPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const role = usePortalRole();
   const entitlements = useAuthStore((s) => s.entitlements);
   const tenantName = user?.tenant?.name || user?.Tenant?.name;
   const blocked = isTenantSubscriptionBlocked(user, entitlements);
 
   useEffect(() => {
     if (user && !blocked) {
-      navigate(getDefaultHomeRoute(user.role), { replace: true });
+      navigate(getDefaultHomeRoute(role), { replace: true });
     }
-  }, [user, blocked, navigate]);
+  }, [user, blocked, navigate, role]);
 
   const handleLogout = async () => {
     try {
@@ -48,7 +50,7 @@ export default function SubscriptionExpiredPage() {
           </p>
         )}
 
-        {(user?.role === 'owner' || user?.role === 'hr') && (
+        {(role === 'owner' || role === 'hr') && (
           <Link
             to="/settings/subscription"
             className="mt-6 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors"

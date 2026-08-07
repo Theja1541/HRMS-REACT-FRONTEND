@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Trash2, Building2, Info } from 'lucide-react';
 import { brandingApi, authApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { resolveAssetUrl, cn } from '../../utils/helpers';
 
 const LOGO_HINTS = [
@@ -303,8 +304,8 @@ export function CompanyBrandingTab() {
 }
 
 export default function BrandingSettingsTab() {
-  const { user } = useAuthStore();
-  const isSuperAdmin = user?.role === 'super_admin';
+  const role = usePortalRole();
+  const isSuperAdmin = role === 'super_admin';
 
   if (isSuperAdmin) {
     return <PlatformBrandingTab />;

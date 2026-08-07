@@ -8,7 +8,7 @@ import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
 import PeriodSelector from '../../components/finance/PeriodSelector';
 import TablePagination from '../../components/shared/TablePagination';
 import { GST_TYPES } from '../../constants/finance';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, localDateString } from '../../utils/helpers';
 import { Receipt, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
@@ -20,7 +20,7 @@ export default function GSTPage() {
   const [showForm, setShowForm] = useState(false);
   const { setPage, setLimit, paginateClient } = useTablePagination({ resetDeps: [month, year] });
   const [form, setForm] = useState({
-    invoice_date: new Date().toISOString().slice(0, 10),
+    invoice_date: localDateString(),
     invoice_no: '',
     party_name: '',
     party_gstin: '',
@@ -84,6 +84,7 @@ export default function GSTPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · GST"
         title="GST"
         subtitle="GST from Day Book entries plus manual invoices for filing"
         actions={

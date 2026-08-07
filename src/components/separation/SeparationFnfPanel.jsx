@@ -14,7 +14,7 @@ import {
   FNF_SETTLEMENT_STATUS_LABELS,
 } from '../../constants/hr';
 import { useAuthStore } from '../../store/auth.store';
-import { cn } from '../../utils/helpers';
+import { cn, localDateString } from '../../utils/helpers';
 import { resolvePortalRole } from '../../utils/portalContext';
 
 const HR_ADMIN_ROLES = ['super_admin', 'owner', 'hr', 'admin'];
@@ -310,7 +310,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
 
   const [approveNotes, setApproveNotes] = useState('');
   const [paymentForm, setPaymentForm] = useState({
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: localDateString(),
     amount: '',
     payment_mode: 'neft',
     reference_number: '',
@@ -506,7 +506,7 @@ export default function SeparationFnfPanel({ separationRequestId, settlementId, 
 
   const openPayment = () => {
     setPaymentForm({
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: localDateString(),
       amount: availableBalance > 0 ? String(availableBalance) : '',
       payment_mode: 'neft',
       reference_number: '',

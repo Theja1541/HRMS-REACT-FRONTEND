@@ -50,27 +50,31 @@ export function distributePlanToRoleSelections(plan, catalogModules = []) {
 export function emptyPlanForm() {
   return {
     name: '',
+    description: '',
     monthly_price: '',
     yearly_price: '',
     employee_limit: '',
     is_active: true,
     roleSelections: emptyRoleSelections(),
+    catalogHydrated: false,
   };
 }
 
-export function planToForm(plan, catalogModules = []) {
-  const roleSelections =
-    catalogModules.length > 0
-      ? distributePlanToRoleSelections(plan, catalogModules)
-      : emptyRoleSelections();
+export function planToForm(plan, catalogModules = [], options = {}) {
+  const catalogReady = options.catalogHydrated ?? catalogModules.length > 0;
+  const roleSelections = catalogModules.length > 0
+    ? distributePlanToRoleSelections(plan, catalogModules)
+    : emptyRoleSelections();
 
   return {
     name: plan.name || '',
+    description: plan.description || '',
     monthly_price: String(plan.monthly_price ?? ''),
     yearly_price: String(plan.yearly_price ?? ''),
     employee_limit: plan.employee_limit != null ? String(plan.employee_limit) : '',
     is_active: plan.is_active !== false,
     roleSelections,
+    catalogHydrated: catalogReady,
   };
 }
 
@@ -84,6 +88,7 @@ export function formToPayload(form, catalogModules = []) {
 
   return {
     name: form.name.trim(),
+    description: form.description?.trim() || null,
     monthly_price: parseFloat(form.monthly_price) || 0,
     yearly_price: parseFloat(form.yearly_price) || 0,
     employee_limit: form.employee_limit ? parseInt(form.employee_limit, 10) : null,

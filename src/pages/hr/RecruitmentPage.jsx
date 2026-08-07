@@ -187,6 +187,7 @@ export default function RecruitmentPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Recruitment"
         title="Recruitment"
         subtitle="Internal mobility, external hiring, employee referrals, and candidate pipeline"
         actions={
@@ -209,7 +210,7 @@ export default function RecruitmentPage() {
 
       <RecruitmentWorkflowBanner careersSlug={careersSlug} />
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {[
           { key: 'openings', label: 'Job Openings' },
           { key: 'pipeline', label: `Candidate Pipeline (${applications.length})` },
@@ -217,11 +218,10 @@ export default function RecruitmentPage() {
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={cn(
-              'px-4 py-2 text-xs font-medium border-b-2 -mb-px',
-              tab === t.key ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500'
-            )}
+            className={cn(tab === t.key && 'ds-tab-active')}
           >
             {t.label}
           </button>
@@ -297,11 +297,13 @@ export default function RecruitmentPage() {
 
       {tab === 'pipeline' && (
         <div className="space-y-3">
-          <div className="card p-4 flex flex-col sm:flex-row gap-3">
+          <div className="card overflow-hidden">
+            <div className="ds-toolbar">
+              <div className="toolbar-row">
             <select
               value={pipelineOpeningFilter}
               onChange={(e) => setPipelineOpeningFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm flex-1"
+              className="ds-select flex-1 sm:min-w-[180px]"
             >
               <option value="">All openings</option>
               {openings.map((o) => (
@@ -311,16 +313,17 @@ export default function RecruitmentPage() {
             <select
               value={pipelineSourceFilter}
               onChange={(e) => setPipelineSourceFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm sm:w-48"
+              className="ds-select w-full sm:w-auto sm:min-w-[160px]"
             >
               <option value="">All sources</option>
               {APPLICATION_SOURCES.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-          </div>
+              </div>
+            </div>
 
-          <div className="card overflow-x-auto overscroll-x-contain">
+          <div className="overflow-x-auto overscroll-x-contain">
             {filteredApplications.length === 0 ? (
               <p className="p-12 text-center text-slate-400">No applications match your filters</p>
             ) : (
@@ -398,6 +401,7 @@ export default function RecruitmentPage() {
                 />
               </>
             )}
+          </div>
           </div>
         </div>
       )}

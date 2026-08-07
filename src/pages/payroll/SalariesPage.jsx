@@ -14,7 +14,7 @@ import {
   validateWizardStructure,
 } from '../employees/employeeWizard/salaryStructure';
 import { formatINR } from '../../utils/helpers';
-import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { ADMIN_ROLES } from '../../constants/routeAccess';
 
 const EMPTY_STRUCTURE = { ...INITIAL_SALARY_STRUCTURE, skip_salary: false };
@@ -34,8 +34,8 @@ const INITIAL_STRUCTURE_FORM = {
 
 export default function SalariesPage() {
   const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-  const canWrite = ADMIN_ROLES.includes(user?.role);
+  const role = usePortalRole();
+  const canWrite = ADMIN_ROLES.includes(role);
   const [showAssign, setShowAssign] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [structureForm, setStructureForm] = useState(INITIAL_STRUCTURE_FORM);
@@ -126,6 +126,7 @@ export default function SalariesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Payroll · Salaries"
         title="Salaries"
         subtitle="Employee CTC registry and salary assignments"
         actions={
@@ -139,7 +140,7 @@ export default function SalariesPage() {
 
       <div className="card overflow-x-auto">
         {isLoading ? (
-          <div className="p-8 text-center text-slate-400">Loading…</div>
+          <div className="py-16 text-center text-slate-400 text-sm">Loading salaries…</div>
         ) : (
           <table className="w-full text-sm">
             <thead>

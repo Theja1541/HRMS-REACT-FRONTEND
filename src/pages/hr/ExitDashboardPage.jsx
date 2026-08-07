@@ -29,8 +29,10 @@ import {
   YAxis,
 } from 'recharts';
 import { hrApi } from '../../api';
-import PageHeader from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/PageHeader';
+import DashboardHero from '../../components/shared/DashboardHero';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { cn, formatINR } from '../../utils/helpers';
 
 const PERIOD_OPTIONS = [
@@ -69,42 +71,16 @@ function formatDate(value) {
   }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`));
 }
 
-function MetricCard({ label, value, detail, icon: Icon, tone = 'blue', to }) {
-  const tones = {
-    blue: 'bg-blue-50 text-blue-700',
-    amber: 'bg-amber-50 text-amber-700',
-    red: 'bg-red-50 text-red-700',
-    violet: 'bg-violet-50 text-violet-700',
-    emerald: 'bg-emerald-50 text-emerald-700',
-    slate: 'bg-slate-100 text-slate-700',
-  };
-  const content = (
-    <div className="card p-4 h-full hover:border-slate-300 transition-colors">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-medium text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{value ?? 0}</p>
-          {detail && <p className="text-[10px] text-slate-400 mt-1">{detail}</p>}
-        </div>
-        <span className={cn('p-2 rounded-lg shrink-0', tones[tone])}>
-          <Icon size={17} />
-        </span>
-      </div>
-    </div>
-  );
-  return to ? <Link to={to}>{content}</Link> : content;
-}
-
-function QueueCard({ title, count, icon: Icon, to, children }) {
+function QueueCard({ title, count, icon: Icon, to, accent = 'bg-brand-600', children }) {
   return (
     <div className="card overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50/80 to-white">
         <div className="flex items-center gap-2">
-          <Icon size={15} className="text-brand-600" />
-          <h3 className="text-xs font-semibold text-slate-800">{title}</h3>
-          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
-            {count}
+          <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-sm', accent)}>
+            <Icon size={14} />
           </span>
+          <h3 className="text-xs font-semibold text-slate-800">{title}</h3>
+          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
         <Link to={to} className="text-[10px] font-medium text-brand-600 hover:underline">
           View all
@@ -124,7 +100,7 @@ function ProgressBar({ value }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-brand-500 rounded-full" style={{ width: `${safeValue}%` }} />
+        <div className="h-full bg-brand-600 rounded-full" style={{ width: `${safeValue}%` }} />
       </div>
       <span className="text-[10px] text-slate-500 w-8 text-right">{safeValue}%</span>
     </div>
@@ -133,8 +109,9 @@ function ProgressBar({ value }) {
 
 export default function ExitDashboardPage() {
   const [months, setMonths] = useState(12);
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['exit-dashboard', selectedTenantId, months],
@@ -179,23 +156,35 @@ export default function ExitDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <DashboardHero
+        badge="Exit operations"
         title="HR Exit Dashboard"
         subtitle="Exit pipeline, operational readiness, attrition, and interview insights"
+        chips={
+          !isLoading && !error
+            ? [
+                { label: 'On notice', value: summary.employees_on_notice ?? 0 },
+                { label: 'Pending F&F', value: summary.pending_fnf ?? 0, tone: 'amber' },
+                { label: 'Attrition', value: `${summary.attrition_rate || 0}%`, tone: 'rose' },
+              ]
+            : []
+        }
         actions={
           <div className="flex items-center gap-2">
             <select
               value={months}
               onChange={(event) => setMonths(Number(event.target.value))}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white"
+              className="px-3 py-1.5 rounded-lg text-xs bg-white/90 text-slate-800 border-0"
             >
               {PERIOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
             <button
               type="button"
-              className="btn-secondary text-xs"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/25 transition-colors"
               onClick={() => refetch()}
               disabled={isFetching}
             >
@@ -223,14 +212,14 @@ export default function ExitDashboardPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-            <MetricCard label="Pending resignations" value={summary.pending_resignations} icon={DoorOpen} tone="amber" to="/resignations" />
-            <MetricCard label="Pending KT" value={summary.pending_kt} icon={BookOpen} tone="violet" to="/knowledge-transfer" />
-            <MetricCard label="Pending clearances" value={summary.pending_clearances} detail={`${summary.pending_clearance_items || 0} mandatory items`} icon={ClipboardCheck} tone="blue" to="/clearance-dashboard" />
-            <MetricCard label="Asset returns" value={summary.pending_asset_returns} icon={Laptop} tone="red" to="/assets/returns" />
-            <MetricCard label="Pending F&F" value={summary.pending_fnf} icon={Banknote} tone="amber" to="/fnf-settlements" />
-            <MetricCard label="On notice" value={summary.employees_on_notice} icon={Clock3} tone="slate" to="/employees" />
-            <MetricCard label="Completed exits" value={summary.completed_exits} detail={`Last ${months} months`} icon={CheckCircle2} tone="emerald" to="/employees/archive" />
-            <MetricCard label="Attrition rate" value={`${summary.attrition_rate || 0}%`} detail={`Last ${months} months`} icon={TrendingDown} tone="red" />
+            <StatCard label="Pending resignations" value={summary.pending_resignations} icon={DoorOpen} tone="amber" to="/resignations" />
+            <StatCard label="Pending KT" value={summary.pending_kt} icon={BookOpen} tone="violet" to="/knowledge-transfer" />
+            <StatCard label="Pending clearances" value={summary.pending_clearances} delta={`${summary.pending_clearance_items || 0} mandatory items`} deltaType="neutral" icon={ClipboardCheck} tone="brand" to="/clearance-dashboard" />
+            <StatCard label="Asset returns" value={summary.pending_asset_returns} icon={Laptop} tone="rose" to="/assets/returns" />
+            <StatCard label="Pending F&F" value={summary.pending_fnf} icon={Banknote} tone="orange" to="/fnf-settlements" />
+            <StatCard label="On notice" value={summary.employees_on_notice} icon={Clock3} tone="slate" to="/employees" />
+            <StatCard label="Completed exits" value={summary.completed_exits} delta={`Last ${months} months`} deltaType="neutral" icon={CheckCircle2} tone="emerald" to="/employees/archive" />
+            <StatCard label="Attrition rate" value={`${summary.attrition_rate || 0}%`} delta={`Last ${months} months`} deltaType="neutral" icon={TrendingDown} tone="rose" />
           </div>
 
           <div className="card overflow-hidden">
@@ -288,7 +277,7 @@ export default function ExitDashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <QueueCard title="Knowledge transfer" count={summary.pending_kt || 0} icon={BookOpen} to="/knowledge-transfer">
+            <QueueCard title="Knowledge transfer" count={summary.pending_kt || 0} icon={BookOpen} to="/knowledge-transfer" accent="bg-violet-500">
               {(workflow.kt || []).length === 0 ? <EmptyQueue label="No pending KT plans" /> : (
                 <ul className="space-y-3">
                   {(workflow.kt || []).slice(0, 4).map((item) => (
@@ -304,7 +293,7 @@ export default function ExitDashboardPage() {
               )}
             </QueueCard>
 
-            <QueueCard title="Asset returns" count={summary.pending_asset_returns || 0} icon={Laptop} to="/assets/returns">
+            <QueueCard title="Asset returns" count={summary.pending_asset_returns || 0} icon={Laptop} to="/assets/returns" accent="bg-rose-500">
               {(workflow.asset_returns || []).length === 0 ? <EmptyQueue label="No pending exit asset returns" /> : (
                 <ul className="divide-y divide-slate-100">
                   {(workflow.asset_returns || []).slice(0, 4).map((item) => (
@@ -320,7 +309,7 @@ export default function ExitDashboardPage() {
               )}
             </QueueCard>
 
-            <QueueCard title="F&F settlements" count={summary.pending_fnf || 0} icon={Banknote} to="/fnf-settlements">
+            <QueueCard title="F&F settlements" count={summary.pending_fnf || 0} icon={Banknote} to="/fnf-settlements" accent="bg-amber-500">
               {(workflow.fnf || []).length === 0 ? <EmptyQueue label="No pending settlements" /> : (
                 <ul className="divide-y divide-slate-100">
                   {(workflow.fnf || []).slice(0, 4).map((item) => (

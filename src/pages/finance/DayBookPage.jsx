@@ -227,6 +227,7 @@ export default function DayBookPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Journal"
         title="Day Book"
         subtitle="All accounting entries for the selected dates"
         actions={
@@ -235,7 +236,7 @@ export default function DayBookPage() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-input"
               aria-label="From date"
             />
             <span className="text-slate-400 text-sm">to</span>
@@ -243,13 +244,13 @@ export default function DayBookPage() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-input"
               aria-label="To date"
             />
             <select
               value={voucherType}
               onChange={(e) => setVoucherType(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-select"
               aria-label="Voucher type"
             >
               {VOUCHER_TYPES.map((t) => (
@@ -261,7 +262,7 @@ export default function DayBookPage() {
             <select
               value={sourceType}
               onChange={(e) => setSourceType(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              className="ds-select"
               aria-label="Source"
             >
               {VOUCHER_SOURCE_TYPES.map((t) => (

@@ -7,6 +7,7 @@ import TablePagination from '../../components/shared/TablePagination';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS, DOCUMENT_TEMPLATE_TYPES } from '../../constants/hr';
 import { useTablePagination, normalizePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 
 function empName(emp) {
   if (!emp) return '—';
@@ -68,8 +69,9 @@ function triggerBlobDownload(blob, filename) {
 }
 
 export default function DocumentGenerationHistoryPage() {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [employeeId, setEmployeeId] = useState('');
   const [documentType, setDocumentType] = useState('');
@@ -147,20 +149,22 @@ export default function DocumentGenerationHistoryPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Documents"
         title="Document Generation History"
         subtitle="Immutable snapshots of letters and certificates generated from templates"
       />
 
-      <div className="card">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-end gap-3">
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row flex-wrap items-end">
+          <div className="relative flex-1 min-w-0 sm:max-w-xs">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search employee…"
-              className="pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs w-44"
+              className="ds-input pl-9 w-full"
             />
           </div>
 
@@ -169,7 +173,7 @@ export default function DocumentGenerationHistoryPage() {
             <select
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs min-w-[180px]"
+              className="ds-select min-w-[180px]"
             >
               <option value="">All employees</option>
               {(Array.isArray(employees) ? employees : []).map((emp) => (
@@ -185,7 +189,7 @@ export default function DocumentGenerationHistoryPage() {
             <select
               value={documentType}
               onChange={(e) => setDocumentType(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs min-w-[160px]"
+              className="ds-select min-w-[160px]"
             >
               <option value="">All types</option>
               {DOCUMENT_TEMPLATE_TYPES.map((t) => (
@@ -202,7 +206,7 @@ export default function DocumentGenerationHistoryPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+              className="ds-input"
             />
           </div>
 
@@ -212,7 +216,7 @@ export default function DocumentGenerationHistoryPage() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+              className="ds-input"
             />
           </div>
 
@@ -237,6 +241,7 @@ export default function DocumentGenerationHistoryPage() {
               <Loader2 size={12} className="animate-spin" /> Updating…
             </span>
           )}
+          </div>
         </div>
 
         {actionError && (

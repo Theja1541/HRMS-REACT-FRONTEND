@@ -347,57 +347,76 @@ export default function EmployeeDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => navigate('/employees')} className="btn-secondary p-2">
-          <ArrowLeft size={14} />
-        </button>
-        <Avatar name={`${emp.first_name} ${emp.last_name}`} size="lg" />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-semibold text-slate-900">
-            {emp.first_name} {emp.last_name}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {emp.emp_code} · {emp.designation?.name || 'No designation'} · {emp.department?.name || 'No department'}
-          </p>
-          {!emp.is_portal_active && (
-            <p className="text-xs text-red-600 font-medium mt-0.5">Portal access deactivated</p>
-          )}
-        </div>
-        <StatusBadge status={emp.status} />
-        {!editing ? (
-          <>
-            {emp.status === 'separated' || emp.exit_date ? (
-              <GenerateExperienceLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
-            ) : (
-              <GenerateOfferLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-brand-700 to-sky-500 p-5 sm:p-6 text-white shadow-lg shadow-brand-600/25">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, #fff 0.8px, transparent 1px), radial-gradient(circle at 80% 60%, #fff 0.8px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
+          aria-hidden
+        />
+        <div className="relative flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/employees')}
+            className="p-2 rounded-lg bg-white/15 text-white hover:bg-white/25 transition-colors"
+            aria-label="Back to employees"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <Avatar name={`${emp.first_name} ${emp.last_name}`} size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium text-sky-100/90 mb-0.5">People · Employee</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {emp.first_name} {emp.last_name}
+            </h1>
+            <p className="text-sm text-sky-100/90">
+              {emp.emp_code} · {emp.designation?.name || 'No designation'} · {emp.department?.name || 'No department'}
+            </p>
+            {!emp.is_portal_active && (
+              <p className="text-xs text-rose-200 font-medium mt-0.5">Portal access deactivated</p>
             )}
-            <button
-              type="button"
-              onClick={() => resendWelcomeMutation.mutate()}
-              disabled={resendWelcomeMutation.isPending || !emp.email}
-              className="btn-secondary"
-              title="Resend welcome email with new temporary password"
-            >
-              <Mail size={14} /> {resendWelcomeMutation.isPending ? 'Sending…' : 'Resend Login'}
-            </button>
-            <button type="button" onClick={startEdit} className="btn-primary">Edit Profile</button>
-          </>
-        ) : (
-          <div className="flex gap-2">
-            <button type="button" onClick={cancelEdit} className="btn-secondary">Cancel</button>
-            <button type="button" onClick={handleSave} disabled={updateMutation.isPending} className="btn-primary">
-              <Save size={14} /> {updateMutation.isPending ? 'Saving…' : 'Save'}
-            </button>
           </div>
-        )}
+          <StatusBadge status={emp.status} />
+          <div className="page-hero-actions flex flex-wrap items-center gap-2">
+            {!editing ? (
+              <>
+                {emp.status === 'separated' || emp.exit_date ? (
+                  <GenerateExperienceLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
+                ) : (
+                  <GenerateOfferLetterAction employeeId={emp.id} employeeCode={emp.emp_code} />
+                )}
+                <button
+                  type="button"
+                  onClick={() => resendWelcomeMutation.mutate()}
+                  disabled={resendWelcomeMutation.isPending || !emp.email}
+                  className="btn-secondary"
+                  title="Resend welcome email with new temporary password"
+                >
+                  <Mail size={14} /> {resendWelcomeMutation.isPending ? 'Sending…' : 'Resend Login'}
+                </button>
+                <button type="button" onClick={startEdit} className="btn-primary">Edit Profile</button>
+              </>
+            ) : (
+              <div className="flex gap-2">
+                <button type="button" onClick={cancelEdit} className="btn-secondary">Cancel</button>
+                <button type="button" onClick={handleSave} disabled={updateMutation.isPending} className="btn-primary">
+                  <Save size={14} /> {updateMutation.isPending ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {credentialsNotice && (
         <div
           className={
             credentialsNotice.email_sent
-              ? 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'
-              : 'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+              ? 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'
+              : 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
           }
         >
           {credentialsNotice.error ? (
@@ -417,20 +436,21 @@ export default function EmployeeDetailPage() {
       )}
 
       <div className="card">
-        <div className="flex border-b border-slate-200 px-4 overflow-x-auto">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => handleTabChange(t.id)}
-              className={cn(
-                'px-4 py-3 text-xs font-medium border-b-2 -mb-px whitespace-nowrap',
-                tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-400'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="ds-toolbar">
+          <div className="ds-tabs scroll-tabs" role="tablist">
+            {visibleTabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => handleTabChange(t.id)}
+                className={cn(tab === t.id && 'ds-tab-active')}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="p-6">

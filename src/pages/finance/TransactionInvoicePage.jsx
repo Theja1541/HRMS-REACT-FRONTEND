@@ -5,12 +5,14 @@ import { Printer, ArrowLeft } from 'lucide-react';
 import { financeApi } from '../../api';
 import TaxInvoiceDocument from '../../components/finance/TaxInvoiceDocument';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { printElementById } from '../../utils/printDocument';
 
 export default function TransactionInvoicePage() {
   const { id } = useParams();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   useEffect(() => {
     document.body.classList.add('document-print-page');

@@ -14,6 +14,7 @@ import { RESIGNATION_STATUS, RESIGNATION_STATUS_LABELS } from '../../constants/h
 import { calculateExpectedLwd } from '../../utils/resignationLwd';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
 function formatDate(value) {
@@ -170,8 +171,9 @@ function ApproveModal({ target, onClose, onConfirm, isPending, error }) {
 
 export default function ResignationPage() {
   const queryClient = useQueryClient();
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
 
   const [tab, setTab] = useState('hr-queue');
   const [statusFilter, setStatusFilter] = useState('');
@@ -254,6 +256,7 @@ export default function ResignationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Resignations"
         subtitle="Review employee resignations, approve exits, and view approval history"
         actions={
@@ -282,7 +285,8 @@ export default function ResignationPage() {
         <StatCard label="Rejected" value={stats.rejected} icon={X} deltaType="neutral" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="ds-tabs scroll-tabs" role="tablist">
         {[
           { id: 'hr-queue', label: `HR Queue (${hrQueue.length})` },
           { id: 'all', label: 'All Requests' },
@@ -290,21 +294,21 @@ export default function ResignationPage() {
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-              tab === t.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-            )}
+            className={cn(tab === t.id && 'ds-tab-active')}
           >
             {t.label}
           </button>
         ))}
+        </div>
 
         {tab === 'all' && (
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="ml-auto text-xs border border-slate-200 rounded-lg px-2 py-1.5"
+            className="ds-select w-full sm:w-auto sm:min-w-[150px] sm:ml-auto"
           >
             <option value="">All statuses</option>
             {Object.entries(RESIGNATION_STATUS_LABELS).map(([value, label]) => (

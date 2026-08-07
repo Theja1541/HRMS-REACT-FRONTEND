@@ -69,6 +69,7 @@ export default function KnowledgeTransferPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="People · Exit"
         title="Knowledge Transfer"
         subtitle="Enterprise handover — successors, sessions, documents, repositories, access checklist, manager review"
         actions={
@@ -96,17 +97,19 @@ export default function KnowledgeTransferPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="card overflow-hidden">
+        <div className="ds-toolbar">
+          <div className="toolbar-row">
+        <div className="relative flex-1 min-w-0 sm:max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
-            className="input text-xs pl-8 w-56"
+            className="ds-input pl-9 w-full"
             placeholder="Search employee…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input text-xs w-44" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="ds-select w-full sm:w-auto sm:min-w-[160px]" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
           {Object.entries(KT_PLAN_STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>
@@ -115,24 +118,28 @@ export default function KnowledgeTransferPage() {
           ))}
         </select>
         {isHr ? (
-          <Link to="/separation" className="btn-secondary text-xs ml-auto">
+          <Link to="/separation" className="btn-secondary text-xs sm:ml-auto">
             <BookOpen size={14} /> Separations
           </Link>
         ) : (
-          <Link to="/resignations" className="btn-secondary text-xs ml-auto">
+          <Link to="/resignations" className="btn-secondary text-xs sm:ml-auto">
             <BookOpen size={14} /> Resignations
           </Link>
         )}
-      </div>
+          </div>
+        </div>
 
-      <div className="card overflow-x-auto">
+      <div className="overflow-x-auto">
         {isLoading ? (
-          <p className="p-8 text-center text-slate-400 text-xs">Loading…</p>
+          <p className="p-8 text-center text-slate-400 text-xs">Loading knowledge transfer plans…</p>
         ) : filtered.length === 0 ? (
-          <p className="p-12 text-center text-slate-400 text-xs">
-            No knowledge transfer plans in your scope. Plans appear here when you are the manager,
-            successor, or leaving employee.
-          </p>
+          <div className="p-12 text-center">
+            <BookOpen size={32} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-600">No knowledge transfer plans</p>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Plans appear here when you are the manager, successor, or leaving employee.
+            </p>
+          </div>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b">
@@ -201,6 +208,7 @@ export default function KnowledgeTransferPage() {
             onLimitChange={setLimit}
           />
         )}
+      </div>
       </div>
 
       {selectedPlanId && (

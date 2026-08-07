@@ -14,6 +14,7 @@ import StatusBadge, { Avatar } from '../../components/shared/StatusBadge';
 import { LEAVE_STATUS } from '../../constants/hr';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { format, parseISO } from 'date-fns';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { formatLeaveDays, leaveBalanceSubtitle } from '../../utils/leaveFormat';
@@ -31,10 +32,11 @@ const emptyApplyForm = {
 export default function LeavesPage({ selfService = false }) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const isManager = !selfService && ['super_admin', 'owner', 'hr', 'manager'].includes(user?.role);
-  const isAdmin = !selfService && ['super_admin', 'owner', 'hr'].includes(user?.role);
-  const isEmployee = user?.role === 'employee';
-  const isManagerRole = !selfService && user?.role === 'manager';
+  const role = usePortalRole();
+  const isManager = !selfService && ['super_admin', 'owner', 'hr', 'manager'].includes(role);
+  const isAdmin = !selfService && ['super_admin', 'owner', 'hr'].includes(role);
+  const isEmployee = role === 'employee';
+  const isManagerRole = !selfService && role === 'manager';
   const [tab, setTab] = useState('requests');
   const [pageSection, setPageSection] = useState('leave');
   const [scope, setScope] = useState('my');
@@ -383,6 +385,7 @@ export default function LeavesPage({ selfService = false }) {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge={selfService ? undefined : 'People · Leave'}
         title={pageTitle}
         subtitle={pageSubtitle}
         actions={
@@ -392,7 +395,7 @@ export default function LeavesPage({ selfService = false }) {
                 <Settings2 size={14} /> Leave Settings
               </Link>
             )}
-            {selfService && user?.role === 'manager' && (
+            {selfService && role === 'manager' && (
               <Link to="/leaves" className="btn-secondary text-xs">
                 Team approvals →
               </Link>
@@ -406,7 +409,7 @@ export default function LeavesPage({ selfService = false }) {
         }
       />
 
-      <div className="flex gap-1 border-b border-slate-200 scroll-tabs">
+      <div className="ds-tabs scroll-tabs" role="tablist">
         {[
           { id: 'leave', label: 'Leave Requests' },
           { id: 'comp-off', label: 'Comp-off' },
@@ -415,13 +418,10 @@ export default function LeavesPage({ selfService = false }) {
           <button
             key={section.id}
             type="button"
+            role="tab"
+            aria-selected={pageSection === section.id}
             onClick={() => setPageSection(section.id)}
-            className={cn(
-              'px-4 py-2.5 text-xs font-medium border-b-2 -mb-px',
-              pageSection === section.id
-                ? 'border-brand-600 text-brand-600'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            )}
+            className={cn(pageSection === section.id && 'ds-tab-active')}
           >
             {section.label}
           </button>
@@ -480,41 +480,43 @@ export default function LeavesPage({ selfService = false }) {
         )}
       </div>
 
-      <div className="card">
+      <div className="card overflow-hidden">
         {isManagerRole && (
-          <div className="px-4 border-b border-slate-200 flex gap-4">
-            {[
-              { id: 'my', label: 'My Requests' },
-              { id: 'team', label: 'Team Requests' },
-            ].map((s) => (
+          <div className="ds-toolbar pb-0 border-b-0">
+            <div className="ds-tabs scroll-tabs" role="tablist">
+              {[
+                { id: 'my', label: 'My Requests' },
+                { id: 'team', label: 'Team Requests' },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === s.id}
+                  onClick={() => setScope(s.id)}
+                  className={cn(scope === s.id && 'ds-tab-active')}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className={cn('ds-toolbar', isManagerRole && 'pt-2')}>
+          <div className="ds-tabs scroll-tabs" role="tablist">
+            {['requests', 'pending'].map((t) => (
               <button
-                key={s.id}
+                key={t}
                 type="button"
-                onClick={() => setScope(s.id)}
-                className={cn(
-                  'py-3 text-xs font-medium border-b-2 -mb-px',
-                  scope === s.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-400'
-                )}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={cn(tab === t && 'ds-tab-active', 'capitalize')}
               >
-                {s.label}
+                {t === 'pending' ? `Pending (${pending.length})` : selfService ? 'My Requests' : 'All Requests'}
               </button>
             ))}
           </div>
-        )}
-        <div className="px-4 border-b border-slate-200 flex gap-4">
-          {['requests', 'pending'].map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={cn(
-                'py-3 text-xs font-medium border-b-2 -mb-px capitalize',
-                tab === t ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-400'
-              )}
-            >
-              {t === 'pending' ? `Pending (${pending.length})` : selfService ? 'My Requests' : 'All Requests'}
-            </button>
-          ))}
         </div>
 
         {requestsLoading ? (

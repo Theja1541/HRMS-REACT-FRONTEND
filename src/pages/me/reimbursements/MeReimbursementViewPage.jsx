@@ -76,7 +76,7 @@ export default function MeReimbursementViewPage() {
   if (isDraft && !draft) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Claim not found" subtitle="This draft may have been deleted" />
+        <PageHeader badge="My Work · Reimbursements" title="Claim not found" subtitle="This draft may have been deleted" />
         <Link to="/me/reimbursements" className="btn-secondary text-xs inline-flex items-center gap-1.5">
           <ArrowLeft size={14} /> Back to list
         </Link>
@@ -100,7 +100,7 @@ export default function MeReimbursementViewPage() {
   if (!claim) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Claim not found" subtitle="You can only view your own reimbursement claims" />
+        <PageHeader badge="My Work · Reimbursements" title="Claim not found" subtitle="You can only view your own reimbursement claims" />
         <Link to="/me/reimbursements" className="btn-secondary text-xs inline-flex items-center gap-1.5">
           <ArrowLeft size={14} /> Back to list
         </Link>
@@ -116,9 +116,9 @@ export default function MeReimbursementViewPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <PageHeader
+        badge="My Work · Reimbursements"
         title={claimDisplayId(claim)}
         subtitle={`${categoryLabel(claim.category)} · ${formatINR(claim.amount)}`}
-        breadcrumbs={['My Reimbursements', claimDisplayId(claim)]}
         actions={(
           <div className="flex flex-wrap gap-2">
             {isDraft && (

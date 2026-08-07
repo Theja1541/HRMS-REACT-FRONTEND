@@ -4,6 +4,7 @@ import { CheckCircle2, Eye, EyeOff, Mail, RefreshCw, Save, Send } from 'lucide-r
 import { format, parseISO } from 'date-fns';
 import { smtpApi } from '../../api';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import TablePagination from '../../components/shared/TablePagination';
 import {
   SMTP_PROVIDERS,
@@ -32,8 +33,9 @@ const inputCls = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm fo
 
 export default function SmtpSettingsTab() {
   const queryClient = useQueryClient();
-  const { user, selectedTenantId } = useAuthStore();
-  const isSuperAdmin = user?.role === 'super_admin';
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const isSuperAdmin = role === 'super_admin';
   const [scope, setScope] = useState(isSuperAdmin && !selectedTenantId ? 'global' : 'company');
   const [form, setForm] = useState(emptySmtpForm());
   const [showPassword, setShowPassword] = useState(false);

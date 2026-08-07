@@ -19,7 +19,7 @@ import FinanceModuleGuide from '../../components/finance/FinanceModuleGuide';
 import PeriodSelector from '../../components/finance/PeriodSelector';
 import TablePagination from '../../components/shared/TablePagination';
 import { PAYROLL_STATUS_LABELS } from '../../constants/finance';
-import { formatINR } from '../../utils/helpers';
+import { formatINR, localDateString } from '../../utils/helpers';
 import { Banknote, TrendingUp, Users, Landmark } from 'lucide-react';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
@@ -32,7 +32,7 @@ export default function FinanceSummaryPage() {
   const range = useMemo(() => {
     const mm = String(month).padStart(2, '0');
     const from = `${year}-${mm}-01`;
-    const to = new Date(year, month, 0).toISOString().slice(0, 10);
+    const to = localDateString(new Date(year, month, 0));
     return { from, to };
   }, [month, year]);
 
@@ -83,6 +83,7 @@ export default function FinanceSummaryPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge="Finance · Summary"
         title="Financial Summary"
         subtitle="Day Book and Payroll summary for the selected month"
         actions={<PeriodSelector month={month} year={year} onMonthChange={setMonth} onYearChange={setYear} />}

@@ -20,10 +20,12 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { hrApi } from '../../api';
-import PageHeader, { StatCard } from '../../components/shared/PageHeader';
+import { StatCard } from '../../components/shared/PageHeader';
+import DashboardHero, { DashboardSection } from '../../components/shared/DashboardHero';
 import TablePagination from '../../components/shared/TablePagination';
 import { cn } from '../../utils/helpers';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import { format, parseISO } from 'date-fns';
 import { useTablePagination } from '../../hooks/useTablePagination';
 
@@ -47,9 +49,10 @@ function formatWarrantyDate(value) {
 }
 
 export default function AssetDashboardPage() {
-  const { selectedTenantId, user } = useAuthStore();
-  const tenantRequired = user?.role === 'super_admin' && !selectedTenantId;
-  const isManagerView = user?.role === 'manager';
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
+  const tenantRequired = role === 'super_admin' && !selectedTenantId;
+  const isManagerView = role === 'manager';
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['asset-dashboard', selectedTenantId],
@@ -88,22 +91,35 @@ export default function AssetDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <DashboardHero
+        badge="Asset management"
         title="Asset Dashboard"
-        subtitle={isManagerView ? 'Read-only overview of company assets' : 'Overview of company assets, assignments, and return requests'}
+        subtitle={
+          isManagerView
+            ? 'Read-only overview of company assets'
+            : 'Overview of company assets, assignments, and return requests'
+        }
+        chips={[
+          { label: 'Total', value: summary?.total_assets ?? 0 },
+          { label: 'Available', value: summary?.available_assets ?? 0, tone: 'emerald' },
+          { label: 'Returns', value: summary?.pending_return_requests ?? 0, tone: 'amber' },
+        ]}
         actions={
           !isManagerView && (
-          <div className="flex items-center gap-2">
-            <Link to="/assets" className="btn-secondary text-xs">
-              <Laptop size={14} /> Registry
-            </Link>
-            <Link to="/assets/categories" className="btn-secondary text-xs">
-              <LayoutGrid size={14} /> Categories
-            </Link>
-            <Link to="/assets/maintenance" className="btn-secondary text-xs">
-              Maintenance
-            </Link>
-          </div>
+            <>
+              <Link
+                to="/assets"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-sky-50 transition-colors"
+              >
+                <Laptop size={14} /> Registry
+              </Link>
+              <Link
+                to="/assets/categories"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/25 transition-colors"
+              >
+                <LayoutGrid size={14} /> Categories
+              </Link>
+            </>
           )
         }
       />
@@ -114,55 +130,77 @@ export default function AssetDashboardPage() {
         <div className="text-center py-16 text-red-500">Failed to load dashboard</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-            <StatCard label="Total Assets" value={summary?.total_assets ?? 0} icon={Laptop} />
-            <StatCard
-              label="Available"
-              value={summary?.available_assets ?? 0}
-              icon={CheckCircle2}
-              delta="Ready to assign"
-              deltaType="neutral"
-            />
-            <StatCard
-              label="Assigned"
-              value={summary?.assigned_assets ?? 0}
-              icon={UserCheck}
-              delta="With employees"
-              deltaType="neutral"
-            />
-            <StatCard
-              label="Retired"
-              value={summary?.retired_assets ?? 0}
-              icon={Archive}
-              delta="Out of circulation"
-              deltaType="neutral"
-            />
-            <StatCard
-              label="Pending Returns"
-              value={summary?.pending_return_requests ?? 0}
-              icon={RotateCcw}
-              delta={(summary?.pending_return_requests ?? 0) > 0 ? 'Review queue →' : 'All clear'}
-              deltaType={(summary?.pending_return_requests ?? 0) > 0 ? 'up' : 'neutral'}
-            />
-          </div>
-
-          {((summary?.warranty_expired ?? 0) > 0 || (summary?.warranty_expiring_soon ?? 0) > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <DashboardSection title="Inventory">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
               <StatCard
-                label="Warranty Expiring"
-                value={summary?.warranty_expiring_soon ?? 0}
-                icon={ShieldAlert}
-                delta={`Within ${alertDays} days`}
-                deltaType="neutral"
+                label="Total Assets"
+                value={summary?.total_assets ?? 0}
+                icon={Laptop}
+                tone="brand"
+                to="/assets"
               />
               <StatCard
-                label="Warranty Expired"
-                value={summary?.warranty_expired ?? 0}
-                icon={ShieldAlert}
-                delta="Needs attention"
-                deltaType={(summary?.warranty_expired ?? 0) > 0 ? 'up' : 'neutral'}
+                label="Available"
+                value={summary?.available_assets ?? 0}
+                icon={CheckCircle2}
+                delta="Ready to assign"
+                deltaType="neutral"
+                tone="emerald"
+                to="/assets"
+              />
+              <StatCard
+                label="Assigned"
+                value={summary?.assigned_assets ?? 0}
+                icon={UserCheck}
+                delta="With employees"
+                deltaType="neutral"
+                tone="sky"
+                to="/assets"
+              />
+              <StatCard
+                label="Retired"
+                value={summary?.retired_assets ?? 0}
+                icon={Archive}
+                delta="Out of circulation"
+                deltaType="neutral"
+                tone="slate"
+                to="/assets"
+              />
+              <StatCard
+                label="Pending Returns"
+                value={summary?.pending_return_requests ?? 0}
+                icon={RotateCcw}
+                delta={(summary?.pending_return_requests ?? 0) > 0 ? 'Review queue →' : 'All clear'}
+                deltaType={(summary?.pending_return_requests ?? 0) > 0 ? 'down' : 'neutral'}
+                tone="amber"
+                to={isManagerView ? undefined : '/assets/returns'}
               />
             </div>
+          </DashboardSection>
+
+          {((summary?.warranty_expired ?? 0) > 0 || (summary?.warranty_expiring_soon ?? 0) > 0) && (
+            <DashboardSection title="Warranty alerts" accent="bg-rose-500">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StatCard
+                  label="Warranty Expiring"
+                  value={summary?.warranty_expiring_soon ?? 0}
+                  icon={ShieldAlert}
+                  delta={`Within ${alertDays} days`}
+                  deltaType="neutral"
+                  tone="orange"
+                  to="/assets"
+                />
+                <StatCard
+                  label="Warranty Expired"
+                  value={summary?.warranty_expired ?? 0}
+                  icon={ShieldAlert}
+                  delta="Needs attention"
+                  deltaType={(summary?.warranty_expired ?? 0) > 0 ? 'down' : 'neutral'}
+                  tone="rose"
+                  to="/assets"
+                />
+              </div>
+            </DashboardSection>
           )}
 
           {(summary?.pending_return_requests ?? 0) > 0 && !isManagerView && (

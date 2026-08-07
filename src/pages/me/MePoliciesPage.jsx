@@ -18,6 +18,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import TablePagination from '../../components/shared/TablePagination';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import { useAuthStore } from '../../store/auth.store';
+import { usePortalRole } from '../../hooks/usePortalRole';
 import {
   formatPolicyDate,
   formatPolicyVersion,
@@ -351,8 +352,8 @@ function PolicyViewModal({ policy, onClose, onAcknowledged, isAdmin }) {
 export default function MePoliciesPage() {
   const location = useLocation();
   const isHrAdminView = location.pathname.startsWith('/people/policy-documents');
-  const { user, selectedTenantId } = useAuthStore();
-  const role = user?.role || user?.system_role;
+  const { selectedTenantId } = useAuthStore();
+  const role = usePortalRole();
   const isAdmin = ['super_admin', 'owner', 'hr'].includes(role);
   const tenantRequired = role === 'super_admin' && !selectedTenantId;
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -393,6 +394,7 @@ export default function MePoliciesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        badge={isHrAdminView ? 'People · Policies' : 'My Work · Policies'}
         title={isHrAdminView ? 'Policy Documents' : 'Company Policies'}
         subtitle={pageSubtitle}
         actions={
@@ -420,7 +422,7 @@ export default function MePoliciesPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
+              className="ds-select text-xs"
             >
               <option value="">All categories</option>
               {Object.entries(POLICY_CATEGORIES).map(([value, label]) => (
